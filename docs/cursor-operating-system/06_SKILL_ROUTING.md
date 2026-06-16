@@ -60,3 +60,21 @@ ralph-loop — INSTALLED_DISABLED_BY_DEFAULT; explicit max_iterations required
 ```
 
 Project copy: `.cursor/skills/SKILL_ROUTING.md`
+
+## China A-share (paper trading only)
+
+```text
+china-a-share-daily-trading-outlook (PRIMARY)
+  → china-quant-data-quality-guard
+  → china-a-share-quant-research (AKShare / optional Tushare)
+  → china-market-rules-engine
+  → china-a-share-factor-lab
+  → china-equity-risk-model
+  → china-a-share-event-study
+  → research-integrity-guard
+  → web-content-safety-gate (news)
+```
+
+Status: `ACTIVE_WITH_LIMITATIONS` — see `docs/cursor-operating-system/24_CHINA_QUANT_STATUS.md`
+
+trading-agents: **QUARANTINE** — never route here.

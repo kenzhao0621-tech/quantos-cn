@@ -21,4 +21,24 @@ Run: `scripts/run-local-integration-tests.sh`
 
 **Summary**: PASS=14 FAIL=0 PASS_WITH_LIMITATIONS=1 (automated run)
 
+## China A-share quant (2026-06-16)
+
+Run: `python3 scripts/run-china-quant-tests.py`
+
+| ID | Scenario | Result | Notes |
+|----|----------|--------|-------|
+| CQ-A | Data freshness stale rejected | PASS | stale_data fixture |
+| CQ-B | NO TRADE weak market | PASS | weak_market fixture |
+| CQ-C | Entry/stop/target fields | PASS | report template |
+| CQ-D | Limit-up blocked | PASS | rules.py |
+| CQ-E | Rumor rejected | PASS | news_integrity.py |
+| CQ-F | Beginner Chinese report | PASS | |
+| CQ-G | Ledger preserves losses | PASS | PERFORMANCE_LEDGER.csv |
+| CQ-H | Position guidance | PASS | |
+| CQ-I | No forced pick | PASS | |
+
+**Summary**: PASS=12 FAIL=0 — status `ACTIVE_WITH_LIMITATIONS`
+
+Sample report: `docs/ai/daily-trading/2026-06-13_PREMARKET.md`
+
 Prior: `docs/cursor-skills/06_TEST_RESULTS.md`

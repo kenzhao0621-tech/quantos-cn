@@ -1,0 +1,12 @@
+{
+  "trade_date": "2026-06-13",
+  "sh_index_close": 3050.12,
+  "sh_index_change_pct": -2.35,
+  "sz_index_close": 9850.0,
+  "cyb_index_change_pct": -3.1,
+  "data_timestamp": "2026-06-13T15:00:00",
+  "source": "fixture",
+  "status": "PREVIOUS_CLOSE",
+  "advance_count": 800,
+  "decline_count": 4200
+}

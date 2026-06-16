@@ -1,0 +1,2 @@
+date,candidate,entry_condition,triggered,entry_price,stop,target1,target2,exit,return_pct,mfe,mae,result,lesson
+2026-06-13,NO_TRADE,无满足条件 setup,no,,,,,,,,,success_preservation,弱势市场正确观望

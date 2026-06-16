@@ -74,6 +74,21 @@ else
   log "PASS secret scan tracked"; PASS=$((PASS+1))
 fi
 
+# China quant Tests A–I
+section "China A-share quant"
+if python3 scripts/run-china-quant-tests.py 2>&1 | tee /tmp/china-quant-test.log | tail -1 | grep -q 'FAIL=0'; then
+  log "PASS china-quant tests A-I"; PASS=$((PASS+1))
+else
+  log "FAIL china-quant tests"; FAIL=$((FAIL+1))
+fi
+for s in china-a-share-daily-trading-outlook china-market-rules-engine china-quant-data-quality-guard; do
+  if [ -f ".cursor/skills/$s/SKILL.md" ]; then
+    log "PASS skill $s"; PASS=$((PASS+1))
+  else
+    log "FAIL skill $s"; FAIL=$((FAIL+1))
+  fi
+done
+
 echo ""
 echo "SUMMARY: PASS=$PASS FAIL=$FAIL PASS_WITH_LIMITATIONS=$PWL"
 exit $(( FAIL > 0 ? 1 : 0 ))

@@ -1,0 +1,3 @@
+# China A-share quant tooling — pinned for reproducibility
+# Install: python3 -m venv .venv-china-quant && .venv-china-quant/bin/pip install -r docs/ai/requirements-china-quant-pins.txt
+akshare==1.16.72

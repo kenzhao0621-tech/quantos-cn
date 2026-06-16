@@ -52,6 +52,23 @@ repo-cartographer → refactor-lens (FALLBACK) → code-simplifier
 
 See `docs/cursor-operating-system/06_SKILL_ROUTING.md`.
 
+## China A-share daily outlook (PAPER_TRADING_ONLY)
+
+| Task | PRIMARY |
+|------|---------|
+| A股、大盘、板块、今日买什么、盘前简报 | **china-a-share-daily-trading-outlook** |
+| T+1 / 涨跌停 / 停牌规则 | china-market-rules-engine |
+| 数据时效 / 交易日历 | china-quant-data-quality-guard |
+| 公开数据拉取 / 新闻研究 | china-a-share-quant-research → web-content-safety-gate |
+| 100分制评分 | china-a-share-factor-lab |
+| 止损止盈仓位 | china-equity-risk-model |
+| 公告催化 | china-a-share-event-study → research-integrity-guard |
+| 回测（仅用户请求） | china-a-share-backtest-engine |
+
+CLI: `.venv-china-quant/bin/python tools/china_quant/cli.py premarket`
+
+**Do NOT** use trading-agents (QUARANTINE) or agent-reach xueqiu for quant pipeline.
+
 ## PRIMARY quick reference
 
 | Task | PRIMARY |

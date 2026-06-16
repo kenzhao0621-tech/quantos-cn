@@ -82,6 +82,26 @@ rm -rf .cursor/skill-sources/agent-reach/.venv
 # skill-sources is gitignored; sparse clone remains
 ```
 
+## Remove China quant stack
+
+```bash
+rm -rf .venv-china-quant
+rm -rf tools/china_quant
+rm -rf .cursor/skills/china-a-share-daily-trading-outlook
+rm -rf .cursor/skills/china-a-share-quant-research
+rm -rf .cursor/skills/china-market-rules-engine
+rm -rf .cursor/skills/china-quant-data-quality-guard
+rm -rf .cursor/skills/china-a-share-factor-lab
+rm -rf .cursor/skills/china-a-share-backtest-engine
+rm -rf .cursor/skills/china-equity-risk-model
+rm -rf .cursor/skills/china-a-share-event-study
+rm -rf docs/test-fixtures/china-quant
+rm -f scripts/run-china-quant-tests.py
+rm -f docs/ai/CHINA_QUANT.md docs/cursor-operating-system/24_CHINA_QUANT_STATUS.md
+# Keep ledger history unless full reset:
+# rm -rf docs/ai/daily-trading
+```
+
 ## Record changes
 
 Every install commit should update `docs/ai/DECISIONS.md` and `MANIFEST.json` with file list and upstream commit SHA.

@@ -21,3 +21,18 @@
 ## Prior (skills audit)
 
 See `docs/cursor-skills/04_INSTALLATION_DECISIONS.md` for Round 1–2 skill install matrix.
+
+## 2026-06-16 — China A-share daily outlook
+
+**Decision**: Install 8 China quant skills with single PRIMARY `china-a-share-daily-trading-outlook`.  
+**Why**: Desktop spec; no duplicate existing skills; trading-agents stays QUARANTINE.  
+**Alternatives**: Install trading-agents — rejected (live trading risk).
+
+**Decision**: AKShare as primary data (`akshare==1.16.72` in `.venv-china-quant`); Tushare optional via `TUSHARE_TOKEN`.  
+**Why**: Free public data; no credential required for baseline.
+
+**Decision**: Status `ACTIVE_WITH_LIMITATIONS` — sector/screen pipeline scaffold only; full `ACTIVE` after live trading-day verification.  
+**Why**: Honest limitation marking per spec §25.
+
+**Decision**: PAPER_TRADING_ONLY; no OS-level scheduler; notification templates only.  
+**Why**: Safety boundary; user confirms all real orders.
