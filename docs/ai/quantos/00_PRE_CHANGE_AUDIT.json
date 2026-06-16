@@ -1,0 +1,16 @@
+{
+  "generated_at": "2026-06-16T21:45:00Z",
+  "pre_change_commit": "0f6f950",
+  "backup": ".cursor-backups/quantos-vnpy-qlib-20260616-213530",
+  "preserved_systems": [
+    "FastAPI Gateway",
+    "Chinese Portal",
+    "DuckDB/Parquet warehouse",
+    "Risk Engine",
+    "Paper/Shadow framework",
+    "RAG/Memory",
+    "PDF reports"
+  ],
+  "new_integrations": ["integrations/vnpy", "integrations/qlib", "services/vnpy_runtime"],
+  "conflicts": "none — adapter layers only"
+}

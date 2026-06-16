@@ -1,0 +1,11 @@
+{
+  "models": [
+    {
+      "model_id": "alpha158_lite_baseline",
+      "strategy_id": "momentum_rank",
+      "status": "CANDIDATE",
+      "auto_promote_live": false
+    }
+  ],
+  "updated_at": "2026-06-16T21:40:00Z"
+}

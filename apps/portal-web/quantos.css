@@ -1,0 +1,11 @@
+.nav-tabs {
+  display: flex; flex-wrap: wrap; gap: 0.25rem; padding: 0.5rem 1rem;
+  background: #161b22; border-bottom: 1px solid var(--border);
+  position: sticky; top: 52px; z-index: 9;
+}
+.tab {
+  background: transparent; color: var(--muted); border: 1px solid transparent;
+  padding: 0.35rem 0.65rem; border-radius: 6px; cursor: pointer; font-size: 0.8rem;
+}
+.tab.active { background: var(--panel); color: var(--text); border-color: var(--border); }
+.hidden { display: none !important; }

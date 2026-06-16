@@ -3,59 +3,105 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>China A-share Quant Gateway</title>
+  <title>QuantOS CN · 中国 A 股智能量化操作系统</title>
   <link rel="stylesheet" href="/portal/assets/styles.css" />
+  <link rel="stylesheet" href="/portal/assets/quantos.css" />
 </head>
 <body>
   <header class="top-bar" role="banner">
-    <div class="brand">Quant Gateway · CN A-share</div>
+    <div class="brand">QuantOS CN · 中国 A 股智能量化操作系统</div>
     <div class="status-grid" id="header-status" aria-live="polite">
-      <span class="pill" id="mode-pill">MODE: —</span>
-      <span class="pill" id="session-pill">SESSION: —</span>
-      <span class="pill" id="freshness-pill">DATA: —</span>
-      <span class="pill" id="capital-pill">CAPITAL: —</span>
-      <span class="pill" id="budget-pill">LOSS BUDGET: —</span>
-      <span class="pill kill" id="kill-pill">KILL: —</span>
-      <span class="pill" id="run-pill">RUN: —</span>
+      <span class="pill" id="mode-pill">模式: —</span>
+      <span class="pill" id="session-pill">时段: —</span>
+      <span class="pill" id="freshness-pill">数据: —</span>
+      <span class="pill" id="broker-pill">券商: —</span>
+      <span class="pill" id="capital-pill">总资金: —</span>
+      <span class="pill" id="budget-pill">亏损额度: —</span>
+      <span class="pill kill" id="kill-pill">Kill: —</span>
+      <span class="pill" id="run-pill">Run: —</span>
     </div>
   </header>
 
-  <main class="layout">
-    <section class="panel" aria-labelledby="risk-heading">
-      <h2 id="risk-heading">Risk &amp; Mode</h2>
-      <div id="risk-detail" class="mono block">Loading…</div>
+  <nav class="nav-tabs" aria-label="主导航">
+    <button class="tab active" data-page="overview">总览</button>
+    <button class="tab" data-page="market">市场中心</button>
+    <button class="tab" data-page="models">模型实验室</button>
+    <button class="tab" data-page="paper">模拟交易</button>
+    <button class="tab" data-page="shadow">影子实盘</button>
+    <button class="tab" data-page="risk">风险中心</button>
+    <button class="tab" data-page="brokers">券商连接</button>
+    <button class="tab" data-page="reports">量化日报</button>
+  </nav>
+
+  <main class="layout" id="page-overview">
+    <section class="panel full">
+      <h2>系统总览</h2>
+      <div id="quantos-status" class="mono block">加载中…</div>
+    </section>
+    <section class="panel">
+      <h2>vn.py 运行时</h2>
+      <div id="vnpy-status" class="mono block small">—</div>
       <div class="actions">
-        <button id="btn-halt" type="button">Emergency Halt</button>
-        <button id="btn-refresh" type="button">Refresh</button>
+        <button id="btn-vnpy-start" type="button">启动 Runtime</button>
+        <button id="btn-vnpy-stop" type="button">停止</button>
       </div>
     </section>
-
-    <section class="panel" aria-labelledby="agents-heading">
-      <h2 id="agents-heading">Agent Catalog</h2>
-      <ul id="agent-list" class="list"></ul>
+    <section class="panel">
+      <h2>Qlib 研究</h2>
+      <div id="qlib-status" class="mono block small">—</div>
+      <button id="btn-qlib-baseline" type="button">运行基线工作流</button>
     </section>
+  </main>
 
-    <section class="panel" aria-labelledby="paper-heading">
-      <h2 id="paper-heading">Paper Trading</h2>
+  <main class="layout hidden" id="page-paper">
+    <section class="panel full">
+      <h2>模拟交易 · Paper</h2>
       <div id="paper-pnl" class="mono block">—</div>
       <div id="paper-positions" class="mono block small">—</div>
     </section>
+  </main>
 
-    <section class="panel sidecar" aria-labelledby="sidecar-heading">
-      <h2 id="sidecar-heading">GC/MGC Sidecar (Research Only)</h2>
-      <p class="warn">Isolated microstructure research — cannot bypass A-share execution rules.</p>
-      <div id="sidecar-status" class="mono block">—</div>
+  <main class="layout hidden" id="page-shadow">
+    <section class="panel full">
+      <h2>影子实盘 · Shadow（零真实订单）</h2>
+      <div id="shadow-events" class="mono block small">—</div>
     </section>
+  </main>
 
-    <section class="panel full" aria-labelledby="reports-heading">
-      <h2 id="reports-heading">Reports</h2>
+  <main class="layout hidden" id="page-risk">
+    <section class="panel full">
+      <h2>风险中心</h2>
+      <div id="risk-detail" class="mono block">—</div>
+      <button id="btn-halt" type="button">紧急停机</button>
+    </section>
+  </main>
+
+  <main class="layout hidden" id="page-brokers">
+    <section class="panel full">
+      <h2>券商 Gateway 注册表</h2>
+      <div id="gateway-list" class="mono block">—</div>
+      <p class="warn">真实执行模式: MANUAL_CONFIRM_ONLY · 无授权 API 时不允许自动实盘</p>
+    </section>
+  </main>
+
+  <main class="layout hidden" id="page-models">
+    <section class="panel full">
+      <h2>模型实验室</h2>
+      <div id="model-registry" class="mono block">—</div>
+    </section>
+  </main>
+
+  <main class="layout hidden" id="page-reports">
+    <section class="panel full">
+      <h2>量化日报</h2>
       <ul id="report-list" class="list"></ul>
     </section>
   </main>
 
   <footer class="footer">
-    <span id="demo-label">Demo API · Paper/Shadow only · No live trading</span>
+    <span>PAPER_TRADING_ONLY · 真实资金交易已禁用 · QuantOS CN</span>
   </footer>
   <script src="/portal/assets/app.js"></script>
+  <script src="/portal/assets/quantos.js"></script>
 </body>
 </html>

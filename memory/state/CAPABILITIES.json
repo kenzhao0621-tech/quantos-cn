@@ -1,0 +1,16 @@
+{
+  "duckdb": true,
+  "parquet_daily": true,
+  "indices": true,
+  "paper_ledger": true,
+  "retrieval_budget": {
+    "max_chunks": 8,
+    "chunk_target_tokens": 450,
+    "chunk_max_tokens": 800,
+    "max_total_context_tokens": 5000,
+    "metadata_filter_first": true,
+    "exact_keyword_before_vector": true,
+    "summaries_before_raw_docs": true,
+    "numerical_data_via_sql_only": true
+  }
+}

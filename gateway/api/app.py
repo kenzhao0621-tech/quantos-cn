@@ -349,6 +349,10 @@ def sidecar_features(principal: Optional[Principal] = Depends(get_principal)) ->
     return envelope_ok(compute_microstructure_features(mbp))
 
 
+# QuantOS CN routes
+from gateway.api.quantos import router as quantos_router
+app.include_router(quantos_router)
+
 # Portal static files
 PORTAL_DIR = ROOT / "apps" / "portal-web"
 if PORTAL_DIR.exists():

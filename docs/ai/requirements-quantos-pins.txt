@@ -1,0 +1,6 @@
+# QuantOS CN — optional VeighNa + Qlib research dependencies
+# Core adapters work without these; install for full runtime parity.
+# vnpy>=3.9.0
+# qlib>=0.9.0
+numpy>=1.24.0
+pandas>=2.0.0

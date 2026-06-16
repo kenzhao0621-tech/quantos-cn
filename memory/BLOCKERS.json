@@ -1,0 +1,7 @@
+{
+  "blockers": [],
+  "notes": [
+    "No authorized broker API — live auto-trading disabled",
+    "Native vnpy/qlib optional — adapters active"
+  ]
+}

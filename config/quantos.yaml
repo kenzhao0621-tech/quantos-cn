@@ -1,0 +1,44 @@
+version: "1.0.0"
+product: QuantOS CN
+real_execution_mode: MANUAL_CONFIRM_ONLY
+paper_trading_only: true
+real_money_execution_disabled: true
+
+vnpy_runtime:
+  enabled: true
+  rpc_port: 8899
+  event_bridge_enabled: true
+  use_native_vnpy: false  # adapter shim unless vnpy installed
+
+qlib:
+  enabled: true
+  canonical_store: data/warehouse/quant.duckdb
+  use_native_qlib: false
+  baseline_features: alpha158_lite
+
+gateways:
+  priority:
+    - PaperGateway
+    - ShadowGateway
+    - ReadOnlyGateway
+    - ManualConfirmGateway
+    - XTPGateway
+    - QMTGateway
+  live_enabled: false
+
+agents:
+  - ChiefQuantOrchestrator
+  - MarketDataSteward
+  - QlibResearchAgent
+  - VnpyExecutionAgent
+  - ReconciliationAgent
+  - RiskOfficerAgent
+  - DailyReportAgent
+
+schedule_templates:
+  premarket: "08:50"
+  market_open_check: "09:25"
+  paper_shadow_watch: "09:40"
+  post_close_data: "15:20"
+  daily_report: "15:30"
+  reconciliation: "16:00"
