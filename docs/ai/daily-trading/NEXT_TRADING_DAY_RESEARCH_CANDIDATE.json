@@ -1,0 +1,158 @@
+{
+  "decision": "BLOCKED_BY_DATA",
+  "run_id": "20260616T191339-99738834",
+  "analysis_date": "2026-06-16",
+  "data_date": "2026-06-16",
+  "target_trading_date": "2026-06-17",
+  "generated_at": "2026-06-16T19:19:28",
+  "calendar_provider": "akshare_sina",
+  "spot_provider": "akshare_sina",
+  "row_count": 5527,
+  "quality_status": "passed",
+  "freshness": "SOURCE_LATEST_TIMESTAMP_UNCONFIRMED",
+  "market_regime": "RISK_OFF",
+  "regime_score": 30.0,
+  "regime_confidence": "LOW",
+  "candidate": null,
+  "rejection_reasons": [
+    "not persisted — required for per-stock bar-complete gate",
+    "1/7 benchmarks; have=['sh']",
+    "Regime RISK_OFF defaults to NO_TRADE"
+  ],
+  "limitations": [
+    "Fundamental, valuation, and official disclosure feeds not persisted for this run_id",
+    "Per-stock 60-day bar history not persisted — universe-wide bar gate fails",
+    "Major index coverage incomplete (1 benchmark(s))"
+  ],
+  "gates": [
+    {
+      "name": "run_id_match",
+      "passed": true,
+      "detail": "manifest=20260616T191339-99738834",
+      "severity": "required"
+    },
+    {
+      "name": "non_fixture",
+      "passed": true,
+      "detail": "akshare_sina",
+      "severity": "required"
+    },
+    {
+      "name": "row_count",
+      "passed": true,
+      "detail": "5527 vs min 5000",
+      "severity": "required"
+    },
+    {
+      "name": "valid_symbol_ratio",
+      "passed": true,
+      "detail": "1.0000",
+      "severity": "required"
+    },
+    {
+      "name": "valid_price_ratio",
+      "passed": true,
+      "detail": "0.9982",
+      "severity": "required"
+    },
+    {
+      "name": "duplicate_ratio",
+      "passed": true,
+      "detail": "duplicates=0",
+      "severity": "required"
+    },
+    {
+      "name": "provenance_hash",
+      "passed": true,
+      "detail": "4263a975664bdb87",
+      "severity": "required"
+    },
+    {
+      "name": "market_date_known",
+      "passed": true,
+      "detail": "2026-06-16",
+      "severity": "required"
+    },
+    {
+      "name": "dataset_spot_quotes",
+      "passed": true,
+      "detail": "present",
+      "severity": "required"
+    },
+    {
+      "name": "dataset_trading_calendar",
+      "passed": true,
+      "detail": "present",
+      "severity": "required"
+    },
+    {
+      "name": "dataset_indices",
+      "passed": true,
+      "detail": "present",
+      "severity": "required"
+    },
+    {
+      "name": "security_master",
+      "passed": false,
+      "detail": "not fetched in snapshot",
+      "severity": "advisory"
+    },
+    {
+      "name": "historical_bars",
+      "passed": false,
+      "detail": "not persisted — required for per-stock bar-complete gate",
+      "severity": "candidate"
+    },
+    {
+      "name": "major_indices_coverage",
+      "passed": false,
+      "detail": "1/7 benchmarks; have=['sh']",
+      "severity": "candidate"
+    },
+    {
+      "name": "sector_boards_scale",
+      "passed": false,
+      "detail": "12 sector rows",
+      "severity": "advisory"
+    },
+    {
+      "name": "ledger_appended",
+      "passed": true,
+      "detail": "2 record(s)",
+      "severity": "required"
+    },
+    {
+      "name": "ledger_has_run_id",
+      "passed": true,
+      "detail": "20260616T191339-99738834",
+      "severity": "required"
+    },
+    {
+      "name": "ledger_has_provider",
+      "passed": true,
+      "detail": "akshare_sina",
+      "severity": "required"
+    },
+    {
+      "name": "ledger_has_freshness",
+      "passed": true,
+      "detail": "SOURCE_LATEST_TIMESTAMP_UNCONFIRMED",
+      "severity": "required"
+    }
+  ],
+  "breadth": {
+    "advancers": 2730,
+    "decliners": 2676,
+    "unchanged": 121,
+    "advance_decline_ratio": 1.0201793721973094,
+    "limit_up_count": 190,
+    "limit_down_count": 9,
+    "median_return": 0.0,
+    "pct_above_ma20": null
+  },
+  "ledger_result": {
+    "appended": true,
+    "record_id": "20260616T191339-99738834:no-trade"
+  },
+  "disclaimer": "Internal quantitative research and paper-trading output. Not a guarantee of return. No real order has been placed."
+}

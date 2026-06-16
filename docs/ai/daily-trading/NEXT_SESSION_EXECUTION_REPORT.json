@@ -1,0 +1,20 @@
+{
+  "system_readiness": "PIPELINE_VERIFIED_WITH_DATA_GAPS",
+  "run_id": "20260616T191339-99738834",
+  "data_date": "2026-06-16",
+  "target_trading_date": "2026-06-17",
+  "selected_provider": "akshare_sina",
+  "row_count": 5527,
+  "quality_result": "passed",
+  "market_regime": "RISK_OFF",
+  "candidate_decision": "BLOCKED_BY_DATA",
+  "ledger_append": {
+    "appended": true,
+    "record_id": "20260616T191339-99738834:no-trade"
+  },
+  "limitations": [
+    "Fundamental, valuation, and official disclosure feeds not persisted for this run_id",
+    "Per-stock 60-day bar history not persisted — universe-wide bar gate fails",
+    "Major index coverage incomplete (1 benchmark(s))"
+  ]
+}

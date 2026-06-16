@@ -2,7 +2,7 @@
   "mode": "LATEST_AVAILABLE",
   "analysis_date": "2026-06-16",
   "provider_status": {
-    "run_id": "20260616T182805-39243beb",
+    "run_id": "20260616T191339-99738834",
     "spot": "akshare_sina",
     "indices": "akshare_sina",
     "sectors": "manual_snapshot",
@@ -10,7 +10,7 @@
     "data_root": "/Users/kenzhao/Projects/netlify-demo/data"
   },
   "limitations": [
-    "input_run_id=20260616T182805-39243beb",
+    "input_run_id=20260616T191339-99738834",
     "spot_provider=akshare_sina",
     "freshness=SOURCE_LATEST_TIMESTAMP_UNCONFIRMED"
   ],
