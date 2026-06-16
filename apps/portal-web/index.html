@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>China A-share Quant Gateway</title>
+  <link rel="stylesheet" href="/portal/assets/styles.css" />
+</head>
+<body>
+  <header class="top-bar" role="banner">
+    <div class="brand">Quant Gateway · CN A-share</div>
+    <div class="status-grid" id="header-status" aria-live="polite">
+      <span class="pill" id="mode-pill">MODE: —</span>
+      <span class="pill" id="session-pill">SESSION: —</span>
+      <span class="pill" id="freshness-pill">DATA: —</span>
+      <span class="pill" id="capital-pill">CAPITAL: —</span>
+      <span class="pill" id="budget-pill">LOSS BUDGET: —</span>
+      <span class="pill kill" id="kill-pill">KILL: —</span>
+      <span class="pill" id="run-pill">RUN: —</span>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="panel" aria-labelledby="risk-heading">
+      <h2 id="risk-heading">Risk &amp; Mode</h2>
+      <div id="risk-detail" class="mono block">Loading…</div>
+      <div class="actions">
+        <button id="btn-halt" type="button">Emergency Halt</button>
+        <button id="btn-refresh" type="button">Refresh</button>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="agents-heading">
+      <h2 id="agents-heading">Agent Catalog</h2>
+      <ul id="agent-list" class="list"></ul>
+    </section>
+
+    <section class="panel" aria-labelledby="paper-heading">
+      <h2 id="paper-heading">Paper Trading</h2>
+      <div id="paper-pnl" class="mono block">—</div>
+      <div id="paper-positions" class="mono block small">—</div>
+    </section>
+
+    <section class="panel sidecar" aria-labelledby="sidecar-heading">
+      <h2 id="sidecar-heading">GC/MGC Sidecar (Research Only)</h2>
+      <p class="warn">Isolated microstructure research — cannot bypass A-share execution rules.</p>
+      <div id="sidecar-status" class="mono block">—</div>
+    </section>
+
+    <section class="panel full" aria-labelledby="reports-heading">
+      <h2 id="reports-heading">Reports</h2>
+      <ul id="report-list" class="list"></ul>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <span id="demo-label">Demo API · Paper/Shadow only · No live trading</span>
+  </footer>
+  <script src="/portal/assets/app.js"></script>
+</body>
+</html>

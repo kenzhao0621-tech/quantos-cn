@@ -1,0 +1,9 @@
+{
+  "generated_at": "2026-06-16T13:03:38.240233Z",
+  "pit_passed": true,
+  "metrics": {
+    "sharpe": 0.0,
+    "trades": 1.0
+  },
+  "event_count": 4
+}

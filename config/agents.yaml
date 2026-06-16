@@ -1,0 +1,38 @@
+version: "1.0.0"
+agents:
+  - id: china-daily-research
+    name: China A-share Daily Research
+    type: research
+    allowed_modes: [RESEARCH_ONLY, DATA_READY, PAPER_TRADING]
+    tools: [market_snapshot, candidate_scoring, daily_report]
+    max_tokens_per_run: 32000
+  - id: risk-reviewer
+    name: Risk Review Agent
+    type: risk
+    allowed_modes: [RESEARCH_ONLY, DATA_READY, PAPER_TRADING, SHADOW_LIVE]
+    tools: [risk_status, halt_check]
+    max_tokens_per_run: 8000
+  - id: backtest-runner
+    name: Event Backtest Runner
+    type: research
+    allowed_modes: [RESEARCH_ONLY, DATA_READY]
+    tools: [backtest, pit_check]
+    max_tokens_per_run: 16000
+  - id: gc-mgc-microstructure
+    name: GC/MGC Microstructure Research (Sidecar)
+    type: sidecar_research
+    allowed_modes: [RESEARCH_ONLY]
+    tools: [mbo_replay, mbp10_features]
+    max_tokens_per_run: 24000
+    isolated: true
+    execution_bypass_allowed: false
+
+model_routes:
+  - id: local-deterministic
+    provider: local
+    model: deterministic-fixture
+    allowed_agent_types: [research, risk]
+  - id: sidecar-local
+    provider: local
+    model: microstructure-fixture
+    allowed_agent_types: [sidecar_research]

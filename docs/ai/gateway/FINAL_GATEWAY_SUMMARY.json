@@ -1,0 +1,26 @@
+{
+  "generated_at": "2026-06-16T13:03:38.240233Z",
+  "branch": "chore/cursor-operating-system",
+  "pre_change_commit": "cfb8ba14a08f0752b9c41fe030a0b3d863364b70",
+  "reports": [
+    "00_PRE_CHANGE_AUDIT.json",
+    "01_GATEWAY_ARCHITECTURE.json",
+    "02_PORTAL_ACCEPTANCE.json",
+    "03_DATA_FABRIC_REPORT.json",
+    "04_HISTORICAL_COVERAGE.json",
+    "05_POINT_IN_TIME_REPORT.json",
+    "06_MODEL_AND_OVERFITTING_REPORT.json",
+    "07_BACKTEST_INTEGRITY.json",
+    "08_RISK_ENGINE_REPORT.json",
+    "09_PAPER_TRADING_REPORT.json",
+    "10_RAG_MEMORY_REPORT.json",
+    "11_SECURITY_AUDIT.json",
+    "12_TEST_READINESS.json",
+    "13_DAILY_QUANT_REPORT.json",
+    "14_FINAL_CAPABILITY_REPORT.json",
+    "15_AUTONOMOUS_LEARNING_REPORT.json",
+    "16_GC_MGC_MICROSTRUCTURE_SIDECAR_REPORT.json",
+    "17_FULL_STACK_CLOSED_LOOP_ACCEPTANCE.json"
+  ],
+  "maturity": "FULL_STACK_SYSTEM_READY"
+}

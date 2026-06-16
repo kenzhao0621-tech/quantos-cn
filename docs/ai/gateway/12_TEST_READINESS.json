@@ -1,0 +1,77 @@
+{
+  "generated_at": "2026-06-16T13:03:30.571814Z",
+  "unit_tests": {
+    "run": 13,
+    "failures": 0,
+    "errors": 0,
+    "passed": true
+  },
+  "api_integration": {
+    "name": "api-integration",
+    "passed": true,
+    "classification": "PASS",
+    "cases": [
+      {
+        "case": "no_auth_blocked",
+        "passed": true
+      },
+      {
+        "case": "status_ok",
+        "passed": true
+      },
+      {
+        "case": "agents_ok",
+        "passed": true
+      },
+      {
+        "case": "backtest_ok",
+        "passed": true
+      },
+      {
+        "case": "halt_injection",
+        "passed": true
+      },
+      {
+        "case": "sidecar_isolated",
+        "passed": true
+      },
+      {
+        "case": "viewer_halt_denied",
+        "passed": true
+      },
+      {
+        "case": "load_20_status",
+        "passed": true
+      }
+    ]
+  },
+  "readiness_artifact": "/Users/kenzhao/Projects/netlify-demo/docs/ai/daily-trading/TEST_RECOVERY_REPORT.json",
+  "readiness_from_artifact": false,
+  "security_cases": [
+    {
+      "case": "no_auth_blocked",
+      "passed": true
+    },
+    {
+      "case": "viewer_halt_denied",
+      "passed": true
+    }
+  ],
+  "failure_injection_cases": [
+    {
+      "case": "halt_injection",
+      "passed": true
+    },
+    {
+      "case": "viewer_halt_denied",
+      "passed": true
+    }
+  ],
+  "load_cases": [
+    {
+      "case": "load_20_status",
+      "passed": true
+    }
+  ],
+  "overall_passed": true
+}

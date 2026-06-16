@@ -1,0 +1,24 @@
+exchange: SZSE
+version: "2026-06-01"
+board_lot_shares: 100
+t_plus_days: 1
+price_limit_pct_main: 0.10
+price_limit_pct_st: 0.05
+price_limit_pct_chinext: 0.20
+stamp_duty_on_sell_pct: 0.0005
+min_commission_cny: 5.0
+commission_rate: 0.00025
+transfer_fee_rate: 0.00001
+sessions:
+  - name: opening_call
+    start: "09:15"
+    end: "09:25"
+  - name: continuous_am
+    start: "09:30"
+    end: "11:30"
+  - name: continuous_pm
+    start: "13:00"
+    end: "14:57"
+  - name: closing_call
+    start: "14:57"
+    end: "15:00"

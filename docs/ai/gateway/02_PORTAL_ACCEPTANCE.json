@@ -1,0 +1,20 @@
+{
+  "generated_at": "2026-06-16T13:03:38.240233Z",
+  "portal_path": "apps/portal-web/index.html",
+  "served_at": "/portal",
+  "header_fields": [
+    "mode",
+    "session",
+    "freshness",
+    "capital",
+    "loss_budget",
+    "kill_switch",
+    "run"
+  ],
+  "ux_states": [
+    "empty",
+    "loading",
+    "error",
+    "HALTED"
+  ]
+}

@@ -1,0 +1,41 @@
+# Gateway V2 — China A-share autonomous quant portal (paper/shadow only)
+mode: RESEARCH_ONLY
+project_id: netlify-demo-china-ashare
+
+capital:
+  total_allocated_cny: 5000
+  absolute_max_cumulative_loss_cny: 1000
+  protected_capital_floor_cny: 4000
+
+risk_defaults:
+  max_daily_loss_cny: 100
+  max_weekly_loss_cny: 250
+  max_single_trade_loss_cny: 50
+  max_consecutive_losses: 3
+  max_trades_per_day: 3
+  max_open_positions: 2
+  maximum_single_name_risk_pct: 0.50
+  maximum_total_position_value_pct: 0.50
+  minimum_cash_buffer_pct: 0.50
+
+safety:
+  paper_trading_only: true
+  real_money_execution_disabled: true
+  enable_live_trading: false
+  gc_mgc_sidecar_isolated: true
+
+auth:
+  demo_api_key: demo-local-key-change-in-prod
+  service_accounts:
+    - id: svc-quant-pipeline
+      role: service_research
+    - id: svc-portal-read
+      role: viewer
+
+agents:
+  catalog_version: "1.0.0"
+  default_model_route: local-deterministic
+
+observability:
+  trace_sample_rate: 1.0
+  audit_log_path: docs/ai/gateway/audit/events.jsonl
