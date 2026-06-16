@@ -6,7 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Callable
 
@@ -19,13 +19,16 @@ from quant._config import _DEFAULT_COVERAGE, load_config
 from quant.acceptance import run_real_data_acceptance
 from quant.capability_report import generate_capability_report
 from quant.composite_provider import CompositeMarketDataProvider
-from quant.data_lake import load_latest_normalized, save_snapshot
+from quant.data_lake import DATA_ROOT, load_by_run_id, load_latest_normalized, save_snapshot
 from quant.data_quality import run_snapshot_quality_checks
 from quant.provider_health import run_provider_checks
 from quant.providers.manual_snapshot import ManualSnapshotProvider
+from quant.run_context import new_run_id, set_run_id
+from quant.secret_loader import configured as secret_configured
 
 
 def _emit(payload: dict[str, Any], summary_zh: str, *, exit_code: int = 0) -> int:
+    payload["exit_code"] = exit_code
     print(json.dumps(payload, ensure_ascii=False, indent=2, default=str))
     print(f"\n【摘要】{summary_zh}", file=sys.stderr)
     return exit_code
@@ -38,7 +41,8 @@ def cmd_system_audit(_args: argparse.Namespace) -> int:
         "real_money_execution_disabled": REAL_MONEY_EXECUTION_DISABLED,
         "root": str(ROOT),
         "config_dir": str(ROOT / "config"),
-        "data_dir": str(ROOT / "data"),
+        "data_dir": str(DATA_ROOT),
+        "tushare_token_configured": secret_configured("TUSHARE_TOKEN"),
         "checked_at": datetime.now().isoformat(timespec="seconds"),
     }
     ok = PAPER_TRADING_ONLY and REAL_MONEY_EXECUTION_DISABLED
@@ -61,7 +65,10 @@ def cmd_data_coverage(_args: argparse.Namespace) -> int:
 
 
 def cmd_provider_check(args: argparse.Namespace) -> int:
-    result = run_provider_checks(probe_live=args.live)
+    result = run_provider_checks(
+        probe_live=args.live,
+        provider_filter=getattr(args, "provider", None),
+    )
     failed = [r for r in result["providers"] if not r.get("configured")]
     return _emit(
         result,
@@ -71,59 +78,227 @@ def cmd_provider_check(args: argparse.Namespace) -> int:
 
 
 def cmd_fetch_market_snapshot(args: argparse.Namespace) -> int:
+    run_id = new_run_id()
+    set_run_id(run_id)
     composite = CompositeMarketDataProvider()
+    if getattr(args, "live_only", False) and "manual_snapshot" in composite.registry:
+        del composite.registry["manual_snapshot"]
+
+    fetch_kwargs: dict[str, Any] = {
+        "live_only": getattr(args, "live_only", False),
+        "route_mode": "latest_available" if getattr(args, "latest_available", False) else None,
+        "provider_filter": getattr(args, "provider", None),
+    }
     datasets = args.datasets.split(",") if args.datasets else None
-    results = composite.fetch_market_snapshot(datasets=datasets)
+    results = composite.fetch_market_snapshot(datasets=datasets, **fetch_kwargs)
     ok_count = sum(1 for r in results.values() if r.ok)
-    payload = {k: v.to_dict() for k, v in results.items()}
+    manifests: list[dict[str, Any]] = []
+
     if args.persist:
         for ds, cr in results.items():
             if cr.ok and cr.result:
-                save_snapshot(
+                manifest = save_snapshot(
                     ds,
+                    run_id=run_id,
                     raw_payload=cr.result.payload,
                     normalized_payload=cr.result.payload,
                     provider=cr.result.provider,
+                    provenance={
+                        "endpoint": cr.result.endpoint,
+                        "source_dataset": cr.result.source_dataset,
+                        "freshness": cr.result.freshness,
+                        "is_live": cr.result.is_live,
+                        "is_end_of_day": cr.result.is_end_of_day,
+                        "is_manual": cr.result.is_manual,
+                        "is_fixture": cr.result.is_fixture,
+                        "market_date": cr.result.market_date,
+                    },
                 )
+                manifests.append(manifest.to_dict())
+
+    spot = results.get("spot_quotes")
+    winner = spot.result if spot and spot.result else None
+    payload = {
+        "run_id": run_id,
+        "datasets": {k: v.to_dict() for k, v in results.items()},
+        "success_count": ok_count,
+        "total": len(results),
+        "selected_provider": winner.provider if winner else None,
+        "selection_reason": spot.selection_reason if spot else "",
+        "market_date": winner.market_date if winner else "",
+        "freshness": winner.freshness if winner else "",
+        "row_count": winner.row_count if winner else 0,
+        "manifests": manifests,
+        "manifest_path": str(DATA_ROOT / "manifests" / run_id) if manifests else "",
+        "recovery_action": "validate with --run-id" if ok_count else "check provider attempts",
+    }
     return _emit(
-        {"datasets": payload, "success_count": ok_count, "total": len(results)},
-        f"市场快照抓取：{ok_count}/{len(results)} 个数据集成功。",
+        payload,
+        f"市场快照抓取 run_id={run_id}：{ok_count}/{len(results)} 个数据集成功。",
         exit_code=0 if ok_count else 1,
     )
 
 
 def cmd_validate_latest_snapshot(args: argparse.Namespace) -> int:
     dataset = args.dataset or "spot_quotes"
-    doc = load_latest_normalized(dataset, trade_date=args.date)
+    requested_run_id = getattr(args, "run_id", None)
+
+    if requested_run_id:
+        doc = load_by_run_id(dataset, requested_run_id)
+    else:
+        doc = load_latest_normalized(dataset, trade_date=args.date)
+
+    base = {
+        "dataset": dataset,
+        "requested_run_id": requested_run_id,
+        "found": bool(doc),
+    }
+
     if not doc:
         return _emit(
-            {"dataset": dataset, "found": False},
-            f"未找到 {dataset} 的最新快照。",
-            exit_code=1,
+            {**base, "recovery_action": "fetch with --persist first"},
+            f"未找到 {dataset} 的快照（run_id={requested_run_id or 'latest'}）。",
+            exit_code=2,
         )
-    payload = doc.get("payload")
-    qr = run_snapshot_quality_checks(dataset, payload, data_hash=doc.get("data_hash", ""))
-    return _emit(
-        {"dataset": dataset, "found": True, "quality": qr.to_dict()},
-        "快照质量校验通过。" if qr.passed else f"快照质量校验失败：{'; '.join(qr.errors)}",
-        exit_code=0 if qr.passed else 1,
+
+    resolved_run_id = doc.get("run_id", "")
+    provider = doc.get("provider", "")
+    source_dataset = doc.get("source_dataset", doc.get("payload", {}).get("source_dataset", "") if isinstance(doc.get("payload"), dict) else "")
+    market_date = doc.get("market_date", doc.get("payload", {}).get("market_date", "") if isinstance(doc.get("payload"), dict) else "")
+    retrieved_at = doc.get("saved_at", "")
+    freshness = doc.get("freshness", "")
+    is_live = bool(doc.get("is_live"))
+    is_eod = bool(doc.get("is_end_of_day"))
+    is_manual = bool(doc.get("is_manual")) or provider == "manual_snapshot"
+    is_fixture = bool(doc.get("is_fixture"))
+
+    if requested_run_id and resolved_run_id != requested_run_id:
+        return _emit(
+            {**base, "resolved_run_id": resolved_run_id, "recovery_action": "use correct run_id"},
+            f"run_id 不匹配：请求 {requested_run_id}，解析 {resolved_run_id}。",
+            exit_code=7,
+        )
+
+    if getattr(args, "provider", None) and provider != args.provider:
+        return _emit(
+            {**base, "resolved_run_id": resolved_run_id, "provider": provider},
+            f"提供商不匹配：期望 {args.provider}，实际 {provider}。",
+            exit_code=6,
+        )
+
+    if getattr(args, "market_date", None) and market_date and market_date != args.market_date:
+        return _emit(
+            {**base, "market_date": market_date},
+            f"市场日期不匹配：期望 {args.market_date}，实际 {market_date}。",
+            exit_code=9,
+        )
+
+    if getattr(args, "max_age_minutes", None) and retrieved_at:
+        try:
+            saved = datetime.fromisoformat(retrieved_at)
+            age = (datetime.now() - saved).total_seconds() / 60
+            if age > args.max_age_minutes:
+                return _emit(
+                    {**base, "age_minutes": round(age, 1), "retrieved_at": retrieved_at},
+                    f"快照过期：{age:.0f} 分钟 > {args.max_age_minutes}。",
+                    exit_code=3,
+                )
+        except ValueError:
+            pass
+
+    if getattr(args, "require_live", False):
+        if is_manual or is_fixture:
+            return _emit(
+                {**base, "is_manual": is_manual, "is_fixture": is_fixture},
+                "require-live：拒绝 manual/fixture 数据。",
+                exit_code=4,
+            )
+        if not is_live or is_eod:
+            return _emit(
+                {**base, "is_live": is_live, "is_end_of_day": is_eod, "freshness": freshness},
+                "require-live：新鲜度不满足（需 is_live=true）。",
+                exit_code=8,
+            )
+
+    if getattr(args, "require_non_fixture", False):
+        if is_fixture or (is_manual and provider == "manual_snapshot"):
+            return _emit(
+                {**base, "is_manual": is_manual, "is_fixture": is_fixture},
+                "require-non-fixture：拒绝 fixture/manual 数据。",
+                exit_code=4,
+            )
+        if is_eod and not getattr(args, "allow_end_of_day", False):
+            return _emit(
+                {**base, "is_end_of_day": is_eod, "freshness": freshness},
+                "END_OF_DAY 数据需 --allow-end-of-day。",
+                exit_code=8,
+            )
+
+    payload_data = doc.get("payload")
+    qr = run_snapshot_quality_checks(
+        dataset,
+        payload_data,
+        data_hash=doc.get("data_hash", ""),
+        provider=provider,
+        source_dataset=source_dataset,
+        doc_meta={
+            "is_fixture": is_fixture,
+            "is_manual": is_manual,
+            "require_non_fixture": getattr(args, "require_non_fixture", False),
+            "freshness": freshness,
+        },
     )
+
+    result = {
+        **base,
+        "resolved_run_id": resolved_run_id,
+        "provider": provider,
+        "source_dataset": source_dataset,
+        "market_date": market_date,
+        "retrieved_at": retrieved_at,
+        "freshness": freshness,
+        "row_count": qr.row_count,
+        "is_live": is_live,
+        "is_end_of_day": is_eod,
+        "is_manual": is_manual,
+        "is_fixture": is_fixture,
+        "quality": qr.to_dict(),
+        "quality_status": "passed" if qr.passed else "failed",
+        "normalized_path": doc.get("normalized_path", ""),
+        "recovery_action": "none" if qr.passed else "refetch or fix data",
+    }
+
+    if not qr.passed:
+        return _emit(
+            result,
+            f"快照质量校验失败：{'; '.join(qr.errors + qr.missing_fields)}",
+            exit_code=5,
+        )
+
+    return _emit(result, "快照质量校验通过。", exit_code=0)
 
 
 def cmd_import_snapshot(args: argparse.Namespace) -> int:
+    run_id = new_run_id()
     path = Path(args.path)
     dataset = args.dataset or "spot_quotes"
     provider = ManualSnapshotProvider()
     result = provider.load_file(path, dataset=dataset)
+    manifest = None
     if result.ok and args.persist:
-        save_snapshot(
+        manifest = save_snapshot(
             dataset,
+            run_id=run_id,
             raw_payload=result.payload,
             normalized_payload=result.payload,
             provider=provider.name,
+            provenance={"is_manual": True, "is_live": False},
         )
+    payload = {**result.to_dict(), "run_id": run_id}
+    if manifest:
+        payload["manifest"] = manifest.to_dict()
     return _emit(
-        result.to_dict(),
+        payload,
         f"手动导入{'成功' if result.ok else '失败'}：{path.name}",
         exit_code=0 if result.ok else 1,
     )
@@ -134,10 +309,21 @@ def cmd_run_daily(args: argparse.Namespace) -> int:
 
     fixtures = ROOT / "docs" / "test-fixtures" / "china-quant"
     ledger = ROOT / "docs" / "ai" / "daily-trading"
+    run_id = getattr(args, "run_id", None)
+    mode_name = getattr(args, "mode", None)
+
     try:
         if args.fixture:
             result = run_fixture(fixtures, args.fixture)
             mode = "FIXTURE"
+        elif run_id:
+            from quant.run_daily_bridge import run_from_run_id
+
+            result = run_from_run_id(run_id, fixtures)
+            mode = f"LATEST_AVAILABLE(run_id={run_id})"
+        elif mode_name == "latest-available":
+            result = run_latest_available(fixtures, use_cache=not args.no_cache)
+            mode = result.mode.value
         else:
             result = run_latest_available(fixtures, use_cache=not args.no_cache)
             mode = result.mode.value
@@ -145,14 +331,17 @@ def cmd_run_daily(args: argparse.Namespace) -> int:
         return _emit(
             {
                 "mode": mode,
+                "run_id": run_id,
                 "analysis_date": result.analysis_date,
+                "provider_status": result.provider_status,
                 "paths": {k: str(v) for k, v in paths.items()},
                 "limitations": result.limitations,
+                "primary_count": len(result.report.primary),
             },
             f"每日流程完成（{mode}），输出已写入 deliverables。",
         )
     except Exception as e:
-        return _emit({"error": str(e)}, f"每日流程失败：{e}", exit_code=1)
+        return _emit({"error": str(e), "run_id": run_id}, f"每日流程失败：{e}", exit_code=1)
 
 
 def cmd_health_check(args: argparse.Namespace) -> int:
@@ -230,14 +419,25 @@ def main(argv: list[str] | None = None) -> int:
 
     p_check = sub.add_parser("provider-check", help="Provider capability table")
     p_check.add_argument("--live", action="store_true", help="Probe providers live")
+    p_check.add_argument("--provider", help="Filter providers (e.g. akshare_sina)")
 
     p_fetch = sub.add_parser("fetch-market-snapshot", help="Fetch routed market data")
     p_fetch.add_argument("--datasets", help="Comma-separated dataset names")
     p_fetch.add_argument("--persist", action="store_true", help="Save to data lake")
+    p_fetch.add_argument("--live-only", action="store_true", help="Live route; exclude manual")
+    p_fetch.add_argument("--latest-available", action="store_true", help="Latest-available route")
+    p_fetch.add_argument("--provider", help="Restrict to one provider")
 
     p_val = sub.add_parser("validate-latest-snapshot", help="Validate normalized snapshot")
     p_val.add_argument("--dataset", default="spot_quotes")
-    p_val.add_argument("--date", help="YYYY-MM-DD")
+    p_val.add_argument("--date", help="YYYY-MM-DD (legacy latest pointer)")
+    p_val.add_argument("--run-id", help="Bind validation to fetch run")
+    p_val.add_argument("--require-live", action="store_true")
+    p_val.add_argument("--require-non-fixture", action="store_true")
+    p_val.add_argument("--allow-end-of-day", action="store_true")
+    p_val.add_argument("--provider", help="Expected provider name")
+    p_val.add_argument("--market-date", help="Expected YYYY-MM-DD")
+    p_val.add_argument("--max-age-minutes", type=int, help="Reject stale snapshots")
 
     p_imp = sub.add_parser("import-snapshot", help="Import CSV/JSON manual snapshot")
     p_imp.add_argument("path", help="Path to CSV or JSON file")
@@ -246,6 +446,8 @@ def main(argv: list[str] | None = None) -> int:
 
     p_daily = sub.add_parser("run-daily", help="Run daily intelligence pipeline")
     p_daily.add_argument("--fixture", help="Fixture name for offline run")
+    p_daily.add_argument("--mode", choices=["latest-available", "fixture"], help="Operating mode")
+    p_daily.add_argument("--run-id", help="Consume persisted snapshot by run_id")
     p_daily.add_argument("--no-cache", action="store_true")
 
     p_health = sub.add_parser("health-check", help="Health + acceptance check")

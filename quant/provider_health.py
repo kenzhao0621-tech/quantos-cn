@@ -26,6 +26,7 @@ def run_provider_checks(
     *,
     datasets: list[str] | None = None,
     probe_live: bool = False,
+    provider_filter: str | None = None,
 ) -> dict[str, Any]:
     """Build provider × dataset capability table."""
     datasets = datasets or [
@@ -36,6 +37,9 @@ def run_provider_checks(
         "security_master",
     ]
     registry = _build_registry()
+    if provider_filter:
+        pf = provider_filter.lower().replace("-", "_")
+        registry = {k: v for k, v in registry.items() if k.startswith(pf) or pf in k}
     rows: list[ProviderCapabilityRow] = []
     checked_at = datetime.now().isoformat(timespec="seconds")
 

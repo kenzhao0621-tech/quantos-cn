@@ -1,0 +1,23 @@
+{
+  "report": "02_TUSHARE_PRODUCTION_INTEGRATION",
+  "generated_at": "2026-06-16T18:30:00",
+  "provider": "quant/providers/tushare_provider.py",
+  "adapter": "quant/providers/tushare_daily_adapter.py",
+  "secret_loading": "quant/secret_loader.py (.env.local, never logged)",
+  "datasets": ["spot_quotes", "trading_calendar", "security_master"],
+  "spot_semantics": {
+    "source": "pro.daily",
+    "freshness": "END_OF_DAY",
+    "is_live": false,
+    "is_end_of_day": true
+  },
+  "live_acceptance": {
+    "run_id": "20260616T182645-34391f15",
+    "row_count": 5513,
+    "provider": "tushare",
+    "validation_exit_code": 0,
+    "flags": ["--require-non-fixture", "--allow-end-of-day", "--provider tushare"]
+  },
+  "rate_limit_handling": "trade_cal cache + heuristic fallback on 频率超限",
+  "status": "PRODUCTION_INTEGRATED"
+}

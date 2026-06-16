@@ -111,57 +111,125 @@ class AkshareEastmoneyProvider(_AkshareBase):
     name = "akshare_eastmoney"
 
 
-class AkshareSinaProvider(_AkshareBase):
+class AkshareSinaProvider:
+    """Sina spot via stock_zh_a_spot — never Eastmoney."""
+
     name = "akshare_sina"
+    _last_fetch: float = 0.0
+    _cache: dict[str, Any] | None = None
+    _cache_ttl = 60
+    _min_interval = 30
+
+    def configured(self) -> bool:
+        return True
 
     def fetch(self, dataset: str, **kwargs: Any) -> ProviderResult:
+        if dataset == "spot_quotes":
+            return self._fetch_spot(**kwargs)
         if dataset == "trading_calendar":
-            return self._timed(
-                dataset,
-                lambda: self._provider().get_trading_calendar(),
-            )
+            base = _AkshareBase()
+            base.name = self.name
+            return base._timed(dataset, lambda: base._provider().get_trading_calendar())
         if dataset == "indices":
-            start = time.perf_counter()
-            try:
-                import akshare as ak
-                from tools.china_quant.providers.base import DataFreshness
-                import hashlib
-                import json
+            return self._fetch_indices_sina()
+        return ProviderResult(
+            provider=self.name, dataset=dataset, status=ProviderStatus.SKIPPED,
+            error=f"use other provider for {dataset}",
+            retrieved_at=datetime.now().isoformat(timespec="seconds"),
+        )
 
-                df = ak.stock_zh_index_daily(symbol="sh000001")
-                last = df.iloc[-1]
-                close_col = "close" if "close" in df.columns else df.columns[-1]
-                payload = {
-                    "sh": {
-                        "close": float(last[close_col]),
-                        "name": "上证指数",
-                        "source": "sina_daily",
-                    },
-                }
-                elapsed = (time.perf_counter() - start) * 1000
-                raw = json.dumps(payload, sort_keys=True, default=str)
-                return ProviderResult(
-                    provider=self.name,
-                    dataset=dataset,
-                    status=ProviderStatus.SUCCESS,
-                    payload=payload,
-                    elapsed_ms=round(elapsed, 2),
-                    retrieved_at=datetime.now().isoformat(timespec="seconds"),
-                    data_hash=hashlib.sha256(raw.encode()).hexdigest()[:16],
-                    freshness=DataFreshness.DELAYED.value,
-                    limitations=("Sina daily bar — partial index set",),
-                )
-            except Exception as e:
-                elapsed = (time.perf_counter() - start) * 1000
-                return ProviderResult(
-                    provider=self.name,
-                    dataset=dataset,
-                    status=ProviderStatus.FAILED,
-                    error=str(e),
-                    elapsed_ms=round(elapsed, 2),
-                    retrieved_at=datetime.now().isoformat(timespec="seconds"),
-                )
-        return super().fetch(dataset, **kwargs)
+    def _fetch_spot(self, **kwargs: Any) -> ProviderResult:
+        import hashlib
+        import json
+        import time as _time
+
+        from quant.providers.sina_normalize import normalize_sina_spot
+
+        now = _time.time()
+        if self._cache and (now - self._last_fetch) < self._cache_ttl:
+            payload = self._cache
+            raw = json.dumps(payload, sort_keys=True, default=str)
+            return ProviderResult(
+                provider=self.name, dataset="spot_quotes", status=ProviderStatus.SUCCESS,
+                payload=payload, elapsed_ms=0.0,
+                retrieved_at=datetime.now().isoformat(timespec="seconds"),
+                data_hash=hashlib.sha256(raw.encode()).hexdigest()[:16],
+                row_count=len(payload.get("rows", [])),
+                freshness=payload.get("freshness", ""),
+                endpoint="ak.stock_zh_a_spot", source_dataset="stock_zh_a_spot",
+                market_date=payload.get("market_date") or "",
+                is_live=True, is_end_of_day=False,
+            )
+        if self._last_fetch and (now - self._last_fetch) < self._min_interval:
+            return ProviderResult(
+                provider=self.name, dataset="spot_quotes", status=ProviderStatus.FAILED,
+                error="rate limit: minimum interval not elapsed",
+                retrieved_at=datetime.now().isoformat(timespec="seconds"),
+            )
+        start = _time.perf_counter()
+        try:
+            import akshare as ak
+
+            raw_df = ak.stock_zh_a_spot()
+            payload, _report = normalize_sina_spot(raw_df)
+            elapsed = (_time.perf_counter() - start) * 1000
+            self._cache = payload
+            self._last_fetch = _time.time()
+            raw = json.dumps(payload, sort_keys=True, default=str)
+            return ProviderResult(
+                provider=self.name, dataset="spot_quotes", status=ProviderStatus.SUCCESS,
+                payload=payload, elapsed_ms=round(elapsed, 2),
+                retrieved_at=datetime.now().isoformat(timespec="seconds"),
+                data_hash=hashlib.sha256(raw.encode()).hexdigest()[:16],
+                row_count=len(payload.get("rows", [])),
+                freshness=payload.get("freshness", ""),
+                limitations=("Sina stock_zh_a_spot; not Eastmoney",),
+                endpoint="ak.stock_zh_a_spot", source_dataset="stock_zh_a_spot",
+                market_date=payload.get("market_date") or "",
+                is_live=True, is_end_of_day=False,
+            )
+        except Exception as e:
+            elapsed = (_time.perf_counter() - start) * 1000
+            return ProviderResult(
+                provider=self.name, dataset="spot_quotes", status=ProviderStatus.FAILED,
+                error=str(e), elapsed_ms=round(elapsed, 2),
+                retrieved_at=datetime.now().isoformat(timespec="seconds"),
+                endpoint="ak.stock_zh_a_spot", source_dataset="stock_zh_a_spot",
+            )
+
+    def _fetch_indices_sina(self) -> ProviderResult:
+        start = time.perf_counter()
+        try:
+            import akshare as ak
+            import hashlib
+            import json
+
+            df = ak.stock_zh_index_daily(symbol="sh000001")
+            last = df.iloc[-1]
+            close_col = "close" if "close" in df.columns else df.columns[-1]
+            payload = {
+                "sh": {"close": float(last[close_col]), "name": "上证指数", "source": "sina_daily"},
+                "source_dataset": "stock_zh_index_daily",
+                "endpoint": "ak.stock_zh_index_daily",
+            }
+            elapsed = (time.perf_counter() - start) * 1000
+            raw = json.dumps(payload, sort_keys=True, default=str)
+            return ProviderResult(
+                provider=self.name, dataset="indices", status=ProviderStatus.SUCCESS,
+                payload=payload, elapsed_ms=round(elapsed, 2),
+                retrieved_at=datetime.now().isoformat(timespec="seconds"),
+                data_hash=hashlib.sha256(raw.encode()).hexdigest()[:16],
+                freshness="DELAYED",
+                limitations=("Sina daily bar — partial index set",),
+                endpoint="ak.stock_zh_index_daily", source_dataset="stock_zh_index_daily",
+            )
+        except Exception as e:
+            elapsed = (time.perf_counter() - start) * 1000
+            return ProviderResult(
+                provider=self.name, dataset="indices", status=ProviderStatus.FAILED,
+                error=str(e), elapsed_ms=round(elapsed, 2),
+                retrieved_at=datetime.now().isoformat(timespec="seconds"),
+            )
 
 
 class AkshareSplitMarketProvider(_AkshareBase):

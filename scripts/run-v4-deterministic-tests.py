@@ -13,6 +13,7 @@ if not PY.exists():
     PY = Path(sys.executable)
 
 SUITES = [
+    ("provider-recovery", [str(PY), str(ROOT / "scripts/run-provider-recovery-tests.py")]),
     ("china-quant", [str(PY), str(ROOT / "scripts/run-china-quant-tests.py")]),
     ("china-quant-full", [str(PY), str(ROOT / "scripts/run-china-quant-full-tests.py")]),
     ("china-quant-real", [str(PY), str(ROOT / "scripts/run-china-quant-real-tests.py")]),

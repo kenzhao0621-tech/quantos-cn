@@ -11,6 +11,20 @@ CONFIG_DIR = ROOT / "config"
 
 _DEFAULT_ROUTING: dict[str, Any] = {
     "version": "4",
+    "modes": {
+        "spot_quotes_live": {
+            "providers": ["akshare_sina", "akshare_eastmoney", "akshare_split"],
+        },
+        "spot_quotes_latest_available": {
+            "providers": [
+                "akshare_sina",
+                "tushare",
+                "akshare_eastmoney",
+                "akshare_split",
+                "manual_snapshot",
+            ],
+        },
+    },
     "datasets": {
         "spot_quotes": {
             "providers": [

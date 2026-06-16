@@ -33,6 +33,14 @@ class ProviderResult:
     row_count: int = 0
     freshness: str = ""
     limitations: tuple[str, ...] = ()
+    endpoint: str = ""
+    source_dataset: str = ""
+    run_id: str = ""
+    market_date: str = ""
+    is_live: bool = False
+    is_end_of_day: bool = False
+    is_manual: bool = False
+    is_fixture: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)

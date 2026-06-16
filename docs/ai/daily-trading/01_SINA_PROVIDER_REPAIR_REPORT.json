@@ -1,0 +1,29 @@
+{
+  "report": "01_SINA_PROVIDER_REPAIR",
+  "generated_at": "2026-06-16T18:30:00",
+  "branch": "chore/cursor-operating-system",
+  "pre_change_commit": "0dfff67",
+  "repair": {
+    "file": "quant/providers/akshare_family.py",
+    "change": "AkshareSinaProvider standalone; calls ak.stock_zh_a_spot via normalize_sina_spot",
+    "removed_path": "_AkshareBase.fetch -> stock_zh_a_spot_em"
+  },
+  "schema": "schemas/akshare_sina_spot_v1.yaml",
+  "normalizer": "quant/providers/sina_normalize.py",
+  "live_acceptance": {
+    "command": "python -m quant fetch-market-snapshot --persist --live-only --datasets spot_quotes",
+    "run_id": "20260616T182312-a29f93a0",
+    "provider": "akshare_sina",
+    "source_dataset": "stock_zh_a_spot",
+    "endpoint": "ak.stock_zh_a_spot",
+    "row_count": 5527,
+    "is_live": true,
+    "validation": {
+      "command": "validate-latest-snapshot --run-id ... --require-live",
+      "exit_code": 0,
+      "quality_passed": true
+    }
+  },
+  "deterministic_tests": ["sina_calls_stock_zh_a_spot", "sina_never_eastmoney", "sina_normalize", "sina_min_rows"],
+  "status": "REPAIRED_AND_VERIFIED"
+}

@@ -139,6 +139,34 @@ Or full revert to pre-batch commit:
 git reset --hard 94deaf5   # destructive — only if explicit
 ```
 
+## Rollback — Live Provider + Tushare V2 (2026-06-16)
+
+**Backup**: `.cursor-backups/live-provider-tushare-v2-20260616-181432/`
+**Pre-change commit**: `0dfff67`
+**Post-change commit**: *(see `git log -1` after local commit)*
+
+### Non-destructive (keep history)
+
+```bash
+git revert HEAD   # after commit lands; creates inverse commit
+```
+
+### Restore from backup (file-level)
+
+```bash
+BACKUP=.cursor-backups/live-provider-tushare-v2-20260616-181432
+rsync -a "$BACKUP/quant/" quant/
+rsync -a "$BACKUP/config/" config/
+```
+
+### Destructive reset to pre-batch
+
+```bash
+git reset --hard 0dfff67   # DESTRUCTIVE — discards all uncommitted and subsequent commits
+```
+
+Removes: Sina repair, Tushare integration, run-bound validation, `config/routing.json`, provider recovery tests, acceptance reports 01–05.
+
 ## Record changes
 
 Every install commit should update `docs/ai/DECISIONS.md` and `MANIFEST.json` with file list and upstream commit SHA.

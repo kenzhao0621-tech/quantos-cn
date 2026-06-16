@@ -1,20 +1,36 @@
-# V4 provider routing — ordered fallback chains per dataset
+# V4 provider routing — live vs latest-available chains
 version: "4"
+modes:
+  spot_quotes_live:
+    providers:
+      - akshare_sina
+      - akshare_eastmoney
+      - akshare_split
+  spot_quotes_latest_available:
+    providers:
+      - akshare_sina
+      - tushare
+      - akshare_eastmoney
+      - akshare_split
+      - manual_snapshot
 datasets:
   spot_quotes:
     providers:
+      - akshare_sina
+      - tushare
       - akshare_eastmoney
       - akshare_split
-      - akshare_sina
       - manual_snapshot
   indices:
     providers:
-      - akshare_eastmoney
       - akshare_sina
+      - akshare_eastmoney
+      - tushare
       - manual_snapshot
   trading_calendar:
     providers:
       - akshare_sina
+      - tushare
       - akshare_eastmoney
   sector_boards:
     providers:
@@ -22,7 +38,6 @@ datasets:
       - manual_snapshot
   security_master:
     providers:
-      - akshare_eastmoney
       - tushare
-      - jqdata
+      - akshare_eastmoney
       - manual_snapshot

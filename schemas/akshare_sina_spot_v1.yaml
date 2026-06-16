@@ -1,0 +1,24 @@
+# AKShare Sina spot schema v1 — maps stock_zh_a_spot columns to normalized fields
+version: "akshare_sina_spot_v1"
+source_endpoint: ak.stock_zh_a_spot
+columns:
+  代码: code
+  名称: name
+  最新价: price
+  今开: open
+  最高: high
+  最低: low
+  昨收: previous_close
+  涨跌额: change
+  涨跌幅: change_pct
+  买入: bid
+  卖出: ask
+  成交量: volume
+  成交额: amount
+  时间戳: source_timestamp
+required_normalized:
+  - code
+  - name
+  - price
+  - change_pct
+minimum_rows: 5000

@@ -8,6 +8,7 @@ from typing import Any
 from quant import PAPER_TRADING_ONLY, REAL_MONEY_EXECUTION_DISABLED
 from quant.composite_provider import CompositeMarketDataProvider
 from quant.data_lake import save_snapshot
+from quant.run_context import new_run_id
 from quant.data_quality import run_snapshot_quality_checks
 
 
@@ -29,7 +30,14 @@ def run_real_data_acceptance(
 
     datasets = datasets or ["indices", "spot_quotes", "trading_calendar"]
     composite = CompositeMarketDataProvider()
-    fetch_results = composite.fetch_market_snapshot(datasets=datasets)
+    if "manual_snapshot" in composite.registry:
+        del composite.registry["manual_snapshot"]
+    run_id = new_run_id()
+    fetch_results = composite.fetch_market_snapshot(
+        datasets=datasets,
+        route_mode="latest_available",
+        live_only=True,
+    )
 
     quality_results = []
     persisted = []
@@ -50,14 +58,24 @@ def run_real_data_acceptance(
         if persist and qr.passed:
             manifest = save_snapshot(
                 ds,
+                run_id=run_id,
                 raw_payload=winner.payload,
                 normalized_payload=winner.payload,
                 provider=winner.provider,
+                provenance={
+                    "endpoint": winner.endpoint,
+                    "source_dataset": winner.source_dataset,
+                    "freshness": winner.freshness,
+                    "is_live": winner.is_live,
+                    "is_end_of_day": winner.is_end_of_day,
+                    "market_date": winner.market_date,
+                },
             )
             persisted.append(manifest.to_dict())
 
     return {
         "accepted": all_ok,
+        "run_id": run_id,
         "paper_trading_only": PAPER_TRADING_ONLY,
         "real_money_execution_disabled": REAL_MONEY_EXECUTION_DISABLED,
         "checked_at": datetime.now().isoformat(timespec="seconds"),

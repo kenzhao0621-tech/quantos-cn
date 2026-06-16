@@ -3,7 +3,7 @@
 > - 分析日期：2026-06-16
 > - 数据提供商：fixture|official
 > - 新鲜度：PUBLIC_DISCLOSURE
-> - 检索时间：2026-06-16T17:04
+> - 检索时间：2026-06-16T18:30
 
 
 # 政策与宏观监测
@@ -38,4 +38,6 @@
 ## 限制
 
 - AKShare enrich 待接
-- BLOCKED_BY_DATA: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+- input_run_id=20260616T182805-39243beb
+- spot_provider=akshare_sina
+- freshness=SOURCE_LATEST_TIMESTAMP_UNCONFIRMED
