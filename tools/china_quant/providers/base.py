@@ -47,6 +47,8 @@ class DataEnvelope:
     limitations: list[str] = field(default_factory=list)
     trust: SourceTrust = SourceTrust.VERIFIED_DATA_PROVIDER
     data_hash: str = ""
+    row_count: int = 0
+    missing_fields: list[str] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         if not self.data_hash and self.payload is not None:

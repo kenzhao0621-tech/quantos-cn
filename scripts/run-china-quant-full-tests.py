@@ -124,12 +124,17 @@ else:
     fail("paper")
 
 # CLI smoke
-for cmd in ["screen", "validate"]:
-    r = subprocess.run([sys.executable, str(ROOT / "tools/china_quant/cli.py"), cmd, "--fixture", "universe_full"], capture_output=True)
-    if r.returncode == 0:
-        ok(f"cli {cmd}")
-    else:
-        fail(f"cli {cmd}")
+r = subprocess.run([sys.executable, str(ROOT / "tools/china_quant/cli.py"), "screen", "--fixture", "universe_full"], capture_output=True)
+if r.returncode == 0:
+    ok("cli screen")
+else:
+    fail("cli screen")
+
+r = subprocess.run([sys.executable, str(ROOT / "tools/china_quant/cli.py"), "validate"], capture_output=True)
+if r.returncode == 0:
+    ok("cli validate")
+else:
+    fail("cli validate")
 
 print(f"\nSUMMARY PASS={passed} FAIL={failed}")
 sys.exit(0 if failed == 0 else 1)

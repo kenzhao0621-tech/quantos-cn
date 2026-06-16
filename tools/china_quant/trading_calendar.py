@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import date, datetime
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -25,7 +25,6 @@ def is_trading_day(d: str, *, fixtures_dir: Optional[Path] = None, use_akshare: 
         from tools.china_quant.data import is_trading_day_akshare
 
         return is_trading_day_akshare(d)
-    # Weekday heuristic when no calendar
     dt = datetime.strptime(d, "%Y-%m-%d").date()
     return dt.weekday() < 5
 

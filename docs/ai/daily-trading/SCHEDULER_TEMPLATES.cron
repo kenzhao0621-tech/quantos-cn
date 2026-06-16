@@ -1,0 +1,24 @@
+# China A-Share Daily Scheduler Templates (CST)
+#
+# DO NOT enable until manual CLI runs succeed, calendar tested, rollback documented.
+# All times China Standard Time (Asia/Shanghai).
+
+# Pre-market full intelligence (after prior close data available)
+# 08:30 CST weekdays — run manually first:
+#   .venv-china-quant/bin/python tools/china_quant/cli.py premarket
+#
+# 0 30 8 * * 1-5 cd /path/to/netlify-demo && .venv-china-quant/bin/python tools/china_quant/cli.py premarket >> docs/ai/daily-trading/logs/scheduler.log 2>&1
+
+# Optional midday freshness check (no trade signal)
+# 11:45 CST
+# 45 11 * * 1-5 cd /path/to/netlify-demo && .venv-china-quant/bin/python tools/china_quant/cli.py intraday >> docs/ai/daily-trading/logs/scheduler.log 2>&1
+
+# Post-market review (immutable pre-market preserved)
+# 16:30 CST
+# 30 16 * * 1-5 cd /path/to/netlify-demo && .venv-china-quant/bin/python tools/china_quant/cli.py postmarket >> docs/ai/daily-trading/logs/scheduler.log 2>&1
+
+# Historical replay (manual date)
+# .venv-china-quant/bin/python tools/china_quant/cli.py historical --date 2026-06-12
+
+# Paper ledger append (fixture demo days)
+# .venv-china-quant/bin/python tools/china_quant/cli.py paper-trade

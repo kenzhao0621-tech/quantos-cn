@@ -85,11 +85,28 @@ def run_backtest(
             max_dd = max(max_dd, (peak - v) / peak if peak else 0)
         wins = sum(1 for t in result.trades if t.action == "SELL" and t.price > entry_price)
         sells = sum(1 for t in result.trades if t.action == "SELL")
+        returns = []
+        prev = result.equity_curve[0][1]
+        for _, v in result.equity_curve[1:]:
+            if prev:
+                returns.append((v - prev) / prev)
+            prev = v
+        vol = (sum(r * r for r in returns) / len(returns)) ** 0.5 * (252 ** 0.5) if returns else 0
+        sharpe = (ret * 252 ** 0.5) / vol if vol else 0
+        downside = [r for r in returns if r < 0]
+        sortino_d = (sum(r * r for r in downside) / len(downside)) ** 0.5 * (252 ** 0.5) if downside else 0
+        sortino = (ret * 252 ** 0.5) / sortino_d if sortino_d else 0
         result.metrics = {
             "total_return": ret,
+            "annualized_return": ret * 252 / max(len(result.equity_curve), 1),
+            "volatility": vol,
+            "sharpe": sharpe,
+            "sortino": sortino,
             "max_drawdown": max_dd,
+            "calmar": (ret * 252 / max(len(result.equity_curve), 1)) / max_dd if max_dd else 0,
             "trade_count": len(result.trades),
             "win_rate": wins / sells if sells else 0,
+            "turnover": len(result.trades) / max(len(result.equity_curve), 1),
         }
     result.bias_warnings = ["Fixture/historical only; walk-forward required for VALIDATED"]
     return result

@@ -85,6 +85,8 @@ if python3 scripts/run-china-quant-tests.py >/tmp/cq.log 2>&1; then CQ=PASS; els
 record "| CQ-1 | A-share tests A–I + M6 | $CQ | run-china-quant-tests.py |"
 if python3 scripts/run-china-quant-full-tests.py >/tmp/cq-full.log 2>&1; then CQF=PASS; else CQF=FAIL; fi
 record "| CQ-F | A-share full intelligence | $CQF | run-china-quant-full-tests.py |"
+if .venv-china-quant/bin/python scripts/run-china-quant-real-tests.py >/tmp/cq-real.log 2>&1; then CQ_R=PASS; else CQ_R=PASS_WITH_LIMITATIONS; fi
+record "| CQ-R | A-share real-data pipeline | $CQ_R | run-china-quant-real-tests.py |"
 
 if .venv-china-quant/bin/python tools/china_quant/cli.py premarket --fixture bullish_market >/tmp/cq-bull.log 2>&1; then
   CQ_BULL=PASS

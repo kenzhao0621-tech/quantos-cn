@@ -1,0 +1,16 @@
+{
+  "mode": "LATEST_AVAILABLE",
+  "analysis_date": "2026-06-16",
+  "provider_status": {},
+  "limitations": [
+    "BLOCKED_BY_DATA: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))"
+  ],
+  "primary_count": 0,
+  "deliverables": {
+    "premarket": "2026-06-16_PREMARKET.md",
+    "policy": "2026-06-16_POLICY_MACRO.md",
+    "institutional": "2026-06-16_INSTITUTIONAL_FLOW.md",
+    "freshness": "2026-06-16_DATA_FRESHNESS.md",
+    "backtest": "2026-06-16_BACKTEST_SUMMARY.md"
+  }
+}

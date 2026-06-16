@@ -1,0 +1,16 @@
+{
+  "mode": "FIXTURE",
+  "analysis_date": "2026-06-12",
+  "provider_status": {},
+  "limitations": [
+    "SAMPLE_FIXTURE only"
+  ],
+  "primary_count": 0,
+  "deliverables": {
+    "premarket": "2026-06-12_PREMARKET.md",
+    "policy": "2026-06-12_POLICY_MACRO.md",
+    "institutional": "2026-06-12_INSTITUTIONAL_FLOW.md",
+    "freshness": "2026-06-12_DATA_FRESHNESS.md",
+    "backtest": "2026-06-12_BACKTEST_SUMMARY.md"
+  }
+}

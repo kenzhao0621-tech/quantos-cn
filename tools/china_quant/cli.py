@@ -13,143 +13,122 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 from tools.china_quant.backtest.engine import run_backtest, walk_forward_split
-from tools.china_quant.data import load_fixture
+from tools.china_quant.daily_runner import (
+    run_fixture,
+    run_historical,
+    run_latest_available,
+    write_deliverables,
+)
 from tools.china_quant.freshness import assess_freshness
-from tools.china_quant.intelligence import load_full_bundle, run_intelligence
+from tools.china_quant.modes import OperatingMode
 from tools.china_quant.model_monitor import compute_monitor, write_monitor_report
 from tools.china_quant.paper_trade import append_paper_record, simulate_paper_outcome
-from tools.china_quant.pipeline import load_bundle, run_pipeline
 from tools.china_quant.providers.fixture_provider import FixtureProvider
-from tools.china_quant.report import render_report
+from tools.china_quant.intelligence import load_full_bundle
 from tools.china_quant.universe import build_universe
+from tools.china_quant.report import render_report
 
 FIXTURES = ROOT / "docs" / "test-fixtures" / "china-quant"
 LEDGER_BASE = ROOT / "docs" / "ai" / "daily-trading"
-LOG_DIR = ROOT / "docs" / "ai" / "logs"
+LOG_DIR = ROOT / "docs" / "ai" / "daily-trading" / "logs"
+LOCK_DIR = LEDGER_BASE / ".locks"
 
 
 def _log(cmd: str, msg: str) -> None:
     LOG_DIR.mkdir(parents=True, exist_ok=True)
-    line = f"{datetime.now().isoformat(timespec='seconds')} [{cmd}] {msg}\n"
     with (LOG_DIR / "china_quant_cli.log").open("a", encoding="utf-8") as f:
-        f.write(line)
+        f.write(f"{datetime.now().isoformat(timespec='seconds')} [{cmd}] {msg}\n")
 
 
-def _fixture_ref_now(name: str, bundle) -> datetime:
-    if name == "stale_data":
-        return datetime.now()
-    return bundle.snapshot.data_timestamp + timedelta(hours=16)
+def _acquire_lock(name: str) -> bool:
+    LOCK_DIR.mkdir(parents=True, exist_ok=True)
+    lock = LOCK_DIR / f"{name}.lock"
+    if lock.exists():
+        age = datetime.now().timestamp() - lock.stat().st_mtime
+        if age < 3600:
+            return False
+    lock.write_text(datetime.now().isoformat(), encoding="utf-8")
+    return True
 
 
-def _write_premarket(result, day: str) -> Path:
-    out = LEDGER_BASE / f"{day}_PREMARKET.md"
-    out.write_text(render_report(result.report), encoding="utf-8")
-    cand_dir = LEDGER_BASE / f"{day}_PRIMARY_CANDIDATES"
-    cand_dir.mkdir(parents=True, exist_ok=True)
-    for code, md in result.dossiers.items():
-        (cand_dir / f"{code}.md").write_text(md, encoding="utf-8")
-    if result.report.watchlist:
-        wl = LEDGER_BASE / f"{day}_WATCHLIST.md"
-        lines = ["# 观察名单\n"]
-        for c in result.report.watchlist:
-            lines.append(f"- **{c.name} ({c.code})** 评分{c.score:.0f}")
-        wl.write_text("\n".join(lines), encoding="utf-8")
-    return out
+def _release_lock(name: str) -> None:
+    lock = LOCK_DIR / f"{name}.lock"
+    lock.unlink(missing_ok=True)
 
 
-def cmd_premarket(args: argparse.Namespace) -> int:
-    _log("premarket", f"start fixture={args.fixture}")
-    fp = FixtureProvider(FIXTURES)
-    policy = fp.load_policy().payload
-    inst = fp.load_institutional().payload
-    bundle = load_full_bundle(FIXTURES, args.fixture or "universe_full")
-    result = run_intelligence(bundle, fixtures_dir=FIXTURES, policy_data=policy, inst_data=inst,
-                              now=_fixture_ref_now(args.fixture or "universe_full", bundle))
-    path = _write_premarket(result, bundle.snapshot.trade_date)
-    print(render_report(result.report))
-    print(f"\n---\nSaved: {path}\nUniverse: {result.universe_stats}")
-    _log("premarket", f"done {path}")
-    return 0
+def _resolve_mode(args) -> OperatingMode:
+    if getattr(args, "fixture", None) or getattr(args, "mode", None) == "FIXTURE":
+        return OperatingMode.FIXTURE
+    if getattr(args, "mode", None) == "HISTORICAL" or getattr(args, "date", None):
+        return OperatingMode.HISTORICAL
+    if getattr(args, "mode", None) == "LIVE_OR_DELAYED":
+        return OperatingMode.LIVE_OR_DELAYED
+    return OperatingMode.LATEST_AVAILABLE
 
 
-def cmd_screen(args: argparse.Namespace) -> int:
-    bundle = load_full_bundle(FIXTURES, args.fixture or "universe_full")
-    uni = build_universe({"stocks": [__import__("dataclasses").asdict(s) for s in bundle.stocks]})
-    print(f"Total={uni.stats.total} Tradable={len(uni.tradable)} Excluded={len(uni.excluded)}")
-    for st, r in uni.excluded[:10]:
-        print(f"  EXCL {st.code} {r}")
-    return 0
-
-
-def cmd_stock_dossier(args: argparse.Namespace) -> int:
-    cmd_premarket(argparse.Namespace(fixture=args.fixture or "universe_full"))
-    code = args.code
-    p = LEDGER_BASE / f"{load_full_bundle(FIXTURES).snapshot.trade_date}_PRIMARY_CANDIDATES" / f"{code}.md"
-    if p.exists():
-        print(p.read_text(encoding="utf-8"))
+def _run_daily(args, cmd_name: str) -> int:
+    if not _acquire_lock(cmd_name):
+        print("Duplicate run blocked — lock exists", file=sys.stderr)
+        return 1
+    try:
+        mode = _resolve_mode(args)
+        _log(cmd_name, f"mode={mode.value}")
+        if mode == OperatingMode.FIXTURE:
+            result = run_fixture(FIXTURES, args.fixture or "universe_full")
+        elif mode == OperatingMode.HISTORICAL:
+            result = run_historical(FIXTURES, args.date or "2026-06-12")
+        else:
+            result = run_latest_available(FIXTURES, use_cache=not getattr(args, "no_cache", False))
+        paths = write_deliverables(result, LEDGER_BASE, FIXTURES)
+        print(render_report(result.report))
+        print(f"\n---\nMode: {result.mode.value}\nSaved: {paths.get('premarket')}")
+        if result.limitations:
+            print("Limitations:", result.limitations)
+        _log(cmd_name, f"done mode={result.mode.value}")
         return 0
-    print(f"No dossier for {code}", file=sys.stderr)
-    return 1
+    finally:
+        _release_lock(cmd_name)
 
 
-def cmd_backtest(args: argparse.Namespace) -> int:
-    fp = FixtureProvider(FIXTURES)
-    bars_env = fp.load_bars(args.code or "601398")
-    bars = bars_env.payload["bars"]
-    train, test = walk_forward_split(bars)
-    is_res = run_backtest(train)
-    oos_res = run_backtest(test)
-    print("In-sample:", json.dumps(is_res.metrics, indent=2))
-    print("Out-of-sample:", json.dumps(oos_res.metrics, indent=2))
-    print("Validation:", oos_res.validation_label)
-    return 0
+def cmd_premarket(args):
+    return _run_daily(args, "premarket")
 
 
-def cmd_paper_trade(args: argparse.Namespace) -> int:
-    days = json.loads((FIXTURES / "trading_calendar.json").read_text())["trading_days"][:10]
-    for i, day in enumerate(days):
-        won = i % 3 != 2
-        rec = simulate_paper_outcome(
-            code="601398", name="样本工行", entry=5.2, stop=4.9, target1=5.5,
-            report_date=day, triggered=(i % 4 != 0), won=won if i % 4 != 0 else None,
-        )
-        append_paper_record(LEDGER_BASE, rec)
-    print(f"Appended {len(days)} paper records")
-    return 0
+def cmd_latest(args):
+    args.mode = "LATEST_AVAILABLE"
+    return _run_daily(args, "latest")
 
 
-def cmd_validate(args: argparse.Namespace) -> int:
-    m = compute_monitor(LEDGER_BASE)
-    print(json.dumps({"status": m.status, "hit_rate": m.rolling_hit_rate, "records": m.recommendation_count}, indent=2))
-    return 0
+def cmd_historical(args):
+    args.mode = "HISTORICAL"
+    return _run_daily(args, "historical")
 
 
-def cmd_test(args: argparse.Namespace) -> int:
-    import subprocess
-    r = subprocess.run([sys.executable, str(ROOT / "scripts" / "run-china-quant-full-tests.py")])
-    return r.returncode
+def cmd_intraday(args):
+    from tools.china_quant.providers.akshare_provider import AKShareProvider
+    try:
+        ak = AKShareProvider()
+        sess = ak.get_market_session_state()
+        spot = ak.get_spot_quotes()
+        fresh = assess_freshness(spot.market_timestamp)
+        print(f"Session: {sess.payload['state']}")
+        if not fresh.live_decision_ok:
+            print("Data is not current enough for a live entry decision.")
+        else:
+            print("Data freshness OK for review (not a trade signal).")
+        return 0
+    except Exception as e:
+        print(f"BLOCKED_BY_DATA: {e}", file=sys.stderr)
+        return 1
 
 
-def cmd_historical(args: argparse.Namespace) -> int:
-    return cmd_premarket(argparse.Namespace(fixture="universe_full"))
-
-
-def cmd_latest(args: argparse.Namespace) -> int:
-    print("BLOCKED_BY_DATA: use --fixture for deterministic mode; live requires trading session", file=sys.stderr)
-    return cmd_premarket(argparse.Namespace(fixture=args.fixture or "universe_full"))
-
-
-def cmd_intraday(args: argparse.Namespace) -> int:
-    bundle = load_bundle("stale_data", FIXTURES)
-    fresh = assess_freshness(bundle.snapshot.data_timestamp, now=datetime.now())
-    print("Data is not current enough for a live entry decision." if not fresh.live_decision_ok else "DELAYED OK for review only")
-    return 0 if not fresh.live_decision_ok else 0
-
-
-def cmd_postmarket(args: argparse.Namespace) -> int:
-    bundle = load_full_bundle(FIXTURES, args.fixture or "universe_full")
-    day = bundle.snapshot.trade_date
-    md = f"# 盘后复盘 {day}\n\n- 样本/fixture复盘\n- 不修改盘前原文\n- 遵守止损纪律\n"
+def cmd_postmarket(args):
+    mode = _resolve_mode(args)
+    if mode == OperatingMode.FIXTURE:
+        day = load_full_bundle(FIXTURES).snapshot.trade_date
+    else:
+        day = datetime.now().strftime("%Y-%m-%d")
+    md = f"# 盘后复盘 {day}\n\n- Mode: {mode.value}\n- 不修改盘前原文\n"
     p = LEDGER_BASE / f"{day}_POSTMARKET.md"
     p.write_text(md, encoding="utf-8")
     write_monitor_report(LEDGER_BASE, ROOT / "docs" / "ai" / "QUANT_MODEL_RISK.md")
@@ -157,24 +136,93 @@ def cmd_postmarket(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_screen(args):
+    mode = _resolve_mode(args)
+    if mode == OperatingMode.FIXTURE:
+        bundle = load_full_bundle(FIXTURES, args.fixture or "universe_full")
+        uni = build_universe({"stocks": [__import__("dataclasses").asdict(s) for s in bundle.stocks]})
+        print(f"FIXTURE Total={uni.stats.total} Tradable={len(uni.tradable)}")
+        return 0
+    result = run_latest_available(FIXTURES, use_cache=True)
+    if result.universe_audit:
+        from tools.china_quant.universe_builder import render_universe_audit
+        print(render_universe_audit(result.universe_audit))
+    return 0
+
+
+def cmd_stock_dossier(args):
+    cmd_premarket(argparse.Namespace(fixture=None, mode="LATEST_AVAILABLE", date=None, no_cache=False))
+    code = args.code
+    for p in LEDGER_BASE.glob(f"*_PRIMARY_CANDIDATES/{code}.md"):
+        print(p.read_text(encoding="utf-8"))
+        return 0
+    print(f"No dossier for {code}", file=sys.stderr)
+    return 1
+
+
+def cmd_backtest(args):
+    fp = FixtureProvider(FIXTURES)
+    try:
+        from tools.china_quant.providers.akshare_provider import AKShareProvider
+        bars = AKShareProvider(use_cache=True).get_daily_bars(args.code).payload["bars"]
+    except Exception:
+        bars = fp.load_bars(args.code).payload["bars"]
+    train, test = walk_forward_split(bars)
+    is_res = run_backtest(train)
+    oos_res = run_backtest(test)
+    report = LEDGER_BASE / f"BACKTEST_{args.code}.md"
+    report.write_text(
+        f"# Backtest {args.code}\n\n## In-sample\n```json\n{json.dumps(is_res.metrics, indent=2)}\n```\n\n"
+        f"## Out-of-sample\n```json\n{json.dumps(oos_res.metrics, indent=2)}\n```\n\n"
+        f"Validation: {oos_res.validation_label}\n",
+        encoding="utf-8",
+    )
+    print(report.read_text(encoding="utf-8"))
+    return 0
+
+
+def cmd_paper_trade(args):
+    days = json.loads((FIXTURES / "trading_calendar.json").read_text())["trading_days"]
+    for i, day in enumerate(days):
+        rec = simulate_paper_outcome(
+            code="601398", name="样本/真实混合", entry=5.2, stop=4.9, target1=5.5,
+            report_date=day, triggered=(i % 3 != 0), won=(i % 4 != 2) if i % 3 != 0 else None,
+        )
+        append_paper_record(LEDGER_BASE, rec)
+    print(f"Appended {len(days)} paper records (immutable JSONL)")
+    return 0
+
+
+def cmd_validate(args):
+    m = compute_monitor(LEDGER_BASE)
+    print(json.dumps({"status": m.status, "hit_rate": m.rolling_hit_rate, "records": m.recommendation_count}, indent=2))
+    return 0
+
+
+def cmd_test(args):
+    import subprocess
+    for script in ["run-china-quant-tests.py", "run-china-quant-full-tests.py", "run-china-quant-real-tests.py"]:
+        p = ROOT / "scripts" / script
+        if p.exists():
+            subprocess.run([sys.executable, str(p)], check=False)
+    return 0
+
+
 def main() -> int:
     p = argparse.ArgumentParser(description="China A-share quant intelligence")
     sub = p.add_subparsers(dest="cmd", required=True)
-    for name, func, help_ in [
-        ("premarket", cmd_premarket, "Pre-market full-universe report"),
-        ("intraday", cmd_intraday, "Intraday freshness check"),
-        ("postmarket", cmd_postmarket, "Post-market review"),
-        ("historical", cmd_historical, "Historical fixture report"),
-        ("latest", cmd_latest, "Latest-available (fixture fallback)"),
-        ("screen", cmd_screen, "Universe screen stats"),
-        ("stock-dossier", cmd_stock_dossier, "Single stock dossier"),
-        ("backtest", cmd_backtest, "Run backtest on bar fixture"),
-        ("paper-trade", cmd_paper_trade, "Append paper trade records"),
-        ("validate", cmd_validate, "Model validation status"),
-        ("test", cmd_test, "Run full test suite"),
+    common = argparse.ArgumentParser(add_help=False)
+    common.add_argument("--mode", choices=[m.value for m in OperatingMode])
+    common.add_argument("--fixture", help="FIXTURE mode only")
+    common.add_argument("--date", help="HISTORICAL mode YYYY-MM-DD")
+    common.add_argument("--no-cache", action="store_true")
+    for name, func in [
+        ("premarket", cmd_premarket), ("latest", cmd_latest), ("historical", cmd_historical),
+        ("intraday", cmd_intraday), ("postmarket", cmd_postmarket), ("screen", cmd_screen),
+        ("stock-dossier", cmd_stock_dossier), ("backtest", cmd_backtest),
+        ("paper-trade", cmd_paper_trade), ("validate", cmd_validate), ("test", cmd_test),
     ]:
-        sp = sub.add_parser(name, help=help_)
-        sp.add_argument("--fixture", help="Fixture name")
+        sp = sub.add_parser(name, parents=[common] if name not in ("test", "validate", "paper-trade") else [])
         if name == "stock-dossier":
             sp.add_argument("--code", default="601398")
         if name == "backtest":

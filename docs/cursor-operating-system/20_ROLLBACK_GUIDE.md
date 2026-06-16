@@ -1,6 +1,7 @@
 # Rollback Guide — Cursor Operating System
 
 **Backup (batch 3)**: `.cursor-backups/os-batch3-20260616-162507/`
+**Backup (real-data batch 4)**: `.cursor-backups/os-quant-real-20260616-170252/`
 **Backup (Skills audit Round 1)**: `.cursor-backups/skills-audit-20260616-143447/`
 
 ## Quick restore — OS branch only
@@ -109,6 +110,25 @@ rm -f playwright.config.mjs scripts/playwright-baseline.sh scripts/playwright-co
 rm -f scripts/run-web-safety-tests.py docs/cursor-operating-system/25_PLAYWRIGHT_VISUAL_QA.md
 rm -rf docs/test-fixtures/web-safety
 npm uninstall @playwright/test
+```
+
+## Remove real-data batch 4 (modes, daily_runner, AKShare expand)
+
+```bash
+git checkout 94deaf5 -- tools/china_quant
+rm -f tools/china_quant/report_deliverables.py tools/china_quant/daily_runner.py tools/china_quant/modes.py
+rm -f tools/china_quant/cache.py tools/china_quant/snapshot_store.py tools/china_quant/universe_builder.py
+rm -f tools/china_quant/regime_v2.py tools/china_quant/sector_data.py tools/china_quant/trading_calendar.py
+rm -f scripts/run-china-quant-real-tests.py
+# restore calendar.py if needed from backup
+BACKUP=.cursor-backups/os-quant-real-20260616-170252
+rsync -a "$BACKUP/tools/china_quant/" tools/china_quant/  # pre-batch state from backup parent commit
+```
+
+Or full revert to pre-batch commit:
+
+```bash
+git reset --hard 94deaf5   # destructive — only if explicit
 ```
 
 ## Record changes

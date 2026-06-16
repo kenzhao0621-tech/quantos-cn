@@ -21,3 +21,7 @@ docs/test-output/playwright-report/
 docs/test-output/playwright-failures/
 blob-report/
 docs/test-fixtures/.cache/
+.cache/china-quant/
+tools/.cache/
+docs/ai/daily-trading/logs/
+docs/ai/daily-trading/.locks/
