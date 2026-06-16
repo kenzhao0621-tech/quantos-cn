@@ -1,0 +1,6 @@
+# Sample document for MarkItDown smoke test
+
+This is a **plain text** fixture for document-intake verification.
+
+- Item one
+- Item two

@@ -58,7 +58,24 @@ git checkout main
 rm -rf .cursor/skills .cursor/hooks .cursor/hooks.json .cursor/agents docs/cursor-skills docs/cursor-operating-system docs/ai
 ```
 
-## agent-reach venv
+## Remove MarkItDown venv
+
+```bash
+rm -rf .venv-markitdown
+```
+
+## Remove batch-2 skills
+
+```bash
+rm -rf .cursor/skills/refactor-lens .cursor/skills/release-docs .cursor/skills/dependency-guard
+rm -rf .cursor/skills/paper-intake .cursor/skills/paper-structure-analyzer
+rm -rf .cursor/skills/section-by-section-reader .cursor/skills/figure-table-extractor
+rm -rf .cursor/skills/citation-graph-builder .cursor/skills/research-synthesis
+rm -rf .cursor/skills/research-integrity-guard .cursor/skills/document-intake
+rm -rf .cursor/skills/document-conversion-qa
+rm -rf .cursor/agents/product-architect.md .cursor/agents/system-architect.md
+# ... or rm -rf .cursor/agents and restore from backup
+```
 
 ```bash
 rm -rf .cursor/skill-sources/agent-reach/.venv

@@ -11,3 +11,6 @@ node_modules/
 .credentials/
 .venv/
 **/.venv/
+.venv-markitdown/
+docs/test-output/
+docs/test-fixtures/.cache/

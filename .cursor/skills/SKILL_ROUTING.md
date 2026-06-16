@@ -24,6 +24,23 @@ See also: `docs/cursor-skills/05_SKILL_ROUTING.md`
 
 - **agent-reach** — install definition only; needs CLI + credentials
 
+## Release & deps
+
+| Task | PRIMARY |
+|------|---------|
+| Changelog / release notes | release-docs |
+| Pre-install dep scan | ci-fixer + npm audit; FALLBACK dependency-guard |
+
+## Research (Phase 3)
+
+paper-intake → paper-structure-analyzer → section-by-section-reader → figure-table-extractor → citation-graph-builder → research-synthesis → research-integrity-guard
+
+document-intake → markitdown (`.venv-markitdown/bin/markitdown`) → document-conversion-qa
+
+## Refactor
+
+repo-cartographer → refactor-lens (FALLBACK) → code-simplifier
+
 ## OS routers (Phase 1)
 
 | Task | PRIMARY |
@@ -35,6 +52,10 @@ See also: `docs/cursor-skills/05_SKILL_ROUTING.md`
 
 See `docs/cursor-operating-system/06_SKILL_ROUTING.md`.
 
+## PRIMARY quick reference
+
+| Task | PRIMARY |
+|------|---------|
 | Find skills | find-skills |
 | Design research | ui-ux-pro-max |
 | Build UI | frontend-design |

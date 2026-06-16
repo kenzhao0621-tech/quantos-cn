@@ -30,11 +30,8 @@
 
 **Overlap**: `code-simplifier` executes cleanup; this skill plans safe legacy change with characterization tests.
 
-**Decision**: **INSTALL_AS_ADAPTER** as `.cursor/skills/refactor-lens/` thin wrapper → upstream `refactor-legacy-code`.  
-**PRIMARY remain**: `repo-cartographer` (map) + `code-simplifier` (execute).  
-**FALLBACK**: refactor-legacy-code workflow when legacy/test gaps block edits.
-
-**Not installed in this pass** — adapter install is reversible one-directory add; queued for next batch after PR.
+**Decision**: **INSTALL_AS_ADAPTER** — installed 2026-06-16.  
+**Tests**: structure PASS, functional via upstream refs PASS_WITH_LIMITATIONS
 
 ---
 
@@ -52,8 +49,7 @@
 
 **Overlap**: `webapp-testing` covers browser automation; this adds pixel-diff regression.
 
-**Decision**: **FALLBACK candidate only**. PRIMARY stays `webapp-testing`. Install visual-regression when project has Playwright baseline snapshots.  
-**Risk**: medium (CI workflow copies need review).
+**Decision**: **REJECT install** — PRIMARY `webapp-testing`. See `docs/cursor-skills/11_SCREENSHOT_QA_REJECT.md`.
 
 **Not installed** — requires Playwright test harness in repo (not present).
 
@@ -72,10 +68,7 @@
 
 **Overlap**: `ci-fixer` handles CI; npm/pip audit is built-in CLI.
 
-**Decision**: **FALLBACK candidate** — markdown procedures only. PRIMARY: document `npm audit` / `pip audit` in `ci-fixer` routing.  
-**Concern**: archived upstream; copy SKILL.md locally if installed, pin SHA.
-
-**Not installed** — archived status + zero community signal.
+**Decision**: **INSTALL (FALLBACK)** — vendored markdown @ `944f7c94` installed 2026-06-16.
 
 ---
 
@@ -93,7 +86,7 @@
 
 **Overlap**: Covers both release notes and changelog sync (miner + writer).
 
-**Decision**: **PRIMARY candidate** for combined release-docs capability. Single adapter `release-docs` preferred over two skills.
+**Decision**: **INSTALL (PRIMARY)** as `release-docs` adapter — installed 2026-06-16.
 
 ### Rejected fallback: CuriousLearner/devkit `changelog-generator`
 
@@ -104,7 +97,7 @@
 
 **Decision**: **REJECT** as duplicate; page-agent skill is newer and gh-integrated.
 
-**Not installed** — install as one adapter after PR merge.
+**Not installed** — superseded by release-docs install.
 
 ---
 

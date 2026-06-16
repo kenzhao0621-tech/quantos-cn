@@ -33,6 +33,7 @@ Building a secure, unified Cursor engineering and research OS per desktop specif
 - [x] ralph-loop hooks (authorized)
 - [x] agent-reach venv + doctor
 - [x] Phase 0 OS audit + backup
+- [x] GitHub private repo + PR #1
 - [ ] Phase 1 local routers + diagram skills
 - [ ] Phase 2 web research MCPs (credential-gated)
 - [ ] Phase 3 document + academic pipeline

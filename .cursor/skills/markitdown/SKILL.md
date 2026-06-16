@@ -19,6 +19,18 @@ The deterministic work — install check, validation, slug derivation, save path
 
 ## Install
 
+Project venv (preferred):
+
+```bash
+python3.11 -m venv .venv-markitdown
+.venv-markitdown/bin/pip install 'markitdown[all]==0.1.2'
+.venv-markitdown/bin/markitdown <file> -o docs/test-output/out.md
+```
+
+See `docs/ai/MARKITDOWN.md` for pins and smoke test results.
+
+Legacy global install (avoid):
+
 ```bash
 pip install 'markitdown[all]'
 ```

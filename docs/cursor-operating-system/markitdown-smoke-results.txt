@@ -1,0 +1,6 @@
+PASS sample.txt (     135 bytes)
+PASS sample.html (      14 bytes)
+PASS sample.docx (      13 bytes)
+PASS sample.pptx (      31 bytes)
+PASS sample.xlsx (      25 bytes)
+PASS sample.pdf (      13 bytes)
