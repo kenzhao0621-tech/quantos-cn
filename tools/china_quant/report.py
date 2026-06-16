@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Optional
 
 from tools.china_quant.freshness import DataStatus, FreshnessResult
+from tools.china_quant.models import SectorInfo
 from tools.china_quant.regime import RegimeResult
 from tools.china_quant.rules import t_plus_one_note
 
@@ -51,6 +52,9 @@ class DailyReport:
     primary: list[CandidatePlan] = field(default_factory=list)
     watchlist: list[CandidatePlan] = field(default_factory=list)
     avoid: list[str] = field(default_factory=list)
+    sectors: list[SectorInfo] = field(default_factory=list)
+    data_provenance: list[str] = field(default_factory=list)
+    assumptions: list[str] = field(default_factory=list)
 
 
 def render_report(r: DailyReport) -> str:
@@ -74,6 +78,32 @@ def render_report(r: DailyReport) -> str:
         t_plus_one_note(),
         "",
     ]
+
+    if r.data_provenance:
+        lines += ["### 数据说明（来源与时效）", ""]
+        for p in r.data_provenance:
+            lines.append(f"- {p}")
+        lines.append("")
+
+    if r.assumptions:
+        lines += ["### 假设与不确定性", ""]
+        for a in r.assumptions:
+            lines.append(f"- {a}")
+        lines.append("")
+
+    if r.sectors:
+        lines += ["## 3. 强势板块", ""]
+        for s in r.sectors[:5]:
+            lines += [
+                f"### {s.name}",
+                f"- 相对强度：{s.strength_score:.0f}",
+                f"- 动量：{s.momentum_pct:+.1f}%",
+                f"- 阶段：{s.phase}（early=早期 / mature=成熟 / overheated=过热）",
+                f"- 逻辑：{s.thesis}",
+                f"- 失效条件：{s.invalidation}",
+                f"- 催化状态：{s.catalyst_status}",
+                "",
+            ]
 
     if r.primary:
         lines += ["## 4. 今日首选股票", ""]

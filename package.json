@@ -5,11 +5,16 @@
   "scripts": {
     "dev": "netlify dev",
     "deploy": "netlify deploy --prod",
-    "diagram:render": "mmdc -i docs/diagrams/input.mmd -o docs/diagrams/output.svg"
+    "diagram:render": "mmdc -i docs/diagrams/input.mmd -o docs/diagrams/output.svg",
+    "test:scenario-a:unit": "node --test fixtures/os-scenario-a-fullstack/tests/unit.test.js",
+    "test:scenario-a:e2e": "playwright test fixtures/os-scenario-a-fullstack/tests/e2e.spec.mjs",
+    "test:playwright:visual": "playwright test tests/visual/baselines.spec.mjs",
+    "test:playwright:visual:update": "playwright test tests/visual/baselines.spec.mjs --update-snapshots"
   },
   "devDependencies": {
     "@mermaid-js/mermaid-cli": "^11.4.0",
     "@netlify/functions": "^3.0.0",
+    "@playwright/test": "^1.49.1",
     "netlify-cli": "^22.0.0"
   }
 }

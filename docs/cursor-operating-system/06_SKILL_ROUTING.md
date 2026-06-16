@@ -78,3 +78,11 @@ china-a-share-daily-trading-outlook (PRIMARY)
 Status: `ACTIVE_WITH_LIMITATIONS` — see `docs/cursor-operating-system/24_CHINA_QUANT_STATUS.md`
 
 trading-agents: **QUARANTINE** — never route here.
+
+## Visual QA
+
+```text
+webapp-testing → Playwright → screenshot-qa
+```
+
+See `docs/cursor-operating-system/25_PLAYWRIGHT_VISUAL_QA.md`

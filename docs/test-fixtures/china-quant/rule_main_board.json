@@ -1,0 +1,10 @@
+{
+  "fixture_label": "RULE_TEST — 主板样本",
+  "board": "MAIN_SH",
+  "code": "601398",
+  "suspended": false,
+  "is_st": false,
+  "at_limit_up": false,
+  "at_limit_down": false,
+  "newly_listed_days": 2000
+}

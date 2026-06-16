@@ -2,8 +2,9 @@
 name: webapp-testing
 description: >-
   Execute Playwright end-to-end tests for local web apps. Use for regression
-  and user-flow verification. Do NOT use for exploratory UI diagnosis
-  (playwright-scout UNRESOLVED) or visual screenshot QA (screenshot-qa UNRESOLVED).
+  and user-flow verification.   Do NOT use for exploratory UI diagnosis
+  (playwright-scout UNRESOLVED). For visual screenshot QA use **screenshot-qa**
+  (local Playwright baselines).
 license: Complete terms in LICENSE.txt
 ---
 

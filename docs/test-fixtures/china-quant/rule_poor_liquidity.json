@@ -1,0 +1,13 @@
+{
+  "fixture_label": "RULE_TEST — 低流动性",
+  "avg_daily_value_m": 5,
+  "code": "002001",
+  "sector": "银行",
+  "name": "低流动性样本",
+  "exchange": "SZ",
+  "board": "MAIN_SZ",
+  "price": 3.0,
+  "trend_score": 12,
+  "fundamental_score": 8,
+  "valuation_score": 5
+}

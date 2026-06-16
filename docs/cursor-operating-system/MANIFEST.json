@@ -155,7 +155,7 @@
       "overlaps_with": [],
       "positive_triggers": ["A股", "大盘", "板块", "今日买什么", "盘前简报", "止损止盈"],
       "negative_triggers": ["real brokerage order", "trading-agents live"],
-      "tests": {"functional": "PASS A-I scripts/run-china-quant-tests.py"},
+      "tests": {"functional": "PASS 23 tests run-china-quant-tests.py"},
       "rollback": "see 20_ROLLBACK_GUIDE.md China quant section"
     },
     {
@@ -235,11 +235,41 @@
       "location": "tools/china_quant/",
       "venv": ".venv-china-quant",
       "dependencies": ["akshare==1.16.72"]
+    },
+    {
+      "name": "screenshot-qa",
+      "type": "skill",
+      "source": "local",
+      "scope": "project",
+      "status": "ACTIVE",
+      "risk": "low",
+      "primary_or_fallback": "primary",
+      "dependencies": ["@playwright/test"],
+      "tests": {"functional": "PASS 5 viewports"},
+      "rollback": "see 20_ROLLBACK_GUIDE.md batch 3"
+    },
+    {
+      "name": "web-content-safety-scanner",
+      "type": "python_package",
+      "source": "local",
+      "scope": "project",
+      "status": "ACTIVE",
+      "location": "tools/web_content_safety/",
+      "tests": {"functional": "PASS 18 fixtures"}
+    },
+    {
+      "name": "os-scenario-a-fullstack",
+      "type": "test_fixture",
+      "source": "local",
+      "scope": "project",
+      "status": "ACTIVE",
+      "location": "fixtures/os-scenario-a-fullstack/",
+      "tests": {"functional": "PASS unit+e2e"}
     }
   ],
   "prior_manifest": "docs/cursor-skills/SKILLS_MANIFEST.json",
   "skill_counts": {
-    "project_skills": 46,
+    "project_skills": 47,
     "user_skills": 35,
     "builtin_skills": 18,
     "mcp_servers": 0,

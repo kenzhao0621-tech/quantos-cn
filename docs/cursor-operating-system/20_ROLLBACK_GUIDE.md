@@ -1,6 +1,6 @@
 # Rollback Guide — Cursor Operating System
 
-**Backup (OS Phase 0)**: `.cursor-backups/os-audit-20260616-152306/`  
+**Backup (batch 3)**: `.cursor-backups/os-batch3-20260616-162507/`
 **Backup (Skills audit Round 1)**: `.cursor-backups/skills-audit-20260616-143447/`
 
 ## Quick restore — OS branch only
@@ -86,7 +86,7 @@ rm -rf .cursor/skill-sources/agent-reach/.venv
 
 ```bash
 rm -rf .venv-china-quant
-rm -rf tools/china_quant
+rm -rf tools/china_quant tools/web_content_safety
 rm -rf .cursor/skills/china-a-share-daily-trading-outlook
 rm -rf .cursor/skills/china-a-share-quant-research
 rm -rf .cursor/skills/china-market-rules-engine
@@ -98,8 +98,17 @@ rm -rf .cursor/skills/china-a-share-event-study
 rm -rf docs/test-fixtures/china-quant
 rm -f scripts/run-china-quant-tests.py
 rm -f docs/ai/CHINA_QUANT.md docs/cursor-operating-system/24_CHINA_QUANT_STATUS.md
-# Keep ledger history unless full reset:
-# rm -rf docs/ai/daily-trading
+```
+
+## Remove batch 3 (Scenario A, Playwright, web safety scanner)
+
+```bash
+rm -rf fixtures/os-scenario-a-fullstack fixtures/visual-qa
+rm -rf tests/visual .cursor/skills/screenshot-qa
+rm -f playwright.config.mjs scripts/playwright-baseline.sh scripts/playwright-compare.sh
+rm -f scripts/run-web-safety-tests.py docs/cursor-operating-system/25_PLAYWRIGHT_VISUAL_QA.md
+rm -rf docs/test-fixtures/web-safety
+npm uninstall @playwright/test
 ```
 
 ## Record changes

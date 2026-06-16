@@ -14,4 +14,10 @@ node_modules/
 .venv-markitdown/
 .venv-china-quant/
 docs/test-output/
+!docs/test-output/.gitkeep
+test-results/
+playwright-report/
+docs/test-output/playwright-report/
+docs/test-output/playwright-failures/
+blob-report/
 docs/test-fixtures/.cache/

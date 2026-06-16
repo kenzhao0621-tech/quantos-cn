@@ -11,66 +11,62 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
+from tools.china_quant.calendar import is_trading_day
 from tools.china_quant.data import fetch_live_snapshot, load_fixture, snapshot_from_fixture
 from tools.china_quant.freshness import assess_freshness
 from tools.china_quant.ledger import LedgerRow, append_row
-from tools.china_quant.regime import classify_regime
-from tools.china_quant.report import DailyReport, render_report
+from tools.china_quant.models import bundle_from_fixture
+from tools.china_quant.pipeline import load_bundle, run_pipeline
+from tools.china_quant.report import render_report
 
 
 FIXTURES = ROOT / "docs" / "test-fixtures" / "china-quant"
 LEDGER_BASE = ROOT / "docs" / "ai" / "daily-trading"
 
 
-def build_report_from_snapshot(snap, *, force_no_trade: bool = False) -> DailyReport:
-    fresh = assess_freshness(snap.data_timestamp)
-    regime = classify_regime(
-        snap.sh_index_change_pct,
-        snap.advance_count,
-        snap.decline_count,
-    )
-    if force_no_trade:
-        regime.max_primary_candidates = 0
-
-    trade_today = "否（NO TRADE）" if regime.max_primary_candidates == 0 else "谨慎（仅研究/模拟）"
-    if not fresh.live_decision_ok:
-        trade_today = "否（数据不够新，不适合盘中实盘决策）"
-
-    direction = "偏弱" if (snap.sh_index_change_pct or 0) < -0.5 else "偏强" if (snap.sh_index_change_pct or 0) > 0.5 else "震荡"
-    position = "0%" if regime.max_primary_candidates == 0 else "10%-20% 单票上限（模拟）"
-
-    return DailyReport(
-        conclusion_direction=direction,
-        market_regime_zh=regime.regime.value,
-        position_guidance=position,
-        trade_today=trade_today,
-        data_cutoff=snap.data_timestamp.isoformat(sep=" ", timespec="minutes"),
-        data_status=fresh.status.value,
-        one_liner=regime.guidance_zh,
-        regime=regime,
-        freshness=fresh,
-        primary=[],
-        watchlist=[],
-        avoid=["ST板块（默认回避）", "流动性极低个股", "涨停封板难以买入的标的"],
-    )
+def _fixture_reference_now(fixture_name: str, bundle) -> datetime:
+    """Premarket context: morning after fixture close (not wall-clock)."""
+    if fixture_name == "stale_data":
+        return datetime.now()
+    return bundle.snapshot.data_timestamp + timedelta(hours=16)
 
 
 def cmd_premarket(args: argparse.Namespace) -> int:
     if args.fixture:
-        snap = snapshot_from_fixture(load_fixture(args.fixture, FIXTURES))
+        bundle = load_bundle(args.fixture, FIXTURES)
+        ref_now = _fixture_reference_now(args.fixture, bundle)
+        result = run_pipeline(bundle, fixtures_dir=FIXTURES, now=ref_now)
+        md = render_report(result.report)
+        day = bundle.snapshot.trade_date
     else:
+        if not is_trading_day(datetime.now().strftime("%Y-%m-%d"), fixtures_dir=FIXTURES):
+            print("NOTE: calendar heuristic — may be non-trading day", file=sys.stderr)
         try:
             snap = fetch_live_snapshot()
+            bundle = bundle_from_fixture({
+                "trade_date": snap.trade_date,
+                "sh_index_close": snap.sh_index_close,
+                "sh_index_change_pct": snap.sh_index_change_pct,
+                "sz_index_close": snap.sz_index_close,
+                "cyb_index_change_pct": snap.cyb_index_change_pct,
+                "data_timestamp": snap.data_timestamp.isoformat(),
+                "source": snap.source,
+                "status": snap.status,
+                "advance_count": snap.advance_count,
+                "decline_count": snap.decline_count,
+                "sectors": [],
+                "stocks": [],
+                "fixture_label": "LIVE_AKSHARE — 指数延迟数据；个股未拉取",
+            })
+            result = run_pipeline(bundle, fixtures_dir=FIXTURES)
+            md = render_report(result.report)
+            day = snap.trade_date
         except Exception as e:
             print(f"BLOCKED_BY_DATA: {e}", file=sys.stderr)
-            snap = snapshot_from_fixture(load_fixture("weak_market", FIXTURES))
-            snap.source = f"fallback:weak_market ({e})"
+            return 1
 
-    report = build_report_from_snapshot(snap, force_no_trade=args.fixture == "weak_market")
-    md = render_report(report)
     out_dir = LEDGER_BASE
     out_dir.mkdir(parents=True, exist_ok=True)
-    day = snap.trade_date
     out_path = out_dir / f"{day}_PREMARKET.md"
     out_path.write_text(md, encoding="utf-8")
     print(md)
@@ -78,9 +74,41 @@ def cmd_premarket(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_postmarket(args: argparse.Namespace) -> int:
+    fixture = args.fixture or "bullish_market"
+    bundle = load_bundle(fixture, FIXTURES)
+    ref_now = _fixture_reference_now(fixture, bundle)
+    result = run_pipeline(bundle, fixtures_dir=FIXTURES, now=ref_now)
+    day = bundle.snapshot.trade_date
+    lines = [
+        f"# A股盘后复盘 — {day}",
+        "",
+        "## 样本说明",
+        f"- {bundle.fixture_label or 'fixture'}",
+        "- 本复盘为样本/fixture，不修改盘前原文",
+        "",
+        "## 当日结论回顾",
+        result.report.one_liner,
+        "",
+        "## 首选标的跟踪",
+    ]
+    if result.report.primary:
+        for c in result.report.primary:
+            lines.append(f"- {c.name}({c.code})：模拟持有观察，止损 {c.stop}")
+    else:
+        lines.append("- 无首选（NO TRADE 或观望）")
+    lines += ["", "## 经验教训", "- 遵守止损；弱势日正确观望是成功", ""]
+    md = "\n".join(lines)
+    out_path = LEDGER_BASE / f"{day}_POSTMARKET.md"
+    out_path.write_text(md, encoding="utf-8")
+    print(md)
+    print(f"\n---\nSaved: {out_path}")
+    return 0
+
+
 def cmd_test_freshness(args: argparse.Namespace) -> int:
-    stale = snapshot_from_fixture(load_fixture("stale_data", FIXTURES))
-    fresh = assess_freshness(stale.data_timestamp, now=datetime.now())
+    bundle = load_bundle("stale_data", FIXTURES)
+    fresh = assess_freshness(bundle.snapshot.data_timestamp, now=datetime.now())
     ok = not fresh.live_decision_ok
     print("PASS" if ok else "FAIL", fresh.message)
     return 0 if ok else 1
@@ -92,6 +120,9 @@ def main() -> int:
     pm = sub.add_parser("premarket", help="Generate pre-market report")
     pm.add_argument("--fixture", help="Use fixture name instead of live data")
     pm.set_defaults(func=cmd_premarket)
+    po = sub.add_parser("postmarket", help="Generate post-market review (fixture)")
+    po.add_argument("--fixture", help="Fixture name", default="bullish_market")
+    po.set_defaults(func=cmd_postmarket)
     tf = sub.add_parser("test-freshness", help="Test A — stale data rejection")
     tf.set_defaults(func=cmd_test_freshness)
     args = p.parse_args()

@@ -1,0 +1,23 @@
+:root { font-family: system-ui, sans-serif; color: #1a1a1a; background: #f6f8fa; }
+* { box-sizing: border-box; }
+body { margin: 0; padding: 1rem; }
+.app { max-width: 720px; margin: 0 auto; }
+header h1 { margin: 0 0 0.25rem; font-size: 1.5rem; }
+.subtitle { color: #555; margin: 0 0 1rem; }
+.panel { background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 1rem; margin-bottom: 1rem; }
+label { display: block; margin-bottom: 0.75rem; }
+input { width: 100%; padding: 0.5rem; margin-top: 0.25rem; }
+button { padding: 0.5rem 1rem; cursor: pointer; }
+.row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+.row h2 { flex: 1; margin: 0; }
+.status { padding: 0.5rem 0.75rem; background: #e8f4ea; border-radius: 6px; margin-bottom: 1rem; }
+.loading { color: #666; font-style: italic; }
+.error { color: #b00020; background: #fdecea; padding: 0.5rem; border-radius: 4px; }
+.hidden { display: none; }
+ul { list-style: none; padding: 0; margin: 0; }
+li { padding: 0.5rem 0; border-bottom: 1px solid #eee; }
+@media (max-width: 480px) {
+  header h1 { font-size: 1.25rem; }
+  .row { flex-direction: column; align-items: stretch; }
+  button { width: 100%; }
+}

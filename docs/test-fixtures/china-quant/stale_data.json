@@ -1,12 +1,19 @@
 {
+  "fixture_label": "SAMPLE_FIXTURE — 陈旧数据样本，拒绝盘中实盘建议",
   "trade_date": "2026-06-10",
   "sh_index_close": 3100.0,
   "sh_index_change_pct": 0.2,
   "sz_index_close": 9900.0,
   "cyb_index_change_pct": 0.1,
   "data_timestamp": "2026-06-10T09:00:00",
-  "source": "fixture",
+  "source": "fixture:stale_data",
   "status": "PREVIOUS_CLOSE",
   "advance_count": 2200,
-  "decline_count": 2100
+  "decline_count": 2100,
+  "sectors": [
+    {"name": "银行", "strength_score": 60, "momentum_pct": 0.5, "breadth_pct": 50, "phase": "mature", "thesis": "样本", "invalidation": "样本", "catalyst_status": "speculative"}
+  ],
+  "stocks": [
+    {"code": "601398", "name": "样本工行", "exchange": "SH", "board": "MAIN_SH", "sector": "银行", "price": 5.20, "avg_daily_value_m": 400, "trend_score": 10, "fundamental_score": 10, "valuation_score": 8}
+  ]
 }

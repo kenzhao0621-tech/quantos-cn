@@ -1,0 +1,82 @@
+{
+  "fixture_label": "SAMPLE_FIXTURE — 确定性测试数据，非实时行情",
+  "trade_date": "2026-06-12",
+  "sh_index_close": 3180.5,
+  "sh_index_change_pct": 1.85,
+  "sz_index_close": 10250.0,
+  "cyb_index_change_pct": 2.1,
+  "data_timestamp": "2026-06-12T15:00:00",
+  "source": "fixture:bullish_market",
+  "status": "PREVIOUS_CLOSE",
+  "advance_count": 3800,
+  "decline_count": 1200,
+  "assumptions": [
+    "本报告全部使用 bullish_market 样本 fixture",
+    "价格为模型测试用虚构样本，不代表任何真实盘口"
+  ],
+  "sectors": [
+    {
+      "name": "银行",
+      "strength_score": 82,
+      "momentum_pct": 2.4,
+      "breadth_pct": 68,
+      "phase": "early",
+      "thesis": "政策预期改善+估值修复，板块广度良好",
+      "invalidation": "指数跌破5日均线且板块资金流出",
+      "catalyst_status": "confirmed"
+    },
+    {
+      "name": "电力设备",
+      "strength_score": 75,
+      "momentum_pct": 1.8,
+      "breadth_pct": 55,
+      "phase": "mature",
+      "thesis": "景气度维持但涨幅已有一段",
+      "invalidation": "龙头放量滞涨",
+      "catalyst_status": "speculative"
+    }
+  ],
+  "stocks": [
+    {
+      "code": "601398",
+      "name": "样本工行",
+      "exchange": "SH",
+      "board": "MAIN_SH",
+      "sector": "银行",
+      "price": 5.20,
+      "change_pct": 1.2,
+      "avg_daily_value_m": 450,
+      "trend_score": 18,
+      "fundamental_score": 14,
+      "valuation_score": 9,
+      "official_catalyst": "2026-06-11 年报业绩稳定增长（样本公告）"
+    },
+    {
+      "code": "688001",
+      "name": "样本科创股",
+      "exchange": "SH",
+      "board": "STAR",
+      "sector": "电力设备",
+      "price": 42.50,
+      "change_pct": 3.5,
+      "avg_daily_value_m": 120,
+      "trend_score": 14,
+      "fundamental_score": 10,
+      "valuation_score": 6,
+      "official_catalyst": ""
+    },
+    {
+      "code": "300750",
+      "name": "样本创业板",
+      "exchange": "SZ",
+      "board": "CHINEXT",
+      "sector": "电力设备",
+      "price": 180.0,
+      "change_pct": 2.0,
+      "avg_daily_value_m": 800,
+      "trend_score": 15,
+      "fundamental_score": 11,
+      "valuation_score": 7
+    }
+  ]
+}

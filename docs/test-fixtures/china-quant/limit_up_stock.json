@@ -1,7 +1,5 @@
 {
-  "code": "600000",
-  "name": "示例股份",
   "at_limit_up": true,
-  "suspended": false,
-  "is_st": false
+  "code": "600519",
+  "fixture_label": "RULE_TEST — 涨停"
 }

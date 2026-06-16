@@ -49,6 +49,7 @@ repo-cartographer → refactor-lens (FALLBACK) → code-simplifier
 | Sanitize web fetch | web-content-safety-gate |
 | Licensed stock photos | licensed-media-finder |
 | Architecture diagrams | diagram-architect → mermaid-renderer |
+| Visual screenshot QA | webapp-testing → Playwright → screenshot-qa |
 
 See `docs/cursor-operating-system/06_SKILL_ROUTING.md`.
 

@@ -1,33 +1,30 @@
 # China A-Share Quant — Status
 
-**Date**: 2026-06-16  
-**Overall**: `ACTIVE_WITH_LIMITATIONS`  
+**Date**: 2026-06-16 (batch 3)
+**Overall**: `ACTIVE_WITH_LIMITATIONS`
 **Trading mode**: `PAPER_TRADING_ONLY`
 
-## Operational checklist
+## End-to-end validation
 
-| Capability | Status | Notes |
-|------------|--------|-------|
-| Data freshness gate | WORKING | Tests A pass |
-| Market regime / NO TRADE | WORKING | Tests B, I pass |
-| Chinese report template | WORKING | Test F pass |
-| Entry/stop/target fields | WORKING | Test C pass (template) |
-| Limit-up block | WORKING | Test D pass |
-| Rumor rejection | WORKING | Test E pass |
-| Performance ledger | WORKING | Test G pass |
-| Position guidance caps | WORKING | Test H pass |
-| Live AKShare fetch | LIMITED | Network + market hours; fixture fallback |
-| Sector ranking / stock screen | SCAFFOLD | Regime-only; full pipeline TBD |
-| Backtest engine | DISABLED | Skill present; no auto-run |
-| Intraday scheduler | NOT INSTALLED | Manual / user-request only |
-| Notifications | TEMPLATE ONLY | `docs/ai/daily-trading/NOTIFICATION_TEMPLATES.md` |
+| Capability | Status |
+|------------|--------|
+| Trading calendar (fixture) | WORKING |
+| Data freshness gate | WORKING — Tests A, stale sample |
+| Market regime / NO TRADE | WORKING |
+| Sector ranking | WORKING — fixture pipeline |
+| Stock screening + scoring | WORKING — fixture pipeline |
+| Entry/stop/target/R:R | WORKING |
+| Chinese report (3 samples) | WORKING |
+| Post-market review | WORKING — sample |
+| Live AKShare index | LIMITED — optional `premarket` without fixture |
+| Tushare | BLOCKED_BY_CREDENTIAL |
+| Backtest auto-run | DISABLED |
 
-## Tests A–I
+## Sample reports (all SAMPLE_FIXTURE)
 
-Run: `python3 scripts/run-china-quant-tests.py`
+1. `2026-06-12_PREMARKET.md` — bullish_market (primary candidate)
+2. `2026-06-13_PREMARKET.md` — weak_market (NO TRADE)
+3. `2026-06-10_PREMARKET.md` — stale_data (refused live entry)
+4. `2026-06-12_POSTMARKET.md` — post-market review
 
-Do not mark `ACTIVE` until live AKShare verified on a trading day and sector/screen pipeline complete.
-
-## Rollback
-
-See `20_ROLLBACK_GUIDE.md` — section "Remove China quant stack".
+Tests: `python3 scripts/run-china-quant-tests.py` — 23/23 PASS
