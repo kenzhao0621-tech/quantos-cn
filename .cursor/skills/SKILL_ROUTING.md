@@ -24,10 +24,17 @@ See also: `docs/cursor-skills/05_SKILL_ROUTING.md`
 
 - **agent-reach** — install definition only; needs CLI + credentials
 
-## PRIMARY quick reference
+## OS routers (Phase 1)
 
 | Task | PRIMARY |
 |------|---------|
+| Classify image input | image-analysis-router |
+| Sanitize web fetch | web-content-safety-gate |
+| Licensed stock photos | licensed-media-finder |
+| Architecture diagrams | diagram-architect → mermaid-renderer |
+
+See `docs/cursor-operating-system/06_SKILL_ROUTING.md`.
+
 | Find skills | find-skills |
 | Design research | ui-ux-pro-max |
 | Build UI | frontend-design |
