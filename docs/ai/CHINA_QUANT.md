@@ -31,20 +31,33 @@ Optional: set `TUSHARE_TOKEN` in `.env` (not required; AKShare is primary).
 | `docs/ai/daily-trading/YYYY-MM-DD_PREMARKET.md` | Pre-market Chinese report |
 | `docs/ai/daily-trading/PERFORMANCE_LEDGER.csv` | Paper-trade / NO TRADE ledger |
 
+## CLI (full intelligence)
+
+```bash
+python3 tools/china_quant/cli.py premarket --fixture universe_full
+python3 tools/china_quant/cli.py screen --fixture universe_full
+python3 tools/china_quant/cli.py stock-dossier --code 601398
+python3 tools/china_quant/cli.py backtest --code 601398
+python3 tools/china_quant/cli.py paper-trade
+python3 tools/china_quant/cli.py validate
+python3 tools/china_quant/cli.py test
+```
+
+## Architecture
+
+- Providers: `tools/china_quant/providers/`
+- Pipeline: `tools/china_quant/intelligence.py`
+- Docs: `docs/china-a-share-intelligence/`
+
 ## Tests
 
 ```bash
+python3 scripts/run-china-quant-full-tests.py
 python3 scripts/run-china-quant-tests.py
 ```
 
-## Skills
+## Status
 
-Primary: `.cursor/skills/china-a-share-daily-trading-outlook/`
+`ACTIVE_WITH_LIMITATIONS` — fixture full-universe validated; live AKShare full scan limited.
 
-See audit: `docs/cursor-operating-system/23_CHINA_A_SHARE_AUDIT.md`
-
-## Safety
-
-- No brokerage connection; user confirms all real orders
-- `NO TRADE` is a successful output
-- Stale data → not suitable for live entry decisions
+See audit: `docs/cursor-operating-system/24_CHINA_QUANT_STATUS.md`

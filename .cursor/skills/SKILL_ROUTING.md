@@ -65,8 +65,13 @@ See `docs/cursor-operating-system/06_SKILL_ROUTING.md`.
 | 止损止盈仓位 | china-equity-risk-model |
 | 公告催化 | china-a-share-event-study → research-integrity-guard |
 | 回测（仅用户请求） | china-a-share-backtest-engine |
+| 个股档案 | china-a-share-stock-dossier |
+| 板块轮动 | china-a-share-sector-rotation |
+| 机构动向 | china-a-share-institutional-flow |
+| 政策监控 | china-a-share-policy-monitor |
+| 组合模拟 | china-a-share-portfolio-simulator |
 
-CLI: `.venv-china-quant/bin/python tools/china_quant/cli.py premarket`
+CLI: `python3 tools/china_quant/cli.py premarket --fixture universe_full`
 
 **Do NOT** use trading-agents (QUARANTINE) or agent-reach xueqiu for quant pipeline.
 

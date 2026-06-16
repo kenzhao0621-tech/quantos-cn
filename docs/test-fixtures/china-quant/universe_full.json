@@ -1,0 +1,33 @@
+{
+  "fixture_label": "SAMPLE_FIXTURE — 全市场样本宇宙（非完整A股列表）",
+  "data_timestamp": "2026-06-12T15:00:00",
+  "trade_date": "2026-06-12",
+  "sh_index_close": 3180.5,
+  "sh_index_change_pct": 1.85,
+  "sz_index_close": 10250.0,
+  "cyb_index_change_pct": 2.1,
+  "source": "fixture:universe_full",
+  "status": "PREVIOUS_CLOSE",
+  "advance_count": 3800,
+  "decline_count": 1200,
+  "sectors": [
+    {"name": "银行", "strength_score": 82, "momentum_pct": 2.4, "breadth_pct": 68, "phase": "early", "thesis": "政策预期+估值修复", "invalidation": "指数跌破5日线", "catalyst_status": "confirmed"},
+    {"name": "电力设备", "strength_score": 75, "momentum_pct": 1.8, "breadth_pct": 55, "phase": "developing", "thesis": "景气维持", "invalidation": "龙头滞涨", "catalyst_status": "speculative"},
+    {"name": "计算机", "strength_score": 70, "momentum_pct": 1.2, "breadth_pct": 52, "phase": "mature", "thesis": "主题轮动", "invalidation": "量能萎缩", "catalyst_status": "speculative"},
+    {"name": "房地产", "strength_score": 45, "momentum_pct": -0.5, "breadth_pct": 35, "phase": "reversing", "thesis": "政策博弈", "invalidation": "销售数据恶化", "catalyst_status": "speculative"}
+  ],
+  "stocks": [
+    {"code": "601398", "name": "样本工行", "exchange": "SH", "board": "MAIN_SH", "sector": "银行", "price": 5.20, "change_pct": 1.2, "avg_daily_value_m": 450, "trend_score": 18, "fundamental_score": 14, "valuation_score": 9, "official_catalyst": "样本年报稳定"},
+    {"code": "600036", "name": "样本招行", "exchange": "SH", "board": "MAIN_SH", "sector": "银行", "price": 35.0, "change_pct": 0.8, "avg_daily_value_m": 380, "trend_score": 16, "fundamental_score": 13, "valuation_score": 8},
+    {"code": "688001", "name": "样本科创", "exchange": "SH", "board": "STAR", "sector": "电力设备", "price": 42.5, "change_pct": 3.5, "avg_daily_value_m": 120, "trend_score": 15, "fundamental_score": 11, "valuation_score": 7},
+    {"code": "300750", "name": "样本宁德", "exchange": "SZ", "board": "CHINEXT", "sector": "电力设备", "price": 180.0, "change_pct": 2.0, "avg_daily_value_m": 800, "trend_score": 17, "fundamental_score": 12, "valuation_score": 6},
+    {"code": "430047", "name": "样本北交所", "exchange": "BJ", "board": "BSE", "sector": "计算机", "price": 12.0, "change_pct": 1.5, "avg_daily_value_m": 45, "trend_score": 12, "fundamental_score": 8, "valuation_score": 7},
+    {"code": "600001", "name": "样本ST", "exchange": "SH", "board": "MAIN_SH", "sector": "房地产", "price": 2.1, "is_st": true, "avg_daily_value_m": 20, "trend_score": 5, "fundamental_score": 3, "valuation_score": 2},
+    {"code": "600002", "name": "样本停牌", "exchange": "SH", "board": "MAIN_SH", "sector": "房地产", "price": 8.0, "suspended": true, "avg_daily_value_m": 0},
+    {"code": "603001", "name": "样本新股", "exchange": "SH", "board": "MAIN_SH", "sector": "计算机", "price": 25.0, "newly_listed_days": 15, "avg_daily_value_m": 90, "trend_score": 10, "fundamental_score": 6, "valuation_score": 5},
+    {"code": "600519", "name": "样本涨停", "exchange": "SH", "board": "MAIN_SH", "sector": "计算机", "price": 1500.0, "at_limit_up": true, "avg_daily_value_m": 500, "trend_score": 20, "fundamental_score": 15, "valuation_score": 8},
+    {"code": "002001", "name": "样本低流动", "exchange": "SZ", "board": "MAIN_SZ", "sector": "银行", "price": 3.0, "avg_daily_value_m": 5, "trend_score": 8, "fundamental_score": 5, "valuation_score": 4},
+    {"code": "000001", "name": "样本平安", "exchange": "SZ", "board": "MAIN_SZ", "sector": "银行", "price": 11.5, "change_pct": 0.5, "avg_daily_value_m": 200, "trend_score": 14, "fundamental_score": 11, "valuation_score": 8, "rumor_only_catalyst": true},
+    {"code": "300001", "name": "样本创业", "exchange": "SZ", "board": "CHINEXT", "sector": "计算机", "price": 28.0, "change_pct": 10.5, "avg_daily_value_m": 150, "trend_score": 12, "fundamental_score": 9, "valuation_score": 6}
+  ]
+}

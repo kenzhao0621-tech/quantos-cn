@@ -1,25 +1,19 @@
 ---
 name: china-a-share-backtest-engine
 description: >-
-  Backtest and paper-trade A-share strategies with costs, suspensions, and price limits.
-  PAPER_TRADING_ONLY — INSTALLED_DISABLED_BY_DEFAULT for live signals. Use only when
-  user requests historical validation. Never describe backtest as guaranteed future performance.
-disable-model-invocation: true
+  Backtest A-share strategies with T+1, limits, costs, walk-forward split.
+  PAPER_TRADING_ONLY. Use when user requests historical validation.
+  tools/china_quant/backtest/
 ---
 
 # Backtest Engine
 
-**Status**: PAPER_TRADING_ONLY — scaffold; full backtest not yet implemented.
+```bash
+python3 tools/china_quant/cli.py backtest --code 601398
+```
 
-## Requirements when implemented
+Features: T+1, stamp duty, commission, slippage, limit-up/down, walk-forward split.
 
-- Transaction costs
-- Suspensions & limit up/down
-- No survivorship bias / no future leakage
-- Benchmark comparison
+Validation labels: VALIDATED | PRELIMINARY | UNVALIDATED | FAILED
 
-## Current
-
-Use `PERFORMANCE_LEDGER.csv` for forward paper tracking.
-
-Do not auto-run backtests without user request.
+Do not mark VALIDATED until OOS + walk-forward pass. See `docs/china-a-share-intelligence/12_BACKTEST_ENGINE.md`.

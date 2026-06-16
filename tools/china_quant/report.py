@@ -55,6 +55,8 @@ class DailyReport:
     sectors: list[SectorInfo] = field(default_factory=list)
     data_provenance: list[str] = field(default_factory=list)
     assumptions: list[str] = field(default_factory=list)
+    policy_summary: str = ""
+    institutional_summary: str = ""
 
 
 def render_report(r: DailyReport) -> str:
@@ -91,7 +93,10 @@ def render_report(r: DailyReport) -> str:
             lines.append(f"- {a}")
         lines.append("")
 
-    if r.sectors:
+    if r.policy_summary:
+        lines += ["## 政策摘要", "", r.policy_summary, ""]
+    if r.institutional_summary:
+        lines += ["## 机构动向摘要", "", r.institutional_summary, ""]
         lines += ["## 3. 强势板块", ""]
         for s in r.sectors[:5]:
             lines += [

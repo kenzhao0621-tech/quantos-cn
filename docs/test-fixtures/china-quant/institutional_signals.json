@@ -1,0 +1,7 @@
+{
+  "signals": [
+    {"code": "601398", "type": "block_trade", "value": "大宗溢价+1.2%", "level": "confirmed", "source": "exchange_disclosure", "timestamp": "2026-06-11"},
+    {"code": "601398", "type": "margin_balance", "value": "融资余额上升", "level": "public_disclosure", "source": "exchange", "timestamp": "2026-06-11"},
+    {"code": "300750", "type": "northbound", "value": "净流入（样本）", "level": "inferred", "source": "proxy", "timestamp": "2026-06-10"}
+  ]
+}

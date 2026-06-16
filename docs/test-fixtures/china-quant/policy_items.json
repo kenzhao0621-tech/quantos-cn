@@ -1,0 +1,25 @@
+{
+  "items": [
+    {
+      "title": "央行开展公开市场操作（样本）",
+      "source": "PBOC",
+      "published": "2026-06-11",
+      "effective": "2026-06-11",
+      "status": "confirmed",
+      "beneficiaries": ["银行", "高股息"],
+      "negatives": [],
+      "confidence": "HIGH",
+      "priced_in": true
+    },
+    {
+      "title": "工信部支持新能源产业链（样本提案）",
+      "source": "MIIT",
+      "published": "2026-06-10",
+      "status": "proposed",
+      "beneficiaries": ["电力设备"],
+      "negatives": ["传统能源"],
+      "confidence": "MEDIUM",
+      "priced_in": false
+    }
+  ]
+}

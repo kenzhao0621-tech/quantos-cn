@@ -50,3 +50,11 @@ See `docs/cursor-skills/04_INSTALLATION_DECISIONS.md` for Round 1–2 skill inst
 
 **Decision**: Complete A-share pipeline (`pipeline.py`, sector/screen/risk) with fixture E2E.
 **Why**: Spec §5–8; status remains ACTIVE_WITH_LIMITATIONS for live universe.
+
+## 2026-06-16 — Full intelligence system
+
+**Decision**: Provider layer, universe_full fixture (12 stocks), scoring v2, dossiers, backtest, paper JSONL.
+**Why**: Desktop full intelligence spec; reuse existing 8 skills + 5 new supporting skills.
+
+**Decision**: Status stays `ACTIVE_WITH_LIMITATIONS`; paper ledger 10 days → `VALIDATED_FOR_PAPER_TRADING` for fixture mode only.
+**Why**: Live full-universe AKShare not verified on trading day; honest gating per spec §24.
