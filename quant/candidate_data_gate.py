@@ -18,6 +18,7 @@ class CandidateReadinessResult:
     maturity: str
     gates: list[dict[str, Any]] = field(default_factory=list)
     rejection_reasons: list[str] = field(default_factory=list)
+    disclosure_state: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -71,16 +72,25 @@ def evaluate_candidate_readiness(
     })
 
     disclosures = disclosure_coverage_report()
+    disc_ready = disclosures.get("disclosure_readiness", {})
+    disc_passed = bool(disc_ready.get("passed", False))
+    disc_state = disc_ready.get("state", "BLOCKED_PROVIDER_UNAVAILABLE")
     gates.append({
         "name": "disclosures",
-        "passed": disclosures.get("total_rows", 0) >= 50,
-        "detail": f"{disclosures.get('total_rows', 0)} disclosure rows",
+        "passed": disc_passed,
+        "detail": disc_ready.get("detail") or disclosures.get("query_state", ""),
+        "state": disc_state,
+        "row_count": disclosures.get("total_rows", 0),
+        "verified_zero_results": disclosures.get("verified_zero_results", False),
     })
 
     for g in gates:
         if not g["passed"]:
-            reasons.append(f"{g['name']}: {g.get('detail', 'fail')}")
+            reasons.append(f"{g['name']}: {g.get('detail', g.get('state', 'fail'))}")
 
     ready = all(g["passed"] for g in gates)
     maturity = "CANDIDATE_DATA_READY" if ready else "PIPELINE_VERIFIED_WITH_DATA_GAPS"
-    return CandidateReadinessResult(ready=ready, maturity=maturity, gates=gates, rejection_reasons=reasons)
+    return CandidateReadinessResult(
+        ready=ready, maturity=maturity, gates=gates, rejection_reasons=reasons,
+        disclosure_state=disc_state,
+    )

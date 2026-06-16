@@ -1,0 +1,38 @@
+[
+  {
+    "disclosure_id": "fixture001",
+    "exchange": "SSE",
+    "stock_code": "600000",
+    "company_name": "浦发银行",
+    "title": "2025年年度报告",
+    "category": "PERIODIC_REPORT",
+    "official_publication_time": "2026-06-10 18:00:00",
+    "retrieval_time": "2026-06-16 12:00:00",
+    "source_name": "local_snapshot",
+    "source_identifier": "fix-001",
+    "canonical_url": "http://example.com/fixture",
+    "document_type": "PDF",
+    "document_version": 1,
+    "point_in_time_eligible": true,
+    "severity": "LOW",
+    "blocking_status": "NON_BLOCKING"
+  },
+  {
+    "disclosure_id": "fixture002",
+    "exchange": "SZSE",
+    "stock_code": "000001",
+    "company_name": "平安银行",
+    "title": "关于股东减持计划的公告",
+    "category": "SHAREHOLDER_REDUCTION",
+    "official_publication_time": "2026-06-12 16:30:00",
+    "retrieval_time": "2026-06-16 12:00:00",
+    "source_name": "local_snapshot",
+    "source_identifier": "fix-002",
+    "canonical_url": "http://example.com/fixture2",
+    "document_type": "PDF",
+    "document_version": 1,
+    "point_in_time_eligible": true,
+    "severity": "LOW",
+    "blocking_status": "NON_BLOCKING"
+  }
+]

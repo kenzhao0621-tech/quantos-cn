@@ -193,41 +193,6 @@ def generate_daily_report(
 
 
 def write_daily_report(report: DailyQuantReport) -> dict[str, str]:
-    DAILY_DIR.mkdir(parents=True, exist_ok=True)
-    d = report.data_cutoff or datetime.now().strftime("%Y-%m-%d")
-    base = f"{d}_DAILY_QUANT_REPORT"
-    jp = DAILY_DIR / f"{base}.json"
-    mp = DAILY_DIR / f"{base}.md"
-    data = report.to_dict()
-    data["generated_at"] = datetime.now().isoformat(timespec="seconds")
-    jp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-
-    lines = [
-        f"# Daily Quant Report — {d}",
-        "",
-        f"**Decision:** `{report.decision}`",
-        f"**Run ID:** `{report.run_id}`",
-        f"**Target session:** {report.target_trading_date}",
-        "",
-        "## A. Data audit",
-        "",
-        f"- Provider: {report.provider} | Freshness: {report.freshness}",
-        f"- Coverage: {report.spot_row_count} spot rows",
-        "",
-        "## B. Market regime",
-        "",
-        f"- Regime: **{report.regime}** (confidence: {report.regime_confidence})",
-        "",
-        "## E. Decision",
-        "",
-        f"**{report.decision}**",
-        "",
-    ]
-    if report.candidate:
-        lines += ["## F. Candidate", "", f"- {report.candidate.get('code')} {report.candidate.get('name')}", ""]
-    else:
-        lines += ["## NO_TRADE reasons", ""]
-        for r in report.no_trade_reasons:
-            lines.append(f"- {r}")
-    mp.write_text("\n".join(lines), encoding="utf-8")
-    return {"json": str(jp), "md": str(mp)}
+    from quant.report_renderer import render_all_formats
+    paths = render_all_formats(report.to_dict())
+    return {k: v for k, v in paths.items() if isinstance(v, str)}

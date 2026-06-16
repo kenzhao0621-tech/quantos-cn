@@ -1,0 +1,97 @@
+version: "1.0.0"
+# Official China A-share disclosure sources — CNINFO is CSRC-designated disclosure media for SSE/SZSE/BSE
+
+sources:
+  - id: cninfo_his_announcement
+    exchange: ALL
+    domain: www.cninfo.com.cn
+    allowed_paths:
+      - /new/hisAnnouncement/query
+      - /new/disclosure/detail
+    purpose: official_listed_company_announcements
+    source_class: OFFICIAL_PERIODIC_AND_MATERIAL
+    expected_content_types:
+      - application/json
+      - application/pdf
+      - text/html
+    authentication: none
+    minimum_interval_seconds: 2
+    maximum_requests_per_run: 30
+    maximum_response_bytes: 10485760
+    stop_on_401: true
+    stop_on_403: true
+    stop_on_429: true
+    stop_on_captcha: true
+    authorization_note: CSRC-designated unified disclosure platform (巨潮资讯)
+    enabled: true
+
+  - id: sse_query_api
+    exchange: SSE
+    domain: query.sse.com.cn
+    allowed_paths:
+      - /security/stock/queryCompanyBulletin.do
+      - /commonQuery.do
+    purpose: sse_listed_company_announcements
+    source_class: OFFICIAL_PERIODIC_AND_MATERIAL
+    expected_content_types:
+      - application/json
+    authentication: none
+    minimum_interval_seconds: 3
+    maximum_requests_per_run: 20
+    maximum_response_bytes: 5242880
+    stop_on_401: true
+    stop_on_403: true
+    stop_on_429: true
+    stop_on_captcha: true
+    authorization_note: Shanghai Stock Exchange official query API
+    enabled: true
+
+  - id: szse_disc_api
+    exchange: SZSE
+    domain: www.szse.cn
+    allowed_paths:
+      - /api/disc/announcement/list
+      - /api/disc/announcement/detail
+    purpose: szse_listed_company_announcements
+    source_class: OFFICIAL_PERIODIC_AND_MATERIAL
+    expected_content_types:
+      - application/json
+    authentication: none
+    minimum_interval_seconds: 3
+    maximum_requests_per_run: 20
+    maximum_response_bytes: 5242880
+    stop_on_401: true
+    stop_on_403: true
+    stop_on_429: true
+    stop_on_captcha: true
+    authorization_note: Shenzhen Stock Exchange official disclosure API
+    enabled: true
+
+  - id: bse_disclosure
+    exchange: BSE
+    domain: www.bse.cn
+    allowed_paths:
+      - /disclosure/announcement.html
+      - /api/search/announcement
+    purpose: bse_listed_company_announcements
+    source_class: OFFICIAL_PERIODIC_AND_MATERIAL
+    expected_content_types:
+      - application/json
+      - text/html
+    authentication: none
+    minimum_interval_seconds: 3
+    maximum_requests_per_run: 20
+    maximum_response_bytes: 5242880
+    stop_on_401: true
+    stop_on_403: true
+    stop_on_429: true
+    stop_on_captcha: true
+    authorization_note: Beijing Stock Exchange official disclosure
+    enabled: true
+
+provider_priority:
+  - cninfo_official
+  - sse_official
+  - szse_official
+  - bse_official
+  - local_snapshot

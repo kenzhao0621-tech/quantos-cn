@@ -1,0 +1,21 @@
+{
+  "run_id": "test123",
+  "data_cutoff": "2026-06-16",
+  "decision": "NO_TRADE",
+  "provider": "akshare_sina",
+  "freshness": "END_OF_DAY",
+  "spot_row_count": 5500,
+  "regime": "neutral",
+  "regime_confidence": "MEDIUM",
+  "no_trade_reasons": [
+    "test"
+  ],
+  "sections": {
+    "disclosures": {
+      "disclosure_readiness": {
+        "state": "PASS_WITH_VERIFIED_ZERO_RESULTS"
+      }
+    }
+  },
+  "generated_at": "2026-06-16T21:28:43"
+}

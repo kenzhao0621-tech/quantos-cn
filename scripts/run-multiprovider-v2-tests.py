@@ -139,11 +139,13 @@ def test_fabric_skips_not_configured() -> None:
 
 
 def test_candidate_gate_blocks_without_history() -> None:
+    from unittest.mock import patch
     from quant.candidate_data_gate import evaluate_candidate_readiness
-    r = evaluate_candidate_readiness(
-        run_id="test", spot_row_count=5500, spot_provider="akshare_sina", quality_passed=True,
-    )
-    if not r.ready and r.maturity == "PIPELINE_VERIFIED_WITH_DATA_GAPS":
+    with patch("quant.candidate_data_gate.coverage_report", return_value={"partition_count": 0}):
+        r = evaluate_candidate_readiness(
+            run_id="test", spot_row_count=5500, spot_provider="akshare_sina", quality_passed=True,
+        )
+    if not r.ready and any("historical_bars" in x for x in r.rejection_reasons):
         ok("candidate_gate_blocks_without_history")
     else:
         fail("candidate_gate_blocks_without_history", r.maturity)

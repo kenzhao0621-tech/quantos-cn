@@ -507,8 +507,38 @@ def cmd_update_fundamentals(_args: argparse.Namespace) -> int:
 
 
 def cmd_update_disclosures(_args: argparse.Namespace) -> int:
-    from quant.backfill import update_disclosures
-    return _emit(update_disclosures(), "公告数据已更新。")
+    from quant.disclosure_store import run_official_disclosure_update
+    return _emit(run_official_disclosure_update(), "官方公告数据已更新。")
+
+
+def cmd_schedule_live_market_test(args: argparse.Namespace) -> int:
+    from quant.live_test_scheduler import schedule_live_test
+    return _emit(schedule_live_test(dry_run=not args.install), "Live market test scheduled.")
+
+
+def cmd_live_market_test_status(_args: argparse.Namespace) -> int:
+    from quant.live_test_scheduler import live_market_test_status
+    return _emit(live_market_test_status(), "Live test status.")
+
+
+def cmd_cancel_live_market_test(_args: argparse.Namespace) -> int:
+    from quant.live_test_scheduler import cancel_live_market_test
+    return _emit(cancel_live_market_test(), "Live test cancelled.")
+
+
+def cmd_schedule_daily_report(args: argparse.Namespace) -> int:
+    from quant.daily_report_scheduler import schedule_daily_report
+    return _emit(schedule_daily_report(dry_run=not args.install), "Daily report schedule prepared.")
+
+
+def cmd_daily_report_schedule_status(_args: argparse.Namespace) -> int:
+    from quant.daily_report_scheduler import daily_report_schedule_status
+    return _emit(daily_report_schedule_status(), "Daily report schedule status.")
+
+
+def cmd_cancel_daily_report_schedule(_args: argparse.Namespace) -> int:
+    from quant.daily_report_scheduler import cancel_daily_report_schedule
+    return _emit(cancel_daily_report_schedule(), "Daily report schedule cancelled.")
 
 
 def cmd_build_feature_store(_args: argparse.Namespace) -> int:
@@ -574,6 +604,12 @@ COMMANDS: dict[str, Callable[[argparse.Namespace], int]] = {
     "update-sectors": cmd_update_sectors,
     "update-fundamentals": cmd_update_fundamentals,
     "update-disclosures": cmd_update_disclosures,
+    "schedule-live-market-test": cmd_schedule_live_market_test,
+    "live-market-test-status": cmd_live_market_test_status,
+    "cancel-live-market-test": cmd_cancel_live_market_test,
+    "schedule-daily-report": cmd_schedule_daily_report,
+    "daily-report-schedule-status": cmd_daily_report_schedule_status,
+    "cancel-daily-report-schedule": cmd_cancel_daily_report_schedule,
     "build-feature-store": cmd_build_feature_store,
     "candidate-readiness": cmd_candidate_readiness,
     "cross-source-reconcile": cmd_cross_source_reconcile,
@@ -643,7 +679,17 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("update-daily-bars", help="Incremental daily bar backfill")
     sub.add_parser("update-sectors", help="Sector classification backfill")
     sub.add_parser("update-fundamentals", help="Fundamental snapshot backfill")
-    sub.add_parser("update-disclosures", help="Disclosure ingestion backfill")
+    sub.add_parser("update-disclosures", help="Official disclosure ingestion backfill")
+    p_live = sub.add_parser("schedule-live-market-test", help="Schedule one-shot live market test")
+    p_live.add_argument("--dry-run", action="store_true", default=True)
+    p_live.add_argument("--install", action="store_true")
+    sub.add_parser("live-market-test-status", help="Live market test schedule status")
+    sub.add_parser("cancel-live-market-test", help="Cancel live market test schedule")
+    p_daily_sched = sub.add_parser("schedule-daily-report", help="Schedule daily post-close report")
+    p_daily_sched.add_argument("--dry-run", action="store_true", default=True)
+    p_daily_sched.add_argument("--install", action="store_true")
+    sub.add_parser("daily-report-schedule-status", help="Daily report schedule status")
+    sub.add_parser("cancel-daily-report-schedule", help="Cancel daily report schedule")
     sub.add_parser("build-feature-store", help="Compute technical features")
     p_ready = sub.add_parser("candidate-readiness", help="Evaluate candidate data gate")
     p_ready.add_argument("--run-id", help="Bind to fetch run_id")

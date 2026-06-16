@@ -217,36 +217,9 @@ def update_fundamentals() -> dict[str, Any]:
 
 
 def update_disclosures() -> dict[str, Any]:
-    from quant.disclosure_store import persist_disclosures, disclosure_coverage_report
-    from quant.providers.tushare_provider import TushareProvider
-
-    tp = TushareProvider()
-    if not tp.configured():
-        return {"status": "PERMISSION_UNAVAILABLE", **disclosure_coverage_report()}
+    from quant.disclosure_store import run_official_disclosure_update, disclosure_coverage_report
     try:
-        pro = tp._pro()
-        end = datetime.now().strftime("%Y%m%d")
-        start = (datetime.now() - timedelta(days=30)).strftime("%Y%m%d")
-        rows: list[dict[str, Any]] = []
-        try:
-            df = pro.anns(start_date=start, end_date=end)
-            if df is not None and not df.empty:
-                for _, r in df.iterrows():
-                    rows.append({
-                        "ts_code": r.get("ts_code", ""),
-                        "ann_date": str(r.get("ann_date", "")),
-                        "title": str(r.get("title", "")),
-                        "category": "announcement",
-                        "provider": "tushare_anns",
-                        "source": "tushare",
-                    })
-        except Exception:
-            pass
-        if rows:
-            persist_disclosures(rows, provider="tushare")
-        rep = disclosure_coverage_report()
-        rep["row_count"] = len(rows)
-        rep["candidate_gate"] = len(rows) >= 50
+        rep = run_official_disclosure_update(days_back=30, use_network=True)
         _save_checkpoint("disclosures", rep)
         return rep
     except Exception as e:

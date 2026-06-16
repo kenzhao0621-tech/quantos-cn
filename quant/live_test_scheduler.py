@@ -19,13 +19,28 @@ REPORT_MD = ROOT / "docs" / "ai" / "daily-trading" / "LIVE_MARKET_HOURS_TEST.md"
 
 
 def _next_open_session_at_0940() -> datetime:
-    from quant.backfill import _trade_dates_baostock
     from zoneinfo import ZoneInfo
+    import baostock as bs
+    from datetime import timedelta
 
     cst = ZoneInfo("Asia/Shanghai")
     now = datetime.now(cst)
-    dates = _trade_dates_baostock(30)
-    for d in dates:
+
+    # Query a forward-looking window so we can always find a next trading day
+    # even when this runs after market close.
+    end = (now + timedelta(days=90)).strftime("%Y-%m-%d")
+    start = (now - timedelta(days=60)).strftime("%Y-%m-%d")
+
+    bs.login()
+    rs = bs.query_trade_dates(start_date=start, end_date=end)
+    out: list[str] = []
+    while rs.error_code == "0" and rs.next():
+        row = rs.get_row_data()
+        if row[1] == "1":
+            out.append(row[0].replace("-", ""))
+    bs.logout()
+
+    for d in out:
         y, m, day = int(d[:4]), int(d[4:6]), int(d[6:8])
         target = datetime(y, m, day, 9, 40, 0, tzinfo=cst)
         if target > now:
@@ -89,6 +104,7 @@ launchctl bootout gui/$(id -u) "{PLIST_PATH}" 2>/dev/null || true
         report["installed"] = r.returncode == 0
         report["launchctl_stderr"] = r.stderr
 
+    _validate_plist()
     REPORT_JSON.write_text(json.dumps(report, indent=2), encoding="utf-8")
     REPORT_MD.write_text(
         "\n".join([
@@ -103,3 +119,21 @@ launchctl bootout gui/$(id -u) "{PLIST_PATH}" 2>/dev/null || true
         encoding="utf-8",
     )
     return report
+
+
+def live_market_test_status() -> dict[str, Any]:
+    status: dict[str, Any] = {"label": LABEL, "plist_exists": PLIST_PATH.exists()}
+    if REPORT_JSON.exists():
+        status.update(json.loads(REPORT_JSON.read_text(encoding="utf-8")))
+    return status
+
+
+def cancel_live_market_test() -> dict[str, Any]:
+    uid = subprocess.check_output(["id", "-u"], text=True).strip()
+    r = subprocess.run(["launchctl", "bootout", f"gui/{uid}", str(PLIST_PATH)], capture_output=True, text=True)
+    return {"cancelled": r.returncode == 0, "stderr": r.stderr}
+
+
+def _validate_plist() -> None:
+    if PLIST_PATH.exists():
+        subprocess.run(["plutil", "-lint", str(PLIST_PATH)], capture_output=True)

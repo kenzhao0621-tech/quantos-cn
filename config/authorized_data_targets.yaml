@@ -38,6 +38,34 @@ targets:
     owner_or_authorization_note: template — enable after user authorization
     enabled: false
 
+  - id: cninfo_official
+    domain: www.cninfo.com.cn
+    target_class: public_official
+    owned_security_test_target: false
+    allowed_paths:
+      - /new/hisAnnouncement/query
+      - /new/disclosure/detail
+      - /new/commonUrl/
+    purpose: official_listed_company_announcements
+    data_types:
+      - html
+      - json
+      - pdf
+    authentication: none
+    session_state_path: null
+    maximum_requests_per_run: 30
+    minimum_interval_seconds: 2
+    expected_content_types:
+      - application/json
+      - text/html
+      - application/pdf
+    stop_on_401: true
+    stop_on_403: true
+    stop_on_429: true
+    stop_on_captcha: true
+    owner_or_authorization_note: CSRC-designated unified disclosure platform (巨潮资讯) — public official API
+    enabled: true
+
   - id: third_party_financial
     domain: eastmoney.com
     target_class: third_party_data

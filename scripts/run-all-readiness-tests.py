@@ -26,6 +26,7 @@ SUITES = [
     ("multimodal", "run-multimodal-tests.py", "UNIT"),
     ("browser-policy", None, "DETERMINISTIC_INTEGRATION"),
     ("gateway-v2", "run-gateway-tests.py", "DETERMINISTIC_INTEGRATION"),
+    ("disclosure-scheduler", "run-disclosure-scheduler-tests.py", "DETERMINISTIC_INTEGRATION"),
 ]
 
 

@@ -1,0 +1,15 @@
+{
+  "generated_at": "2026-06-16T21:10:00Z",
+  "repository": "/Users/kenzhao/Projects/netlify-demo",
+  "branch": "chore/cursor-operating-system",
+  "pre_change_commit": "731aa75",
+  "backup": ".cursor-backups/disclosure-scheduler-pdf-20260616-210637",
+  "why_disclosures_zero": "Tushare anns API returned 0 rows; no official CNINFO/SSE/SZSE/BSE provider was implemented",
+  "provider_status": "unimplemented_third_party_only",
+  "candidate_gate_issue": "candidate_data_gate required total_rows >= 50, conflating zero results with unavailable",
+  "scheduler_patch_location": "quant/live_test_scheduler.py _next_open_session_at_0940 forward-looking fix (uncommitted in prior batch)",
+  "pdf_renderer": "none — Markdown/JSON only; Playwright available via node devDependency",
+  "missing_dependencies": ["reportlab for fallback PDF", "official disclosure providers"],
+  "desktop_path": "/Users/kenzhao/Desktop/China_A_Share_Daily_Reports/",
+  "desktop_writable": true
+}
