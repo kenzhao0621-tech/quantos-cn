@@ -307,10 +307,14 @@ def cmd_import_snapshot(args: argparse.Namespace) -> int:
 def cmd_run_daily(args: argparse.Namespace) -> int:
     from tools.china_quant.daily_runner import run_fixture, run_latest_available, write_deliverables
 
+    from quant.data_lake import load_by_run_id
+    from quant.paper_ledger import DuplicateRunError, append_daily_signals
+
     fixtures = ROOT / "docs" / "test-fixtures" / "china-quant"
     ledger = ROOT / "docs" / "ai" / "daily-trading"
     run_id = getattr(args, "run_id", None)
     mode_name = getattr(args, "mode", None)
+    ledger_result: dict[str, Any] | None = None
 
     try:
         if args.fixture:
@@ -324,10 +328,32 @@ def cmd_run_daily(args: argparse.Namespace) -> int:
         elif mode_name == "latest-available":
             result = run_latest_available(fixtures, use_cache=not args.no_cache)
             mode = result.mode.value
+            run_id = (result.provider_status or {}).get("run_id")
         else:
             result = run_latest_available(fixtures, use_cache=not args.no_cache)
             mode = result.mode.value
+            run_id = (result.provider_status or {}).get("run_id")
         paths = write_deliverables(result, ledger, fixtures)
+
+        if not args.fixture and run_id:
+            spot_doc = load_by_run_id("spot_quotes", run_id) or {}
+            try:
+                append_out = append_daily_signals(
+                    ledger,
+                    result,
+                    run_id=run_id,
+                    provider=spot_doc.get("provider"),
+                    freshness=spot_doc.get("freshness"),
+                    market_data_date=spot_doc.get("market_date") or result.analysis_date,
+                )
+                ledger_result = append_out.to_dict()
+            except DuplicateRunError as exc:
+                ledger_result = {
+                    "skipped_duplicate": True,
+                    "run_id": run_id,
+                    "existing_record_ids": exc.existing_ids,
+                }
+
         return _emit(
             {
                 "mode": mode,
@@ -337,6 +363,7 @@ def cmd_run_daily(args: argparse.Namespace) -> int:
                 "paths": {k: str(v) for k, v in paths.items()},
                 "limitations": result.limitations,
                 "primary_count": len(result.report.primary),
+                "paper_ledger": ledger_result,
             },
             f"每日流程完成（{mode}），输出已写入 deliverables。",
         )
