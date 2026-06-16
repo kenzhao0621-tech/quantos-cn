@@ -62,3 +62,15 @@ class ShadowBrokerAdapter(BrokerAdapter):
 
     def list_orders(self) -> list[dict[str, Any]]:
         return super().list_orders()
+
+    def list_events(self, limit: int = 50) -> list[dict[str, Any]]:
+        if not self.log_path.exists():
+            return []
+        lines = self.log_path.read_text(encoding="utf-8").strip().splitlines()
+        events = []
+        for line in lines[-limit:]:
+            try:
+                events.append(json.loads(line))
+            except Exception:
+                pass
+        return events

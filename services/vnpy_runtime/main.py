@@ -97,6 +97,7 @@ class VnpyRuntimeService:
     def doctor(self) -> dict[str, Any]:
         return {
             "event_engine": "ok" if self._started or True else "stopped",
+            "native_available": self._use_native,
             "native_vnpy_available": self._use_native,
             "adapter_mode": "native" if self._use_native else "shim",
             "gateways": len(self.gateway_registry.list_gateways()),

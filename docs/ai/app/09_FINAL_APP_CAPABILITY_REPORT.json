@@ -1,0 +1,161 @@
+{
+  "generated_at": "2026-06-16T14:11:12.409887Z",
+  "pre_change_commit": "b113e76",
+  "post_change_commit": "b113e767f0853b99b3593117cd11c7f13deaedbe",
+  "maturity": "FULL_STACK_SYSTEM_READY + AUTONOMOUS_PAPER_TRADING + AUTONOMOUS_SHADOW_LIVE",
+  "api_e2e": {
+    "generated_at": "2026-06-16T14:11:12.367109Z",
+    "cases": [
+      {
+        "case": "editable_install",
+        "passed": true,
+        "detail": "ok"
+      },
+      {
+        "case": "import_gateway_from_tmp",
+        "passed": true,
+        "detail": "2.0.0"
+      },
+      {
+        "case": "import_app_from_tmp",
+        "passed": true
+      },
+      {
+        "case": "main_py_import",
+        "passed": true,
+        "detail": "ok"
+      },
+      {
+        "case": "server_start_from_tmp",
+        "passed": true
+      },
+      {
+        "case": "route__health",
+        "passed": true
+      },
+      {
+        "case": "route__ready",
+        "passed": true
+      },
+      {
+        "case": "route__portal",
+        "passed": true
+      },
+      {
+        "case": "route__docs",
+        "passed": true
+      },
+      {
+        "case": "system_status",
+        "passed": true
+      },
+      {
+        "case": "login_admin",
+        "passed": true
+      },
+      {
+        "case": "backtest",
+        "passed": true
+      },
+      {
+        "case": "paper_start",
+        "passed": true
+      },
+      {
+        "case": "paper_stop",
+        "passed": true
+      },
+      {
+        "case": "shadow_start",
+        "passed": true
+      },
+      {
+        "case": "shadow_stop",
+        "passed": true
+      },
+      {
+        "case": "risk_halt",
+        "passed": true
+      },
+      {
+        "case": "risk_reset",
+        "passed": true
+      },
+      {
+        "case": "viewer_paper_denied",
+        "passed": true
+      },
+      {
+        "case": "system_doctor",
+        "passed": true
+      },
+      {
+        "case": "make_portal",
+        "passed": true
+      },
+      {
+        "case": "make_no_duplicate_test",
+        "passed": true
+      }
+    ],
+    "overall_passed": true,
+    "real_money_disabled": true
+  },
+  "browser_e2e": {
+    "generated_at": "2026-06-16T14:09:43.795950Z",
+    "cases": [
+      {
+        "case": "login",
+        "passed": true,
+        "screenshot": "/Users/kenzhao/Projects/netlify-demo/docs/ai/app/screenshots/01_login.png"
+      },
+      {
+        "case": "overview",
+        "passed": true,
+        "screenshot": "/Users/kenzhao/Projects/netlify-demo/docs/ai/app/screenshots/02_overview.png"
+      },
+      {
+        "case": "doctor",
+        "passed": true,
+        "screenshot": "/Users/kenzhao/Projects/netlify-demo/docs/ai/app/screenshots/03_doctor.png"
+      },
+      {
+        "case": "backtest",
+        "passed": true,
+        "screenshot": "/Users/kenzhao/Projects/netlify-demo/docs/ai/app/screenshots/04_backtest.png"
+      },
+      {
+        "case": "paper_start_stop",
+        "passed": true,
+        "screenshot": "/Users/kenzhao/Projects/netlify-demo/docs/ai/app/screenshots/05_paper.png"
+      },
+      {
+        "case": "shadow_start_stop",
+        "passed": true,
+        "screenshot": "/Users/kenzhao/Projects/netlify-demo/docs/ai/app/screenshots/06_shadow.png"
+      },
+      {
+        "case": "risk_halt_reset",
+        "passed": true,
+        "screenshot": "/Users/kenzhao/Projects/netlify-demo/docs/ai/app/screenshots/07_risk.png"
+      },
+      {
+        "case": "vnpy_start",
+        "passed": true,
+        "screenshot": "/Users/kenzhao/Projects/netlify-demo/docs/ai/app/screenshots/08_vnpy.png"
+      },
+      {
+        "case": "no_js_errors",
+        "passed": true,
+        "errors": []
+      }
+    ],
+    "js_errors": [],
+    "screenshot_dir": "/Users/kenzhao/Projects/netlify-demo/docs/ai/app/screenshots",
+    "overall_passed": true
+  },
+  "real_execution_mode": "MANUAL_CONFIRM_ONLY",
+  "real_money_disabled": true,
+  "screenshots": "/Users/kenzhao/Projects/netlify-demo/docs/ai/app/screenshots",
+  "logs": "/Users/kenzhao/Projects/netlify-demo/data/gateway/portal.log"
+}

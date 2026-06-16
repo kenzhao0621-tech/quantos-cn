@@ -1,57 +1,66 @@
-/** QuantOS CN portal extensions */
+/** QuantOS CN vn.py / Qlib portal extensions */
 (function () {
-  const API_KEY = "demo-local-key-change-in-prod";
-  async function qapi(path, options = {}) {
-    const res = await fetch(`${window.location.origin}${path}`, {
-      ...options,
-      headers: { "Content-Type": "application/json", "X-API-Key": API_KEY, ...(options.headers || {}) },
-    });
-    return res.json();
-  }
-
-  document.querySelectorAll(".tab").forEach((tab) => {
-    tab.addEventListener("click", () => {
-      document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
-      tab.classList.add("active");
-      const page = tab.dataset.page;
-      document.querySelectorAll("main.layout").forEach((m) => m.classList.add("hidden"));
-      const el = document.getElementById(`page-${page}`);
-      if (el) el.classList.remove("hidden");
-    });
-  });
+  const api = window.QuantOSApi;
 
   async function refreshQuantOS() {
+    if (!api.apiKey) return;
     try {
-      const st = await qapi("/api/v1/quantos/status");
+      const st = await api.request("/api/v1/quantos/status");
       if (st.ok) {
-        document.getElementById("quantos-status").textContent = JSON.stringify(st.data, null, 2);
+        const vn = st.data.vnpy_runtime?.native_vnpy ? "NATIVE" : "SHIM";
+        const ql = st.data.qlib_provider?.native_qlib ? "NATIVE" : "SHIM";
         document.getElementById("vnpy-status").textContent = JSON.stringify(st.data.vnpy_runtime, null, 2);
         document.getElementById("qlib-status").textContent = JSON.stringify(st.data.qlib_provider, null, 2);
         document.getElementById("model-registry").textContent = JSON.stringify(st.data.model_registry, null, 2);
-        document.getElementById("broker-pill").textContent = `券商: ${st.data.vnpy_runtime?.active_gateway || "—"}`;
+        document.getElementById("vnpy-mode-tag").textContent = vn;
+        document.getElementById("qlib-mode-tag").textContent = ql;
       }
-      const gw = await qapi("/api/v1/quantos/vnpy/gateways");
+      const gw = await api.request("/api/v1/quantos/vnpy/gateways");
       if (gw.ok) document.getElementById("gateway-list").textContent = JSON.stringify(gw.data, null, 2);
-      const ev = await qapi("/api/v1/quantos/vnpy/events");
+      const ev = await api.request("/api/v1/quantos/vnpy/events");
       if (ev.ok) document.getElementById("shadow-events").textContent = JSON.stringify(ev.data.events?.slice(-10), null, 2);
     } catch (e) {
       console.error(e);
     }
   }
 
-  document.getElementById("btn-vnpy-start")?.addEventListener("click", async () => {
-    await qapi("/api/v1/quantos/vnpy/start", { method: "POST" });
-    refreshQuantOS();
-  });
-  document.getElementById("btn-vnpy-stop")?.addEventListener("click", async () => {
-    await qapi("/api/v1/quantos/vnpy/stop", { method: "POST" });
-    refreshQuantOS();
-  });
-  document.getElementById("btn-qlib-baseline")?.addEventListener("click", async () => {
-    const r = await qapi("/api/v1/quantos/qlib/baseline", { method: "POST", body: JSON.stringify({ as_of: "2026-06-16" }) });
-    document.getElementById("qlib-status").textContent = JSON.stringify(r.data, null, 2);
-  });
+  async function qact(label, path, options) {
+    const res = await api.request(path, options);
+    const el = document.getElementById("action-log-body");
+    if (el) {
+      el.textContent = JSON.stringify({
+        action: label,
+        request_id: res.request_id,
+        trace_id: res.trace_id,
+        ok: res.ok,
+        result: res.data,
+        error: res.error,
+      }, null, 2);
+    }
+    await refreshQuantOS();
+    return res;
+  }
 
-  refreshQuantOS();
-  setInterval(refreshQuantOS, 30000);
+  document.getElementById("btn-vnpy-start")?.addEventListener("click", () =>
+    qact("vnpy start", "/api/v1/quantos/vnpy/start", { method: "POST" }));
+  document.getElementById("btn-vnpy-stop")?.addEventListener("click", () =>
+    qact("vnpy stop", "/api/v1/quantos/vnpy/stop", { method: "POST" }));
+  document.getElementById("btn-qlib-baseline")?.addEventListener("click", () =>
+    qact("qlib baseline", "/api/v1/quantos/qlib/baseline", {
+      method: "POST",
+      body: JSON.stringify({ as_of: "2026-06-16" }),
+    }));
+  document.getElementById("btn-qlib-baseline-models")?.addEventListener("click", () =>
+    qact("qlib baseline", "/api/v1/quantos/qlib/baseline", {
+      method: "POST",
+      body: JSON.stringify({ as_of: "2026-06-16" }),
+    }));
+
+  if (api.apiKey) {
+    refreshQuantOS();
+    setInterval(refreshQuantOS, 30000);
+  }
+  document.getElementById("btn-login")?.addEventListener("click", () => {
+    setTimeout(refreshQuantOS, 500);
+  });
 })();

@@ -227,3 +227,45 @@
 {"ts": "2026-06-16T13:03:13.550426+00:00", "event_type": "risk_halt", "actor": "demo-admin", "detail": {"reason": "fi_test"}, "trace_id": "", "request_id": ""}
 {"ts": "2026-06-16T13:03:20.854643+00:00", "event_type": "risk_halt", "actor": "demo-admin", "detail": {"reason": "fi_test"}, "trace_id": "", "request_id": ""}
 {"ts": "2026-06-16T13:03:30.545392+00:00", "event_type": "risk_halt", "actor": "demo-admin", "detail": {"reason": "fi_test"}, "trace_id": "", "request_id": ""}
+{"ts": "2026-06-16T13:04:56.853328+00:00", "event_type": "risk_halt", "actor": "demo-admin", "detail": {"reason": "fi_test"}, "trace_id": "", "request_id": ""}
+{"ts": "2026-06-16T13:09:11.138531+00:00", "event_type": "risk_halt", "actor": "demo-admin", "detail": {"reason": "portal_halt"}, "trace_id": "", "request_id": ""}
+{"ts": "2026-06-16T13:11:45.184213+00:00", "event_type": "risk_halt", "actor": "demo-admin", "detail": {"reason": "portal_halt"}, "trace_id": "", "request_id": ""}
+{"ts": "2026-06-16T13:13:27.027948+00:00", "event_type": "risk_halt", "actor": "demo-admin", "detail": {"reason": "fi_test"}, "trace_id": "", "request_id": ""}
+{"ts": "2026-06-16T13:14:49.829561+00:00", "event_type": "risk_halt", "actor": "demo-admin", "detail": {"reason": "portal_halt"}, "trace_id": "", "request_id": ""}
+{"ts": "2026-06-16T13:15:48.817723+00:00", "event_type": "risk_halt", "actor": "demo-admin", "detail": {"reason": "fi_test"}, "trace_id": "", "request_id": ""}
+{"ts": "2026-06-16T13:21:28.917960+00:00", "event_type": "risk_halt", "actor": "demo-admin", "detail": {"reason": "fi_test"}, "trace_id": "", "request_id": ""}
+{"ts": "2026-06-16T13:28:09.444289+00:00", "event_type": "risk_halt", "actor": "demo-admin", "detail": {"reason": "fi_test"}, "trace_id": "", "request_id": ""}
+{"ts": "2026-06-16T13:28:40.323904+00:00", "event_type": "risk_halt", "actor": "demo-admin", "detail": {"reason": "fi_test"}, "trace_id": "", "request_id": ""}
+{"ts": "2026-06-16T13:33:05.385662+00:00", "event_type": "risk_halt", "actor": "demo-admin", "detail": {"reason": "portal_halt"}, "trace_id": "", "request_id": ""}
+{"ts": "2026-06-16T13:39:44.741445+00:00", "event_type": "risk_halt", "actor": "demo-admin", "detail": {"reason": "fi_test"}, "trace_id": "", "request_id": ""}
+{"ts": "2026-06-16T13:39:52.403843+00:00", "event_type": "risk_halt", "actor": "demo-admin", "detail": {"reason": "fi_test"}, "trace_id": "", "request_id": ""}
+{"ts": "2026-06-16T13:44:01.618770+00:00", "event_type": "risk_halt", "actor": "demo-admin", "detail": {"reason": "fi_test"}, "trace_id": "", "request_id": ""}
+{"ts": "2026-06-16T13:44:05.605137+00:00", "event_type": "risk_halt", "actor": "demo-admin", "detail": {"reason": "fi_test"}, "trace_id": "", "request_id": ""}
+{"ts": "2026-06-16T13:54:50.109831+00:00", "event_type": "paper_start", "actor": "demo-admin", "detail": {"mode": "PAPER_TRADING"}, "trace_id": "", "request_id": ""}
+{"ts": "2026-06-16T13:54:50.111092+00:00", "event_type": "paper_stop", "actor": "demo-admin", "detail": {}, "trace_id": "", "request_id": ""}
+{"ts": "2026-06-16T13:54:50.112432+00:00", "event_type": "shadow_start", "actor": "demo-admin", "detail": {"zero_real_orders": true}, "trace_id": "", "request_id": ""}
+{"ts": "2026-06-16T13:54:50.113888+00:00", "event_type": "shadow_stop", "actor": "demo-admin", "detail": {}, "trace_id": "", "request_id": ""}
+{"ts": "2026-06-16T13:54:50.115085+00:00", "event_type": "risk_halt", "actor": "demo-admin", "detail": {"reason": "e2e"}, "trace_id": "", "request_id": ""}
+{"ts": "2026-06-16T13:54:50.116538+00:00", "event_type": "risk_reset_confirm", "actor": "dev-service-risk-key", "detail": {"state": "OPEN", "reason": "reset by dev-service-risk-key", "halted_at": "", "halted_by": "", "reset_requested": false}, "trace_id": "", "request_id": ""}
+{"ts": "2026-06-16T13:54:50.118721+00:00", "event_type": "system_doctor", "actor": "demo-admin", "detail": {"run_id": "4279e9e5", "passed": true}, "trace_id": "", "request_id": ""}
+{"ts": "2026-06-16T13:55:01.568941+00:00", "event_type": "risk_halt", "actor": "demo-admin", "detail": {"reason": "fi_test"}, "trace_id": "", "request_id": ""}
+{"ts": "2026-06-16T13:56:46.213241+00:00", "event_type": "system_doctor", "actor": "dev-researcher-key", "detail": {"run_id": "a70b9d50", "passed": true}, "trace_id": "", "request_id": ""}
+{"ts": "2026-06-16T13:56:52.614266+00:00", "event_type": "daily_run", "actor": "dev-researcher-key", "detail": {"run_id": "18664f9b"}, "trace_id": "", "request_id": ""}
+{"ts": "2026-06-16T13:56:53.196277+00:00", "event_type": "market_update", "actor": "dev-researcher-key", "detail": {"run_id": "c765e7d8", "ok": true}, "trace_id": "", "request_id": ""}
+{"ts": "2026-06-16T13:56:55.947589+00:00", "event_type": "risk_halt", "actor": "demo-admin", "detail": {"reason": "fi_test"}, "trace_id": "", "request_id": ""}
+{"ts": "2026-06-16T13:58:38.602880+00:00", "event_type": "daily_report_complete", "actor": "dev-researcher-key", "detail": {"run_id": "18664f9b", "ok": true}, "trace_id": "", "request_id": ""}
+{"ts": "2026-06-16T14:08:27.797542+00:00", "event_type": "system_doctor", "actor": "demo-admin", "detail": {"run_id": "bfc08e56", "passed": true}, "trace_id": "", "request_id": ""}
+{"ts": "2026-06-16T14:09:31.643032+00:00", "event_type": "system_doctor", "actor": "demo-admin", "detail": {"run_id": "a518ebe5", "passed": true}, "trace_id": "", "request_id": ""}
+{"ts": "2026-06-16T14:09:35.942892+00:00", "event_type": "paper_start", "actor": "demo-admin", "detail": {"mode": "PAPER_TRADING"}, "trace_id": "", "request_id": ""}
+{"ts": "2026-06-16T14:09:36.959421+00:00", "event_type": "paper_stop", "actor": "demo-admin", "detail": {}, "trace_id": "", "request_id": ""}
+{"ts": "2026-06-16T14:09:38.126362+00:00", "event_type": "shadow_start", "actor": "demo-admin", "detail": {"zero_real_orders": true}, "trace_id": "", "request_id": ""}
+{"ts": "2026-06-16T14:09:39.159213+00:00", "event_type": "shadow_stop", "actor": "demo-admin", "detail": {}, "trace_id": "", "request_id": ""}
+{"ts": "2026-06-16T14:09:40.325710+00:00", "event_type": "risk_halt", "actor": "demo-admin", "detail": {"reason": "portal_halt"}, "trace_id": "", "request_id": ""}
+{"ts": "2026-06-16T14:09:41.641889+00:00", "event_type": "risk_reset_confirm", "actor": "dev-service-risk-key", "detail": {"state": "OPEN", "reason": "reset by dev-service-risk-key", "halted_at": "", "halted_by": "", "reset_requested": false}, "trace_id": "", "request_id": ""}
+{"ts": "2026-06-16T14:11:11.966909+00:00", "event_type": "paper_start", "actor": "demo-admin", "detail": {"mode": "PAPER_TRADING"}, "trace_id": "", "request_id": ""}
+{"ts": "2026-06-16T14:11:11.968219+00:00", "event_type": "paper_stop", "actor": "demo-admin", "detail": {}, "trace_id": "", "request_id": ""}
+{"ts": "2026-06-16T14:11:11.969546+00:00", "event_type": "shadow_start", "actor": "demo-admin", "detail": {"zero_real_orders": true}, "trace_id": "", "request_id": ""}
+{"ts": "2026-06-16T14:11:11.970721+00:00", "event_type": "shadow_stop", "actor": "demo-admin", "detail": {}, "trace_id": "", "request_id": ""}
+{"ts": "2026-06-16T14:11:11.971757+00:00", "event_type": "risk_halt", "actor": "demo-admin", "detail": {"reason": "e2e"}, "trace_id": "", "request_id": ""}
+{"ts": "2026-06-16T14:11:11.973020+00:00", "event_type": "risk_reset_confirm", "actor": "dev-service-risk-key", "detail": {"state": "OPEN", "reason": "reset by dev-service-risk-key", "halted_at": "", "halted_by": "", "reset_requested": false}, "trace_id": "", "request_id": ""}
+{"ts": "2026-06-16T14:11:11.975302+00:00", "event_type": "system_doctor", "actor": "demo-admin", "detail": {"run_id": "b937b87a", "passed": true}, "trace_id": "", "request_id": ""}

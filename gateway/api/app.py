@@ -46,7 +46,13 @@ _kill = KillSwitch()
 _risk = RiskEngine(_cfg, _kill)
 _paper = PaperBrokerAdapter(_risk)
 _shadow = ShadowBrokerAdapter(_risk)
-_state = StateMachine(TradingMode(_cfg.mode))
+_runtime = load_runtime_state()
+try:
+    _initial_mode = TradingMode(_runtime.get("mode", _cfg.mode))
+except ValueError:
+    _initial_mode = TradingMode.RESEARCH_ONLY
+_state = StateMachine(_initial_mode)
+_risk.set_mode(_initial_mode.value)
 _catalog = AgentCatalog()
 _audit = AuditLogger()
 _trials = TrialRegistry()
@@ -218,9 +224,14 @@ def get_task(task_id: str, principal: Optional[Principal] = Depends(get_principa
 @app.post("/api/v1/research/daily-run")
 def research_daily_run(principal: Optional[Principal] = Depends(get_principal)) -> Dict[str, Any]:
     p = _require(principal, "research:run")
-    run_id = str(uuid.uuid4())[:8]
+    from gateway.api.operations import run_daily_report_async
+    run_id = run_daily_report_async(p.user_id)
     _audit.emit("daily_run", p.user_id, {"run_id": run_id})
-    return envelope_ok({"run_id": run_id, "status": "QUEUED", "mode": _state.mode.value})
+    pdf_path = str(ROOT / "docs" / "ai" / "daily-trading" / "daily" / "2026-06-16_DAILY_QUANT_REPORT.pdf")
+    return envelope_ok(
+        {"run_id": run_id, "status": "RUNNING", "mode": _state.mode.value, "artifact_path": pdf_path},
+        run_id=run_id,
+    )
 
 
 @app.post("/api/v1/research/backtest")
@@ -352,6 +363,11 @@ def sidecar_features(principal: Optional[Principal] = Depends(get_principal)) ->
 # QuantOS CN routes
 from gateway.api.quantos import router as quantos_router
 app.include_router(quantos_router)
+
+# V4 operational routes
+from gateway.api import operations as ops_module
+ops_module.configure(state=_state, kill=_kill, risk=_risk, paper=_paper, shadow=_shadow, audit=_audit)
+app.include_router(ops_module.router)
 
 # Portal static files
 PORTAL_DIR = ROOT / "apps" / "portal-web"

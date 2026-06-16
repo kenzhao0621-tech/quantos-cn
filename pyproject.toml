@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "quantos-cn"
+version = "4.0.0"
+description = "QuantOS CN — China A-share quant gateway (paper/shadow only)"
+requires-python = ">=3.9"
+dependencies = []
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["gateway*", "quant*", "integrations*", "services*"]
+
+[tool.setuptools.package-dir]
+"" = "."

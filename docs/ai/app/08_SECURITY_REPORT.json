@@ -1,0 +1,5 @@
+{
+  "real_money_disabled": true,
+  "csrf": "same-origin-api",
+  "csp": "portal-static"
+}

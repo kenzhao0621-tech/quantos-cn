@@ -27,6 +27,10 @@ safety:
 auth:
   demo_api_key: demo-local-key-change-in-prod
   service_accounts:
+    - id: dev-researcher-key
+      role: researcher
+    - id: dev-service-risk-key
+      role: service_risk
     - id: svc-quant-pipeline
       role: service_research
     - id: svc-portal-read
