@@ -87,6 +87,12 @@ if python3 scripts/run-china-quant-full-tests.py >/tmp/cq-full.log 2>&1; then CQ
 record "| CQ-F | A-share full intelligence | $CQF | run-china-quant-full-tests.py |"
 if .venv-china-quant/bin/python scripts/run-china-quant-real-tests.py >/tmp/cq-real.log 2>&1; then CQ_R=PASS; else CQ_R=PASS_WITH_LIMITATIONS; fi
 record "| CQ-R | A-share real-data pipeline | $CQ_R | run-china-quant-real-tests.py |"
+if python3 scripts/run-multimodal-tests.py >/tmp/mm.log 2>&1; then MM=PASS; else MM=FAIL; fi
+record "| MM-1 | Multimodal V4 tests | $MM | run-multimodal-tests.py |"
+if npm run test:browser-policy >/tmp/browser.log 2>&1; then BR=PASS; else BR=FAIL; fi
+record "| BR-1 | Browser target policy | $BR | test:browser-policy |"
+if .venv-china-quant/bin/python -m quant system-audit >/tmp/quant-audit.log 2>&1; then QV4=PASS; else QV4=FAIL; fi
+record "| QV4 | Quant V4 system-audit | $QV4 | python -m quant system-audit |"
 
 if .venv-china-quant/bin/python tools/china_quant/cli.py premarket --fixture bullish_market >/tmp/cq-bull.log 2>&1; then
   CQ_BULL=PASS

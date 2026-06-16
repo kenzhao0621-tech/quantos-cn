@@ -1,7 +1,7 @@
 # Rollback Guide — Cursor Operating System
 
 **Backup (batch 3)**: `.cursor-backups/os-batch3-20260616-162507/`
-**Backup (real-data batch 4)**: `.cursor-backups/os-quant-real-20260616-170252/`
+**Backup (V4 multimodal/browser/real-data)**: `.cursor-backups/a-share-data-browser-v3-20260616-174342/`
 **Backup (Skills audit Round 1)**: `.cursor-backups/skills-audit-20260616-143447/`
 
 ## Quick restore — OS branch only
@@ -110,6 +110,14 @@ rm -f playwright.config.mjs scripts/playwright-baseline.sh scripts/playwright-co
 rm -f scripts/run-web-safety-tests.py docs/cursor-operating-system/25_PLAYWRIGHT_VISUAL_QA.md
 rm -rf docs/test-fixtures/web-safety
 npm uninstall @playwright/test
+```
+
+## Remove V4 batch (quant/, multimodal/, browser/)
+
+```bash
+rm -rf quant multimodal browser config/data_coverage.yaml config/routing.yaml config/authorized_data_targets.yaml
+rm -f scripts/run-v4-deterministic-tests.py scripts/run-multimodal-tests.py scripts/run-browser-policy-tests.mjs
+git checkout fb84ee6 -- package.json .gitignore  # or selective restore
 ```
 
 ## Remove real-data batch 4 (modes, daily_runner, AKShare expand)

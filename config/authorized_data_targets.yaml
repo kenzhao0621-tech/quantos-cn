@@ -1,0 +1,85 @@
+# Authorized browser automation targets — deny by default
+version: "4"
+
+stealth_lab:
+  enabled: false
+  permitted_target_classes:
+    - localhost
+    - owned_staging
+  third_party_targets_permitted: false
+  network_egress_allowlist_required: true
+  artifacts_required: true
+  human_approval_required: true
+
+targets:
+  - id: example_official
+    domain: example.com
+    target_class: public_official
+    owned_security_test_target: false
+    allowed_paths:
+      - /public/
+    purpose: official_public_document
+    data_types:
+      - html
+      - json
+      - pdf
+    authentication: none
+    session_state_path: null
+    maximum_requests_per_run: 10
+    minimum_interval_seconds: 10
+    expected_content_types:
+      - text/html
+      - application/json
+      - application/pdf
+    stop_on_401: true
+    stop_on_403: true
+    stop_on_429: true
+    stop_on_captcha: true
+    owner_or_authorization_note: template — enable after user authorization
+    enabled: false
+
+  - id: third_party_financial
+    domain: eastmoney.com
+    target_class: third_party_data
+    owned_security_test_target: false
+    allowed_paths:
+      - /
+    purpose: financial_data_research
+    data_types:
+      - html
+      - json
+    authentication: none
+    session_state_path: null
+    maximum_requests_per_run: 5
+    minimum_interval_seconds: 30
+    expected_content_types:
+      - text/html
+      - application/json
+    stop_on_401: true
+    stop_on_403: true
+    stop_on_429: true
+    stop_on_captcha: true
+    owner_or_authorization_note: disabled — use official APIs instead
+    enabled: false
+
+  - id: localhost_lab
+    domain: localhost
+    target_class: localhost
+    owned_security_test_target: true
+    allowed_paths:
+      - /
+    purpose: owned_security_test
+    data_types:
+      - html
+    authentication: none
+    session_state_path: null
+    maximum_requests_per_run: 50
+    minimum_interval_seconds: 1
+    expected_content_types:
+      - text/html
+    stop_on_401: true
+    stop_on_403: true
+    stop_on_429: true
+    stop_on_captcha: true
+    owner_or_authorization_note: local owned test target only
+    enabled: false

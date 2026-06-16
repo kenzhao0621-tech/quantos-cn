@@ -1,0 +1,19 @@
+{
+  "source_path": "/Users/kenzhao/Projects/netlify-demo/docs/test-fixtures/multimodal/sample_digital.pdf",
+  "source_name": "sample_digital.pdf",
+  "timestamp": "2026-06-16T09:47:15+00:00",
+  "encrypted": false,
+  "page_count": 1,
+  "digital_or_scanned": "scanned",
+  "text_coverage": 0.134,
+  "embedded_images": 0,
+  "table_density": "low",
+  "formula_density": "low",
+  "multi_column": false,
+  "language": "unknown",
+  "recommended_engines": [
+    "paddleocr",
+    "pymupdf"
+  ],
+  "warnings": []
+}

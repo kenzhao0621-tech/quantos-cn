@@ -1,0 +1,8 @@
+intent: text-to-image acceptance
+subject: simple chart icon
+composition: centered
+style: flat vector
+aspect_ratio: "1:1"
+resolution: 256
+output_format: png
+transparent_background: false

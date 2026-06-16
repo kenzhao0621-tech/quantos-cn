@@ -16,6 +16,7 @@ node_modules/
 docs/test-output/
 !docs/test-output/.gitkeep
 test-results/
+playwright/.auth/
 playwright-report/
 docs/test-output/playwright-report/
 docs/test-output/playwright-failures/
@@ -25,3 +26,11 @@ docs/test-fixtures/.cache/
 tools/.cache/
 docs/ai/daily-trading/logs/
 docs/ai/daily-trading/.locks/
+data/raw/
+data/normalized/
+data/manifests/
+data/imports/
+browser-artifacts/
+playwright/.auth/
+artifacts/
+secrets/

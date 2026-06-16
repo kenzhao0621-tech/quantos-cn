@@ -1,0 +1,15 @@
+{
+  "sample_png": {
+    "width": 128,
+    "height": 128,
+    "format": "PNG"
+  },
+  "sample_digital_pdf": {
+    "min_pages": 1,
+    "digital_or_scanned": [
+      "digital",
+      "unknown"
+    ]
+  },
+  "fixture_provider_seed": 42
+}

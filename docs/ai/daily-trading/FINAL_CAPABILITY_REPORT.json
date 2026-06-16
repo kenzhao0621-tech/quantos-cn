@@ -1,0 +1,165 @@
+{
+  "generated_at": "2026-06-16T17:48:20",
+  "version": "4.0.0",
+  "maturity_status": "ACTIVE_WITH_LIMITATIONS",
+  "paper_trading_only": true,
+  "real_money_execution_disabled": true,
+  "data_coverage": {
+    "version": "4",
+    "domains": {
+      "market_snapshot": {
+        "status": "partial",
+        "notes": "Composite routed snapshot; AKShare primary"
+      },
+      "spot_quotes": {
+        "status": "partial",
+        "notes": "Public delayed A-share spot via Eastmoney/Sina"
+      },
+      "indices": {
+        "status": "partial",
+        "notes": "Major indices (上证/深证/创业板/科创)"
+      },
+      "trading_calendar": {
+        "status": "available",
+        "notes": "Sina trade-date history via AKShare"
+      },
+      "sector_boards": {
+        "status": "partial",
+        "notes": "Eastmoney industry boards"
+      },
+      "security_master": {
+        "status": "partial",
+        "notes": "A-share code/name list; Tushare if licensed"
+      },
+      "fundamentals": {
+        "status": "unavailable",
+        "notes": "No licensed fundamental API in default install"
+      },
+      "institutional_flow": {
+        "status": "partial",
+        "notes": "Public disclosures only via tools.china_quant"
+      },
+      "news": {
+        "status": "partial",
+        "notes": "Web search fallback; no paywalled feeds"
+      },
+      "northbound_flow": {
+        "status": "unavailable",
+        "notes": "Not wired in V4 default routing"
+      },
+      "margin_trading": {
+        "status": "unavailable",
+        "notes": "Requires licensed data target"
+      }
+    }
+  },
+  "provider_health": {
+    "checked_at": "2026-06-16T17:48:15",
+    "routing": {
+      "spot_quotes": [
+        "akshare_eastmoney",
+        "akshare_split",
+        "akshare_sina",
+        "manual_snapshot"
+      ],
+      "indices": [
+        "akshare_eastmoney",
+        "akshare_sina",
+        "manual_snapshot"
+      ],
+      "trading_calendar": [
+        "akshare_sina",
+        "akshare_eastmoney"
+      ],
+      "sector_boards": [
+        "akshare_eastmoney",
+        "manual_snapshot"
+      ],
+      "security_master": [
+        "akshare_eastmoney",
+        "tushare",
+        "jqdata",
+        "manual_snapshot"
+      ]
+    },
+    "providers": [
+      {
+        "provider": "akshare_eastmoney",
+        "configured": true,
+        "last_error": "",
+        "elapsed_ms": 0.0
+      },
+      {
+        "provider": "akshare_split",
+        "configured": true,
+        "last_error": "",
+        "elapsed_ms": 0.0
+      },
+      {
+        "provider": "akshare_sina",
+        "configured": true,
+        "last_error": "",
+        "elapsed_ms": 0.0
+      },
+      {
+        "provider": "tushare",
+        "configured": false,
+        "last_error": "",
+        "elapsed_ms": 0.0
+      },
+      {
+        "provider": "jqdata",
+        "configured": false,
+        "last_error": "",
+        "elapsed_ms": 0.0
+      },
+      {
+        "provider": "supermind",
+        "configured": false,
+        "last_error": "",
+        "elapsed_ms": 0.0
+      },
+      {
+        "provider": "manual_snapshot",
+        "configured": true,
+        "last_error": "",
+        "elapsed_ms": 0.0
+      }
+    ]
+  },
+  "acceptance": {
+    "accepted": false,
+    "paper_trading_only": true,
+    "checked_at": "2026-06-16T17:48:20",
+    "datasets": {
+      "indices": {
+        "success": true,
+        "winner_provider": "manual_snapshot",
+        "attempt_count": 3
+      },
+      "spot_quotes": {
+        "success": true,
+        "winner_provider": "akshare_eastmoney",
+        "attempt_count": 4
+      },
+      "trading_calendar": {
+        "success": true,
+        "winner_provider": "akshare_sina",
+        "attempt_count": 2
+      }
+    },
+    "quality_passed": false
+  },
+  "multimodal": {
+    "fixture_image": "WORKING",
+    "openai_cloud": "NOT_CONFIGURED",
+    "pdf_pymupdf": "PARTIAL",
+    "mcp_server": "WORKING"
+  },
+  "browser": {
+    "playwright": "WORKING",
+    "playwright_extra": "OPTIONAL_PEER_NOT_INSTALLED",
+    "stealth_lab": "DISABLED_QUARANTINED",
+    "target_policy_tests": "8/8 PASS"
+  }
+}
