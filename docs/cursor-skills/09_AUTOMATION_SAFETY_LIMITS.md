@@ -6,7 +6,7 @@ Skills in P3 category and loop/swarm automation must follow these limits.
 
 | Skill | Reason | Enable when |
 |-------|--------|-------------|
-| ralph-loop | Iterative hook loop; token burn risk | User sets max_iterations, time limit, completion promise, explicit `/ralph-loop` request |
+| ralph-loop | Hooks installed in `.cursor/hooks.json`; skill still `disable-model-invocation: true` | User sets max_iterations (default hook `loop_limit`: 20), completion promise, explicit `/ralph-loop` request |
 
 ## NOT INSTALLED (P3 — require authorization)
 

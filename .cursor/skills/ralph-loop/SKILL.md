@@ -16,7 +16,7 @@ The user wants to start a Ralph loop. An iterative development loop where the sa
 ## Workflow
 
 1. Gather the user's task prompt and optional parameters:
-   - `max_iterations` (number, default 0 for unlimited)
+   - `max_iterations` (number, **required**; recommend ≤ 20; hooks default `loop_limit` is 20)
    - `completion_promise` (text, or "null" if not set)
 
 2. Create the directory `.cursor/ralph/` if it doesn't exist, then write the state file at `.cursor/ralph/scratchpad.md` with this exact format:
@@ -44,7 +44,7 @@ The user wants to start a Ralph loop. An iterative development loop where the sa
 
 3. Confirm to the user that the Ralph loop is active, then begin working on the task.
 
-4. The stop hook automatically intercepts each turn end and feeds the same prompt back as a followup message. You will see it prefixed with `[Ralph loop iteration N.]`.
+4. Hooks are installed at `.cursor/hooks.json` (`stop-hook.sh`, `capture-response.sh`). The stop hook intercepts each turn end and feeds the same prompt back as a followup message. You will see it prefixed with `[Ralph loop iteration N.]`.
 
 ## Guardrails
 

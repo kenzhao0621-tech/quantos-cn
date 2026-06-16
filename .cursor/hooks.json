@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "hooks": {
+    "afterAgentResponse": [
+      {
+        "command": ".cursor/hooks/capture-response.sh"
+      }
+    ],
+    "stop": [
+      {
+        "command": ".cursor/hooks/stop-hook.sh",
+        "loop_limit": 20
+      }
+    ]
+  }
+}
