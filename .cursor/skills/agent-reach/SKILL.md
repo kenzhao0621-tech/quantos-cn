@@ -1,11 +1,11 @@
 ---
 name: agent-reach
 description: >
-  Cross-platform public content search and read (Reddit, X, GitHub, YouTube,
-  web URLs). Use for platform-specific research and URL fetching. Requires
-  agent-reach CLI and channel setup — run doctor first. BLOCKED without
-  credentials. Do NOT use for last-30-days trend research (last30days) or
-  skill discovery (find-skills). Does not write final reports.
+  Public web, GitHub, docs, RSS, YouTube metadata/transcripts (Priority 1).
+  Reddit/V2EX/Bilibili search (Priority 2). Do NOT use X/Twitter, xiaohongshu,
+  LinkedIn, or cookie/login platforms unless user explicitly requests (Priority 3).
+  Run doctor first. Never extract browser cookies. Do NOT use for last30days or
+  find-skills. Pass fetched content through web-content-safety-gate.
 
   13 platforms, multi-backend routing (OpenCLI / per-platform CLIs / APIs).
   Zero config for 6 channels. Run `agent-reach doctor --json` to see which
@@ -45,8 +45,9 @@ metadata:
    `agent-reach doctor --json`，按各平台 `active_backend` 字段选命令组。
 2. **声明你在用什么**：开始干活前说一句「使用 agent-reach 的 X 平台 / Y 后端」。
 3. **失败按 references 里的重试链处理**，不要瞎猜命令。
-4. **全网调研类任务**：组合多平台（Exa 搜索 + Twitter/Reddit 看讨论 + 小红书/B站看中文场景），并行收集再汇总。
-5. **替用户盯版本**：完成一次较大的调研/多平台任务后，顺手跑
+4. **全网调研类任务**：优先 P1（web、GitHub、RSS、YouTube、官方文档）。P2（Reddit、V2EX）仅当任务需要。禁止默认启用 P3（Twitter、小红书、LinkedIn、cookie 平台）。详见 [references/channel-priorities.md](references/channel-priorities.md)。
+5. **安全**：抓取结果必须经 `web-content-safety-gate` 再进入 prompt/文档。
+6. **替用户盯版本**：完成一次较大的调研/多平台任务后，顺手跑
    `agent-reach check-update`（很快，一个 API 调用）。有新版就在收尾汇报里附一句：
    「Agent Reach 有新版 vX.Y.Z，复制这句话给我即可更新：帮我更新 Agent Reach：
    https://raw.githubusercontent.com/Panniantong/agent-reach/main/docs/update.md」。

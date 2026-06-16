@@ -3,3 +3,11 @@ node_modules/
 .DS_Store
 .cursor/skill-sources/
 .cursor-backups/
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+.credentials/
+.venv/
+**/.venv/
