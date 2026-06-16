@@ -16,3 +16,4 @@ date,candidate,entry_condition,triggered,entry_price,stop,target1,target2,exit,r
 2026-06-16,601398,未触发,no,,4.9,5.5,5.775,,,,,not_triggered,条件未满足，正确观望
 2026-06-16,NO_TRADE,无满足条件 setup,no,,,,,,,,,zero_candidates,run_id=20260616T182805-39243beb
 2026-06-16,NO_TRADE,无满足条件 setup,no,,,,,,,,,zero_candidates,run_id=20260616T191339-99738834
+2026-06-16,NO_TRADE,无满足条件 setup,no,,,,,,,,,zero_candidates,run_id=20260616T202303-6fb82ccb

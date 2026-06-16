@@ -98,4 +98,4 @@ def load_index_summary() -> dict[str, Any]:
         data = json.loads(path.read_text(encoding="utf-8"))
         bars = data.get("bars", [])
         out[data.get("ts_code", path.stem)] = {"bars": len(bars), "name": data.get("name", "")}
-    return {"available": len(out), "indices": out, "meets_minimum": len(out) >= 3}
+    return {"available": len(out), "indices": out, "meets_minimum": sum(1 for v in out.values() if v.get("bars", 0) >= 120) >= 3}

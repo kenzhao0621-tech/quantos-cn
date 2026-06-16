@@ -1,0 +1,94 @@
+{
+  "repository": "netlify-demo",
+  "branch": "chore/cursor-operating-system",
+  "pre_change_commit": "bb88001",
+  "new_local_commit": "TBD",
+  "backup": ".cursor-backups/quant-master-readiness-20260616-193503",
+  "rollback_path": "docs/cursor-operating-system/20_ROLLBACK_GUIDE.md",
+  "tests": {
+    "deterministic_recovery_passed": true,
+    "failed_suites": [],
+    "resolved_failures": [],
+    "report_path": "docs/ai/daily-trading/TEST_RECOVERY_REPORT.json"
+  },
+  "remaining_failures": [
+    "disclosures: 0 rows"
+  ],
+  "data_coverage": {
+    "indices_available_count": 6,
+    "indices_candidate_gate": true,
+    "historical_partition_count": 120,
+    "sectors_total_rows": 5529,
+    "fundamentals_total_rows": 5513,
+    "disclosures_total_rows": 0
+  },
+  "real_time_provider": {
+    "provider_used_for_spot": "akshare_sina",
+    "freshness": "END_OF_DAY"
+  },
+  "rag": {
+    "numerical_data_via_sql_only": true,
+    "retrieval_budget": {
+      "max_chunks": 8,
+      "chunk_target_tokens": 450,
+      "chunk_max_tokens": 800,
+      "max_total_context_tokens": 5000,
+      "metadata_filter_first": true,
+      "exact_keyword_before_vector": true,
+      "summaries_before_raw_docs": true,
+      "numerical_data_via_sql_only": true
+    },
+    "memory_root": "memory",
+    "rag_memory_module": "quant/rag_memory.py",
+    "duckdb_path": "data/warehouse/quant.duckdb"
+  },
+  "daily_report": {
+    "paths": {
+      "json": "docs/ai/daily-trading/daily/2026-06-16_DAILY_QUANT_REPORT.json",
+      "md": "docs/ai/daily-trading/daily/2026-06-16_DAILY_QUANT_REPORT.md"
+    },
+    "decision": "BLOCKED_BY_DATA",
+    "no_trade_reasons": [
+      "disclosures: 0 disclosure rows"
+    ],
+    "regime": "range-bound market",
+    "regime_confidence": "MEDIUM"
+  },
+  "paper_ledger": {
+    "ledger_file": "docs/ai/daily-trading/PAPER_SIGNAL_LEDGER.jsonl",
+    "latest_run_id": "20260616T202303-6fb82ccb",
+    "next_session_candidate_decision": null
+  },
+  "next_session_candidate_gate": {
+    "candidate_decision": null,
+    "maturity": null,
+    "reports": {
+      "system_ready": "docs/ai/daily-trading/SYSTEM_READY_CHECK.md",
+      "candidate": "docs/ai/daily-trading/NEXT_TRADING_DAY_RESEARCH_CANDIDATE.md",
+      "execution": "docs/ai/daily-trading/NEXT_SESSION_EXECUTION_REPORT.md"
+    }
+  },
+  "tomorrow_live_test_schedule": {
+    "one_shot_launchd": true,
+    "dry_run_done_before_install": true,
+    "live_test_schedule": {
+      "scheduled_at": "2026-06-16T20:33:25",
+      "target_session": "2026-06-16T20:32:58.564354+08:00",
+      "plist": "config/launchd/com.netlify-demo.quant.live-market-hours-test.plist",
+      "script": "scripts/run-live-market-hours-test.sh",
+      "dry_run": false,
+      "installed": true,
+      "note": "One-shot job removes itself after run via bootout in script",
+      "launchctl_stderr": ""
+    }
+  },
+  "next_daily_paper_report_task_status": {
+    "status": "NOT_SCHEDULED",
+    "reason": "blocked_by_data"
+  },
+  "maturity": "PIPELINE_VERIFIED_WITH_DATA_GAPS",
+  "artifacts": {
+    "live_test_report": "docs/ai/daily-trading/LIVE_MARKET_HOURS_TEST.json",
+    "final_daily_report_deployment_json": "docs/ai/daily-trading/FINAL_DAILY_REPORT_DEPLOYMENT.json"
+  }
+}

@@ -1,34 +1,30 @@
 {
-  "decision": "BLOCKED_BY_DATA",
-  "run_id": "20260616T191339-99738834",
+  "decision": "BLOCKED_BY_PIPELINE",
+  "run_id": "20260616T202303-6fb82ccb",
   "analysis_date": "2026-06-16",
   "data_date": "2026-06-16",
-  "target_trading_date": "2026-06-17",
-  "generated_at": "2026-06-16T19:19:28",
-  "calendar_provider": "akshare_sina",
+  "target_trading_date": "unknown",
+  "generated_at": "2026-06-16T20:26:49",
+  "calendar_provider": "unknown",
   "spot_provider": "akshare_sina",
   "row_count": 5527,
   "quality_status": "passed",
-  "freshness": "SOURCE_LATEST_TIMESTAMP_UNCONFIRMED",
+  "freshness": "END_OF_DAY",
   "market_regime": "RISK_OFF",
   "regime_score": 30.0,
   "regime_confidence": "LOW",
   "candidate": null,
-  "rejection_reasons": [
-    "not persisted — required for per-stock bar-complete gate",
-    "1/7 benchmarks; have=['sh']",
-    "Regime RISK_OFF defaults to NO_TRADE"
-  ],
+  "rejection_reasons": [],
   "limitations": [
     "Fundamental, valuation, and official disclosure feeds not persisted for this run_id",
     "Per-stock 60-day bar history not persisted — universe-wide bar gate fails",
-    "Major index coverage incomplete (1 benchmark(s))"
+    "Major index coverage incomplete (0 benchmark(s))"
   ],
   "gates": [
     {
       "name": "run_id_match",
       "passed": true,
-      "detail": "manifest=20260616T191339-99738834",
+      "detail": "manifest=20260616T202303-6fb82ccb",
       "severity": "required"
     },
     {
@@ -64,7 +60,7 @@
     {
       "name": "provenance_hash",
       "passed": true,
-      "detail": "4263a975664bdb87",
+      "detail": "311ce319179730d8",
       "severity": "required"
     },
     {
@@ -81,14 +77,14 @@
     },
     {
       "name": "dataset_trading_calendar",
-      "passed": true,
-      "detail": "present",
+      "passed": false,
+      "detail": "missing",
       "severity": "required"
     },
     {
       "name": "dataset_indices",
-      "passed": true,
-      "detail": "present",
+      "passed": false,
+      "detail": "missing",
       "severity": "required"
     },
     {
@@ -106,13 +102,13 @@
     {
       "name": "major_indices_coverage",
       "passed": false,
-      "detail": "1/7 benchmarks; have=['sh']",
+      "detail": "0/7 benchmarks; have=[]",
       "severity": "candidate"
     },
     {
       "name": "sector_boards_scale",
       "passed": false,
-      "detail": "12 sector rows",
+      "detail": "0 sector rows",
       "severity": "advisory"
     },
     {
@@ -124,7 +120,7 @@
     {
       "name": "ledger_has_run_id",
       "passed": true,
-      "detail": "20260616T191339-99738834",
+      "detail": "20260616T202303-6fb82ccb",
       "severity": "required"
     },
     {
@@ -136,7 +132,7 @@
     {
       "name": "ledger_has_freshness",
       "passed": true,
-      "detail": "SOURCE_LATEST_TIMESTAMP_UNCONFIRMED",
+      "detail": "END_OF_DAY",
       "severity": "required"
     }
   ],
@@ -152,7 +148,7 @@
   },
   "ledger_result": {
     "appended": true,
-    "record_id": "20260616T191339-99738834:no-trade"
+    "record_id": "20260616T202303-6fb82ccb:no-trade"
   },
   "disclaimer": "Internal quantitative research and paper-trading output. Not a guarantee of return. No real order has been placed."
 }

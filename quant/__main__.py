@@ -472,8 +472,85 @@ def cmd_freshness_watchdog(_args: argparse.Namespace) -> int:
     from quant.market_data_fabric import MarketDataFabric
 
     report = run_freshness_watchdog(fabric=MarketDataFabric(), probe_live=True)
-    blocked = any(v.get("blocked") for v in report.get("datasets", {}).values() if isinstance(v, dict))
+    blocked = report.get("verdict") == "BLOCKED_BY_DATA"
     return _emit(report, "新鲜度看门狗完成。", exit_code=2 if blocked else 0)
+
+
+def cmd_provider_discover(args: argparse.Namespace) -> int:
+    return cmd_capability_discovery(args)
+
+
+def cmd_update_indices(_args: argparse.Namespace) -> int:
+    from quant.backfill import update_indices
+    from quant.warehouse import sync_from_partitions
+    rep = update_indices()
+    sync_from_partitions()
+    return _emit(rep, f"指数更新：{rep.get('available_count', 0)} 个达标。")
+
+
+def cmd_update_daily_bars(_args: argparse.Namespace) -> int:
+    from quant.backfill import update_daily_bars
+    from quant.warehouse import sync_from_partitions
+    rep = update_daily_bars()
+    sync_from_partitions()
+    return _emit(rep, f"日线回补：{rep.get('partition_count', 0)} 分区。")
+
+
+def cmd_update_sectors(_args: argparse.Namespace) -> int:
+    from quant.backfill import update_sectors
+    return _emit(update_sectors(), "行业数据已更新。")
+
+
+def cmd_update_fundamentals(_args: argparse.Namespace) -> int:
+    from quant.backfill import update_fundamentals
+    return _emit(update_fundamentals(), "基本面快照已更新。")
+
+
+def cmd_update_disclosures(_args: argparse.Namespace) -> int:
+    from quant.backfill import update_disclosures
+    return _emit(update_disclosures(), "公告数据已更新。")
+
+
+def cmd_build_feature_store(_args: argparse.Namespace) -> int:
+    from quant.features_compute import build_feature_store
+    from quant.warehouse import sync_from_partitions
+    rep = build_feature_store()
+    sync_from_partitions()
+    return _emit(rep, f"特征库：{rep.get('row_count', 0)} 行。", exit_code=0 if rep.get("row_count") else 1)
+
+
+def cmd_candidate_readiness(args: argparse.Namespace) -> int:
+    from quant.candidate_data_gate import evaluate_candidate_readiness
+    from quant.data_lake import load_by_run_id
+
+    run_id = args.run_id or ""
+    spot_rows, provider, quality = 0, "", False
+    if run_id:
+        snap, manifest = load_by_run_id("spot_quotes", run_id)
+        if snap and isinstance(snap, dict):
+            spot_rows = len(snap.get("rows", []))
+            quality = True
+        if manifest:
+            provider = manifest.provider
+    rep = evaluate_candidate_readiness(
+        run_id=run_id, spot_row_count=spot_rows, spot_provider=provider, quality_passed=quality,
+    )
+    return _emit(rep.to_dict(), f"候选就绪：{rep.maturity}", exit_code=0 if rep.ready else 2)
+
+
+def cmd_cross_source_reconcile(args: argparse.Namespace) -> int:
+    from quant.market_data_fabric import MarketDataFabric
+    from quant.cross_source_reconcile import reconcile_live_sources
+
+    fabric = MarketDataFabric()
+    spot = fabric.fetch("spot_quotes", live_only=True, require_live=False)
+    attempts = [a for a in spot.attempts if a.ok and a.is_live]
+    if len(attempts) < 2:
+        rep = {"dataset": args.dataset, "compared": 0, "quarantine": False, "note": "single source"}
+    else:
+        rep = reconcile_live_sources(args.dataset, attempts[:2], fabric._routing.get("cross_source", {}))
+    rep["run_id"] = args.run_id or ""
+    return _emit(rep, "跨源对账完成。", exit_code=2 if rep.get("quarantine") else 0)
 
 
 COMMANDS: dict[str, Callable[[argparse.Namespace], int]] = {
@@ -490,7 +567,16 @@ COMMANDS: dict[str, Callable[[argparse.Namespace], int]] = {
     "evaluate-paper-trades": cmd_evaluate_paper_trades,
     "fabric-fetch": cmd_fabric_fetch,
     "capability-discovery": cmd_capability_discovery,
+    "provider-discover": cmd_provider_discover,
     "freshness-watchdog": cmd_freshness_watchdog,
+    "update-indices": cmd_update_indices,
+    "update-daily-bars": cmd_update_daily_bars,
+    "update-sectors": cmd_update_sectors,
+    "update-fundamentals": cmd_update_fundamentals,
+    "update-disclosures": cmd_update_disclosures,
+    "build-feature-store": cmd_build_feature_store,
+    "candidate-readiness": cmd_candidate_readiness,
+    "cross-source-reconcile": cmd_cross_source_reconcile,
 }
 
 
@@ -552,6 +638,18 @@ def main(argv: list[str] | None = None) -> int:
     p_caps.add_argument("--live", action="store_true")
 
     sub.add_parser("freshness-watchdog", help="Run live freshness watchdog")
+    sub.add_parser("provider-discover", help="Alias for capability-discovery")
+    sub.add_parser("update-indices", help="Backfill major indices")
+    sub.add_parser("update-daily-bars", help="Incremental daily bar backfill")
+    sub.add_parser("update-sectors", help="Sector classification backfill")
+    sub.add_parser("update-fundamentals", help="Fundamental snapshot backfill")
+    sub.add_parser("update-disclosures", help="Disclosure ingestion backfill")
+    sub.add_parser("build-feature-store", help="Compute technical features")
+    p_ready = sub.add_parser("candidate-readiness", help="Evaluate candidate data gate")
+    p_ready.add_argument("--run-id", help="Bind to fetch run_id")
+    p_recon = sub.add_parser("cross-source-reconcile", help="Cross-source live reconcile")
+    p_recon.add_argument("--dataset", default="spot_quotes")
+    p_recon.add_argument("--run-id", default="")
 
     args = parser.parse_args(argv)
     handler = COMMANDS.get(args.command)

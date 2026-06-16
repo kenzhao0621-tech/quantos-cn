@@ -297,3 +297,69 @@ def append_correction(
     )
     _append_record(base, record)
     return record
+
+
+def append_research_decision(
+    base: Path,
+    *,
+    run_id: str,
+    decision: str,
+    market_data_date: str,
+    provider: str,
+    freshness: str,
+    regime: str,
+    reasons: list[str],
+    candidate: Optional[dict[str, Any]] = None,
+) -> dict[str, Any]:
+    """Append daily research decision (candidate / NO_TRADE / BLOCKED)."""
+    if run_id_in_ledger(base, run_id):
+        existing = [r["record_id"] for r in find_records_by_run_id(base, run_id)]
+        return {"skipped_duplicate": True, "existing_ids": existing}
+
+    created_at = datetime.now().isoformat(timespec="seconds")
+    signal_date = datetime.now().strftime("%Y-%m-%d")
+    if decision == "TRADE_CANDIDATE" and candidate:
+        rec = PaperSignalRecord(
+            record_id=f"{run_id}:{candidate.get('code')}:research",
+            run_id=run_id,
+            signal_date=signal_date,
+            market_data_date=market_data_date,
+            provider=provider,
+            freshness=freshness,
+            symbol=str(candidate.get("code", "")),
+            name=str(candidate.get("name", "")),
+            score=float(candidate.get("total_score") or 0),
+            entry_zone=str(candidate.get("preferred_entry_zone", "")),
+            stop=str(candidate.get("paper_stop", "")),
+            target1=str(candidate.get("target_1", "")),
+            target2=str(candidate.get("target_2", "")),
+            position_size="paper_only",
+            status="research_candidate",
+            record_type="candidate",
+            corrects_record_id=None,
+            created_at=created_at,
+        )
+        _append_record(base, rec)
+        return {"appended": 1, "record_type": "candidate", "record_id": rec.record_id}
+
+    rec_type = "zero_day" if decision == "NO_TRADE" else "research_decision"
+    row = {
+        "record_id": f"{run_id}:decision:{uuid.uuid4().hex[:8]}",
+        "run_id": run_id,
+        "signal_date": signal_date,
+        "market_data_date": market_data_date,
+        "provider": provider,
+        "freshness": freshness,
+        "decision": decision,
+        "regime": regime,
+        "reasons": reasons,
+        "candidate_count": 1 if decision == "TRADE_CANDIDATE" else 0,
+        "record_type": rec_type,
+        "created_at": created_at,
+        "mode": "PAPER",
+    }
+    path = signal_ledger_path(base)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(row, ensure_ascii=False) + "\n")
+    return {"appended": 1, "record_type": rec_type, "record_id": row["record_id"]}

@@ -5,8 +5,11 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
+from quant.disclosure_store import disclosure_coverage_report
+from quant.fundamental_store import fundamental_coverage_report
 from quant.historical_store import coverage_report
 from quant.indices_store import load_index_summary
+from quant.sector_store import sector_coverage_report
 
 
 @dataclass
@@ -38,17 +41,40 @@ def evaluate_candidate_readiness(
     gates.append({"name": "run_id_bound", "passed": bool(run_id)})
 
     idx = load_index_summary()
+    idx_with_120 = sum(1 for v in idx.get("indices", {}).values() if v.get("bars", 0) >= 120)
     gates.append({
         "name": "major_indices",
-        "passed": idx.get("meets_minimum", False) or idx.get("available", 0) >= 3,
-        "detail": f"{idx.get('available', 0)} indices persisted",
+        "passed": idx_with_120 >= 3,
+        "detail": f"{idx_with_120} indices with >=120 bars",
     })
 
     hist = coverage_report()
+    part_count = hist.get("partition_count", 0)
     gates.append({
         "name": "historical_bars",
-        "passed": hist.get("partition_count", 0) >= 5,
-        "detail": f"{hist.get('partition_count', 0)} partitions; need incremental backfill",
+        "passed": part_count >= 60,
+        "detail": f"{part_count} partitions (need >=60 trade dates)",
+    })
+
+    sectors = sector_coverage_report()
+    gates.append({
+        "name": "sector_classification",
+        "passed": sectors.get("total_rows", 0) >= 3000,
+        "detail": f"{sectors.get('total_rows', 0)} sector rows",
+    })
+
+    fundamentals = fundamental_coverage_report()
+    gates.append({
+        "name": "fundamentals",
+        "passed": fundamentals.get("total_rows", 0) >= 1000,
+        "detail": f"{fundamentals.get('total_rows', 0)} fundamental rows",
+    })
+
+    disclosures = disclosure_coverage_report()
+    gates.append({
+        "name": "disclosures",
+        "passed": disclosures.get("total_rows", 0) >= 50,
+        "detail": f"{disclosures.get('total_rows', 0)} disclosure rows",
     })
 
     for g in gates:
