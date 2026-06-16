@@ -1,19 +1,58 @@
-# Data Coverage Matrix
+# 01_DATA_COVERAGE_MATRIX
 
-See `config/data_coverage.yaml` for machine-readable status.
+Generated: 2026-06-16T19:52:27
 
-| Domain | Primary | Fallback | Status |
-|--------|---------|----------|--------|
-| security master | akshare | manual_snapshot | PARTIAL |
-| trading calendar | akshare_sina | fixture | WORKING |
-| full-market snapshot | akshare_eastmoney | akshare_split_market | BLOCKED (network) |
-| index snapshot | akshare | fixture | BLOCKED |
-| daily bars | akshare | manual_snapshot | PARTIAL |
-| minute bars | jqdata | tushare | NOT_CONFIGURED |
-| ST/suspension | akshare | — | PARTIAL |
-| sector constituents | akshare | — | BLOCKED |
-| fundamentals | tushare | akshare | NOT_CONFIGURED |
-| official policy | authorized_playwright | fixture | TEMPLATE |
-| company announcements | official_disclosure | tushare | UNAVAILABLE |
+## version
 
-Never claim complete coverage when any required domain is unknown or blocked.
+4
+
+## domains
+
+```json
+{
+  "market_snapshot": {
+    "status": "partial",
+    "notes": "Composite routed snapshot; AKShare primary"
+  },
+  "spot_quotes": {
+    "status": "partial",
+    "notes": "Public delayed A-share spot via Eastmoney/Sina"
+  },
+  "indices": {
+    "status": "partial",
+    "notes": "Major indices (上证/深证/创业板/科创)"
+  },
+  "trading_calendar": {
+    "status": "available",
+    "notes": "Sina trade-date history via AKShare"
+  },
+  "sector_boards": {
+    "status": "partial",
+    "notes": "Eastmoney industry boards"
+  },
+  "security_master": {
+    "status": "partial",
+    "notes": "A-share code/name list; Tushare if licensed"
+  },
+  "fundamentals": {
+    "status": "unavailable",
+    "notes": "No licensed fundamental API in default install"
+  },
+  "institutional_flow": {
+    "status": "partial",
+    "notes": "Public disclosures only via tools.china_quant"
+  },
+  "news": {
+    "status": "partial",
+    "notes": "Web search fallback; no paywalled feeds"
+  },
+  "northbound_flow": {
+    "status": "unavailable",
+    "notes": "Not wired in V4 default routing"
+  },
+  "margin_trading": {
+    "status": "unavailable",
+    "notes": "Requires licensed data target"
+  }
+}
+```

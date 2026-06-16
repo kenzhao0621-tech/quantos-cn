@@ -136,6 +136,45 @@ class AkshareSinaProvider:
             provider=self.name, dataset=dataset, status=ProviderStatus.SKIPPED,
             error=f"use other provider for {dataset}",
             retrieved_at=datetime.now().isoformat(timespec="seconds"),
+            )
+
+    def freshness_validate(self, dataset: str, result: ProviderResult, **kwargs: Any):
+        from quant.freshness_contract import (
+            FreshnessClass,
+            FreshnessValidationResult,
+            market_session_status,
+            validate_freshness,
+        )
+        from quant.providers.adapter_mixin import default_freshness_validate
+
+        require_live = bool(kwargs.get("require_live"))
+        if dataset != "spot_quotes":
+            return default_freshness_validate(dataset, result, sla_key="daily_bars", require_live=require_live)
+
+        _, is_open = market_session_status()
+        if require_live and not is_open:
+            return FreshnessValidationResult(
+                False, FreshnessClass.END_OF_DAY.value,
+                "market closed — live freshness cannot be proven (BLOCKED_BY_DATA)",
+                blocked=True,
+            )
+
+        fc = result.freshness or FreshnessClass.PROVIDER_REALTIME.value
+        evt = result.retrieved_at
+        if isinstance(result.payload, dict):
+            evt = result.payload.get("source_event_time") or evt
+
+        if require_live and fc == FreshnessClass.END_OF_DAY.value:
+            return FreshnessValidationResult(
+                False, fc, "END_OF_DAY rejected for live request", blocked=True,
+            )
+
+        return validate_freshness(
+            dataset_sla_key="live_spot",
+            freshness_class=fc if require_live else (fc if fc else FreshnessClass.END_OF_DAY.value),
+            source_event_time=evt,
+            market_date=result.market_date,
+            require_live=require_live,
         )
 
     def _fetch_spot(self, **kwargs: Any) -> ProviderResult:

@@ -89,7 +89,11 @@ def test_sina_normalize() -> None:
         row["code"] == "000000",
         row["exchange"] in ("SH", "SZ", "BJ", "UNKNOWN"),
         row["price"] > 0,
-        payload["is_live"] is True,
+        payload["freshness"] in (
+            "PROVIDER_REALTIME", "SOURCE_LATEST_TIMESTAMP_CONFIRMED", "END_OF_DAY",
+        ),
+        (payload.get("is_live") and not payload.get("is_end_of_day"))
+        or (not payload.get("is_live") and payload.get("is_end_of_day")),
         report["row_count"] == 10,
     ]
     st_row = next(r for r in payload["rows"] if "ST" in r["name"])

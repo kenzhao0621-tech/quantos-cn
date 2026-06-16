@@ -143,7 +143,7 @@ git reset --hard 94deaf5   # destructive — only if explicit
 
 **Backup**: `.cursor-backups/live-provider-tushare-v2-20260616-181432/`
 **Pre-change commit**: `0dfff67`
-**Post-change commit**: *(see `git log -1` after local commit)*
+**Post-change commit**: `6700867`
 
 ### Non-destructive (keep history)
 
@@ -166,6 +166,27 @@ git reset --hard 0dfff67   # DESTRUCTIVE — discards all uncommitted and subseq
 ```
 
 Removes: Sina repair, Tushare integration, run-bound validation, `config/routing.json`, provider recovery tests, acceptance reports 01–05.
+
+## Rollback — Multi-Provider Real-Time V2 (2026-06-16)
+
+**Backup**: `.cursor-backups/quant-master-readiness-20260616-193503/`
+**Pre-change commit**: `07af470`
+
+### Non-destructive
+
+```bash
+git revert HEAD   # after V2 commit lands
+```
+
+### Restore from backup
+
+```bash
+BACKUP=.cursor-backups/quant-master-readiness-20260616-193503
+rsync -a "$BACKUP/quant/" quant/
+rsync -a "$BACKUP/config/" config/
+```
+
+Removes: `MarketDataFabric`, V2 providers, freshness contract, historical/index stores, reports 00–14 V2 batch.
 
 ## Record changes
 

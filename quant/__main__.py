@@ -422,6 +422,60 @@ def cmd_evaluate_paper_trades(_args: argparse.Namespace) -> int:
     )
 
 
+def cmd_fabric_fetch(args: argparse.Namespace) -> int:
+    from quant.market_data_fabric import MarketDataFabric
+
+    run_id = new_run_id()
+    set_run_id(run_id)
+    fabric = MarketDataFabric()
+    datasets = args.datasets.split(",") if args.datasets else ["spot_quotes"]
+    results = fabric.fetch_market_snapshot(
+        datasets=datasets,
+        live_only=args.live_only,
+        require_live=args.require_live,
+    )
+    ok_count = sum(1 for r in results.values() if r.ok)
+    if args.persist:
+        for ds, fr in results.items():
+            if fr.ok and fr.result:
+                save_snapshot(
+                    ds, run_id=run_id,
+                    raw_payload=fr.result.payload,
+                    normalized_payload=fr.result.payload,
+                    provider=fr.result.provider,
+                    provenance={"freshness": fr.result.freshness, "is_live": fr.result.is_live},
+                )
+    payload = {
+        "run_id": run_id,
+        "datasets": {k: v.to_dict() for k, v in results.items()},
+        "ok_count": ok_count,
+    }
+    blocked = args.require_live and ok_count == 0
+    return _emit(
+        payload,
+        f"Fabric 拉取完成：{ok_count}/{len(results)} 成功。",
+        exit_code=2 if blocked else 0,
+    )
+
+
+def cmd_capability_discovery(args: argparse.Namespace) -> int:
+    from quant.market_data_fabric import MarketDataFabric
+    from quant.provider_base_v2 import discover_capabilities
+
+    fabric = MarketDataFabric()
+    report = discover_capabilities(fabric.registry, probe_live=args.live)
+    return _emit(report.to_dict(), f"能力发现：{len(report.providers)} 个提供商。")
+
+
+def cmd_freshness_watchdog(_args: argparse.Namespace) -> int:
+    from quant.freshness_watchdog import run_freshness_watchdog
+    from quant.market_data_fabric import MarketDataFabric
+
+    report = run_freshness_watchdog(fabric=MarketDataFabric(), probe_live=True)
+    blocked = any(v.get("blocked") for v in report.get("datasets", {}).values() if isinstance(v, dict))
+    return _emit(report, "新鲜度看门狗完成。", exit_code=2 if blocked else 0)
+
+
 COMMANDS: dict[str, Callable[[argparse.Namespace], int]] = {
     "system-audit": cmd_system_audit,
     "data-coverage": cmd_data_coverage,
@@ -434,6 +488,9 @@ COMMANDS: dict[str, Callable[[argparse.Namespace], int]] = {
     "scheduler-dry-run": cmd_scheduler_dry_run,
     "build-validation-summary": cmd_build_validation_summary,
     "evaluate-paper-trades": cmd_evaluate_paper_trades,
+    "fabric-fetch": cmd_fabric_fetch,
+    "capability-discovery": cmd_capability_discovery,
+    "freshness-watchdog": cmd_freshness_watchdog,
 }
 
 
@@ -484,6 +541,17 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("scheduler-dry-run", help="Print scheduled jobs without running")
     sub.add_parser("build-validation-summary", help="Generate capability report")
     sub.add_parser("evaluate-paper-trades", help="Evaluate paper trade ledger")
+
+    p_fabric = sub.add_parser("fabric-fetch", help="V2 fabric dataset fetch")
+    p_fabric.add_argument("--datasets", help="Comma-separated datasets")
+    p_fabric.add_argument("--persist", action="store_true")
+    p_fabric.add_argument("--live-only", action="store_true")
+    p_fabric.add_argument("--require-live", action="store_true")
+
+    p_caps = sub.add_parser("capability-discovery", help="V2 provider capability discovery")
+    p_caps.add_argument("--live", action="store_true")
+
+    sub.add_parser("freshness-watchdog", help="Run live freshness watchdog")
 
     args = parser.parse_args(argv)
     handler = COMMANDS.get(args.command)

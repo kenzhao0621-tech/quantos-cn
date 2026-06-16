@@ -1,0 +1,18 @@
+{
+  "audit": "00_MASTER_PRE_CHANGE",
+  "generated_at": "2026-06-16T19:35:00",
+  "branch": "chore/cursor-operating-system",
+  "head": "07af470",
+  "maturity_before": "PIPELINE_VERIFIED_WITH_DATA_GAPS",
+  "architecture": "quant package with composite provider, Sina live spot, Tushare EOD, run-bound validation, paper ledger",
+  "providers_before": ["akshare_sina", "akshare_eastmoney", "tushare", "jqdata", "manual_snapshot"],
+  "blocking_gaps": [
+    "single-provider Tushare dependency for calendar/master/daily",
+    "incomplete major indices",
+    "no historical parquet store",
+    "no freshness contract",
+    "no cross-source reconciliation",
+    "multimodal Pillow optional failure"
+  ],
+  "patch_plan": "V2 market data fabric, multi-provider adapters, freshness SLA, indices store, historical partitions, candidate gate"
+}

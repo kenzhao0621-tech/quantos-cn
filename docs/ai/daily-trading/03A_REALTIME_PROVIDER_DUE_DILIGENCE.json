@@ -1,0 +1,72 @@
+{
+  "generated_at": "2026-06-16T19:52:27",
+  "live_capable_providers": [
+    {
+      "provider": "rqdata",
+      "configured": false,
+      "capabilities": {
+        "provider_name": "rqdata",
+        "datasets": {
+          "live_spot": "LICENSED_REALTIME",
+          "index_daily": "LICENSED_REALTIME",
+          "daily_bars": "END_OF_DAY",
+          "fundamentals": "HISTORICAL"
+        },
+        "supports_intraday": true,
+        "supports_end_of_day": true,
+        "supports_historical": true,
+        "requires_credentials": true,
+        "account_permissions_known": false,
+        "warnings": [
+          "Requires RiceQuant account and rqdatac package"
+        ]
+      },
+      "health": {
+        "configured": false,
+        "reachable": false,
+        "authenticated": null,
+        "status": "NOT_CONFIGURED",
+        "latency_ms": null,
+        "last_error": "credentials missing"
+      }
+    },
+    {
+      "provider": "qmt_market_data",
+      "configured": false,
+      "capabilities": {
+        "provider_name": "qmt_market_data",
+        "datasets": {
+          "live_spot": "BROKER_REALTIME",
+          "live_indices": "BROKER_REALTIME",
+          "minute_bars": "BROKER_REALTIME"
+        },
+        "supports_intraday": true,
+        "supports_end_of_day": true,
+        "supports_historical": false,
+        "requires_credentials": true,
+        "account_permissions_known": false,
+        "warnings": [
+          "Read-only market data — order/trade modules disabled",
+          "Requires local QMT/MiniQMT install"
+        ]
+      },
+      "health": {
+        "configured": false,
+        "reachable": false,
+        "authenticated": null,
+        "status": "NOT_CONFIGURED",
+        "latency_ms": null,
+        "last_error": "credentials missing"
+      }
+    }
+  ],
+  "licensed_realtime": [
+    "rqdata",
+    "qmt_market_data",
+    "jqdata"
+  ],
+  "verified_public_live": [
+    "akshare_sina"
+  ],
+  "notes": "Licensed paths require credentials; unconfigured providers are skipped not faked."
+}

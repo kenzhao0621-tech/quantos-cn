@@ -1,0 +1,98 @@
+# V2 dataset-specific routing — provider-neutral market data fabric
+version: "2"
+freshness_modes:
+  live:
+    require_live: true
+    reject_manual: true
+    reject_fixture: true
+  latest_completed:
+    allow_end_of_day: true
+    reject_fixture: true
+  historical:
+    allow_historical: true
+
+routing:
+  live_spot:
+    - rqdata
+    - qmt_market_data
+    - jqdata
+    - akshare_sina
+    - akshare_eastmoney
+    - akshare_split
+  spot_quotes:
+    - rqdata
+    - qmt_market_data
+    - akshare_sina
+    - tushare
+    - akshare_eastmoney
+    - manual_snapshot
+  live_indices:
+    - rqdata
+    - qmt_market_data
+    - jqdata
+    - tushare
+    - akshare_sina
+  indices:
+    - tushare
+    - rqdata
+    - akshare_sina
+    - akshare_eastmoney
+  index_daily:
+    - tushare
+    - rqdata
+    - baostock
+    - jqdata
+  latest_completed_daily:
+    - tushare
+    - rqdata
+    - jqdata
+    - baostock
+    - akshare_sina
+  daily_bars:
+    - tushare
+    - rqdata
+    - jqdata
+    - baostock
+  historical_bars:
+    - rqdata
+    - jqdata
+    - tushare
+    - baostock
+  trading_calendar:
+    - tushare
+    - akshare_sina
+    - baostock
+    - jqdata
+  security_master:
+    - tushare
+    - jqdata
+    - rqdata
+    - akshare_eastmoney
+  sector_boards:
+    - tushare
+    - jqdata
+    - authorized_web
+    - official_file
+    - akshare_eastmoney
+  sector_membership:
+    - rqdata
+    - jqdata
+    - tushare
+    - official_file
+  fundamentals:
+    - rqdata
+    - jqdata
+    - tushare
+    - official_file
+  official_disclosures:
+    - authorized_web
+    - official_file
+    - tushare
+
+cross_source:
+  enabled_datasets:
+    - spot_quotes
+    - live_indices
+  price_relative_difference_max: 0.005
+  symbol_overlap_min: 0.98
+  market_date_must_match: true

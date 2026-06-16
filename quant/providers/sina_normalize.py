@@ -51,6 +51,7 @@ def normalize_sina_spot(df) -> tuple[dict[str, Any], dict[str, Any]]:
     raw_rows: list[dict[str, Any]] = []
     conversion_failures: dict[str, int] = {}
     market_date: str | None = None
+    source_event_time: str | None = None
     retrieved_at = datetime.now().isoformat(timespec="seconds")
 
     for _, r in df.iterrows():
@@ -59,12 +60,17 @@ def normalize_sina_spot(df) -> tuple[dict[str, Any], dict[str, Any]]:
         code = str(r.get("代码", "")).zfill(6)
         name = str(r.get("名称", ""))
         ts = str(r.get("时间戳", "")).strip()
-        if ts and not market_date:
-            m = re.search(r"(\d{4}-\d{2}-\d{2})", ts)
-            if m:
-                market_date = m.group(1)
-            elif re.fullmatch(r"\d{8}.*", ts):
-                market_date = f"{ts[:4]}-{ts[4:6]}-{ts[6:8]}"
+        if ts and not source_event_time:
+            if re.search(r"\d{2}:\d{2}", ts):
+                source_event_time = ts if "-" in ts else None
+                if source_event_time and re.fullmatch(r"\d{8}.*", ts):
+                    source_event_time = f"{ts[:4]}-{ts[4:6]}-{ts[6:8]} {ts[8:10]}:{ts[10:12]}:{ts[12:14]}" if len(ts) >= 14 else None
+            if ts and not market_date:
+                m = re.search(r"(\d{4}-\d{2}-\d{2})", ts)
+                if m:
+                    market_date = m.group(1)
+                elif re.fullmatch(r"\d{8}.*", ts):
+                    market_date = f"{ts[:4]}-{ts[4:6]}-{ts[6:8]}"
 
         price = _to_float(r.get("最新价"))
         if price is None:
@@ -97,12 +103,35 @@ def normalize_sina_spot(df) -> tuple[dict[str, Any], dict[str, Any]]:
         }
         rows.append(row)
 
+    from quant.freshness_contract import FreshnessClass, market_session_status
+
+    _, is_open = market_session_status()
+    if not is_open:
+        if source_event_time:
+            freshness = FreshnessClass.SOURCE_LATEST_TIMESTAMP_CONFIRMED.value
+        else:
+            freshness = FreshnessClass.END_OF_DAY.value
+            source_event_time = source_event_time or retrieved_at
+        is_live = False
+        is_end_of_day = True
+    elif source_event_time:
+        freshness = FreshnessClass.SOURCE_LATEST_TIMESTAMP_CONFIRMED.value
+        is_live = True
+        is_end_of_day = False
+    else:
+        freshness = FreshnessClass.PROVIDER_REALTIME.value
+        source_event_time = retrieved_at
+        is_live = True
+        is_end_of_day = False
+
     report = {
         "schema_version": SCHEMA_VERSION,
         "row_count": len(rows),
         "conversion_failures": conversion_failures,
         "market_date": market_date or datetime.now().strftime("%Y-%m-%d"),
-        "freshness": "SOURCE_LATEST_TIMESTAMP_UNCONFIRMED" if not market_date else "DELAYED",
+        "source_event_time": source_event_time,
+        "freshness": freshness,
+        "market_session_open": is_open,
     }
     payload = {
         "rows": rows,
@@ -110,9 +139,10 @@ def normalize_sina_spot(df) -> tuple[dict[str, Any], dict[str, Any]]:
         "source_dataset": "stock_zh_a_spot",
         "endpoint": "ak.stock_zh_a_spot",
         "market_date": market_date or datetime.now().strftime("%Y-%m-%d"),
-        "freshness": report["freshness"],
-        "is_live": True,
-        "is_end_of_day": False,
+        "source_event_time": source_event_time,
+        "freshness": freshness,
+        "is_live": is_live,
+        "is_end_of_day": is_end_of_day,
         "is_manual": False,
         "is_fixture": False,
         "provenance": report,

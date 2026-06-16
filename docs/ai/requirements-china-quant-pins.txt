@@ -1,3 +1,8 @@
 # China A-share quant tooling — pinned for reproducibility
 # Install: python3 -m venv .venv-china-quant && .venv-china-quant/bin/pip install -r docs/ai/requirements-china-quant-pins.txt
 akshare==1.16.72
+pyarrow>=14.0.0
+Pillow>=10.0.0
+baostock>=0.8.8
+pandas>=2.0.0
+tushare>=1.4.0

@@ -14,8 +14,13 @@ from quant.providers.akshare_family import (
     AkshareSinaProvider,
     AkshareSplitMarketProvider,
 )
+from quant.providers.authorized_web_provider import AuthorizedWebDatasetProvider
+from quant.providers.baostock_provider import BaoStockProvider
 from quant.providers.jqdata_provider import JQDataProvider
 from quant.providers.manual_snapshot import ManualSnapshotProvider
+from quant.providers.official_file_provider import OfficialFileDownloadProvider
+from quant.providers.qmt_provider import QMTMarketDataProvider
+from quant.providers.rqdata_provider import RQDataProvider
 from quant.providers.supermind_provider import SupermindProvider
 from quant.providers.tushare_provider import TushareProvider
 
@@ -54,6 +59,11 @@ def _build_registry() -> dict[str, MarketDataProvider]:
         "akshare_sina": AkshareSinaProvider(),
         "tushare": TushareProvider(),
         "jqdata": JQDataProvider(),
+        "rqdata": RQDataProvider(),
+        "baostock": BaoStockProvider(),
+        "qmt_market_data": QMTMarketDataProvider(),
+        "authorized_web": AuthorizedWebDatasetProvider(),
+        "official_file": OfficialFileDownloadProvider(),
         "supermind": SupermindProvider(),
         "manual_snapshot": ManualSnapshotProvider(),
     }

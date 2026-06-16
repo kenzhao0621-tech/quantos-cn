@@ -1,0 +1,38 @@
+# 09_POINT_IN_TIME_INTEGRITY_REPORT
+
+Generated: 2026-06-16T19:52:27
+
+## as_of_date
+
+2026-06-16
+
+## checks
+
+```json
+[
+  {
+    "name": "as_of_date_present",
+    "passed": true,
+    "detail": "2026-06-16"
+  },
+  {
+    "name": "snapshot_not_after_as_of",
+    "passed": true,
+    "detail": "snapshot=2026-06-16 as_of=2026-06-16"
+  },
+  {
+    "name": "no_future_bars",
+    "passed": true,
+    "detail": "ok"
+  },
+  {
+    "name": "fundamentals_lag_acknowledged",
+    "passed": true,
+    "detail": "lag_days=0"
+  }
+]
+```
+
+## passed
+
+True
