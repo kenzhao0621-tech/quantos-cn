@@ -1,0 +1,45 @@
+name: Bug Report
+description: 报告 QuantOS CN 的缺陷或异常行为
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        请尽量提供可复现步骤。QuantOS CN **不提供**无人值守自动实盘支持。
+  - type: textarea
+    id: description
+    attributes:
+      label: 问题描述
+      placeholder: 发生了什么？期望是什么？
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      placeholder: |
+        1. make app
+        2. 打开智能选股
+        3. ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: 分支 / 提交
+      placeholder: e.g. fix/a-share-quant-reliability-paper-validation @ 8cbb243
+  - type: dropdown
+    id: os
+    attributes:
+      label: 操作系统
+      options:
+        - macOS
+        - Linux
+        - Windows (WSL)
+        - Other
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志或截图
+      description: 可粘贴 action-log、Gateway 终端输出或截图路径

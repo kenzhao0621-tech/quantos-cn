@@ -1,5 +1,7 @@
 # QuantOS CN 用户指南
 
+> 📦 **项目主页：** [README.md](../README.md) · **产品介绍：** [PRODUCT.md](PRODUCT.md) · **架构：** [ARCHITECTURE.md](ARCHITECTURE.md)
+
 **面向 A 股新投资者**的入门量化工具：用简单步骤完成「更新数据 → 智能选股 → 模拟练习 → 券商辅助填单」。
 
 > 门户内 **「使用指南」** 页与登录时的 **风险与法律确认** 与本文件内容一致。
@@ -21,7 +23,7 @@
 ## 1. 安装与登录
 
 ```bash
-git clone <your-repo>
+git clone https://github.com/kenzhao0621-tech/netlify-demo.git
 cd netlify-demo
 make bootstrap
 cp .env.example .env   # 填入 TUSHARE_TOKEN（推荐）
@@ -72,7 +74,8 @@ make app
 1. 打开 **智能选股**
 2. 模式选 **收盘数据（推荐·快速）** — 约 1 秒出结果
 3. 总资金填 **5000**（或你的实际预算）
-4. 点 **运行选股**，查看推荐列表与一手数量
+4. 可选：设置 **最低/最高股价**；勾选「按资金自动限制最高价」
+5. 点 **运行选股**，查看推荐列表、**增强版选股指南**与一手数量
 
 > **实时智能** 需先在「高级·数据」刷新实时行情；否则会超时或退回收盘因子。
 
@@ -138,8 +141,9 @@ python scripts/run-browser-e2e-tests.py
 ## 8. 获取帮助
 
 - 门户 **使用指南** 页
-- 项目 `docs/COMPARISON.md` — 与同类产品差异
-- GitHub / GitLab Issues — Bug 与功能建议
+- 项目 [README.md](../README.md) — 快速开始与功能总览
+- `docs/COMPARISON.md` — 与同类产品差异
+- [GitHub Issues](https://github.com/kenzhao0621-tech/netlify-demo/issues) — Bug 与功能建议
 
 ---
 

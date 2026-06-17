@@ -1,0 +1,33 @@
+name: Feature Request
+description: 建议新功能或改进
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        欢迎建议。请注意：**无人值守自动真实下单**不在产品范围内。
+  - type: textarea
+    id: problem
+    attributes:
+      label: 你想解决什么问题？
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 建议方案
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: 相关模块
+      options:
+        - 智能选股
+        - Paper 模拟
+        - 券商助手
+        - 数据与行情
+        - 量化日报
+        - 门户 UI
+        - 其他
