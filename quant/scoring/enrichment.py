@@ -8,9 +8,17 @@ from typing import Any
 from quant.portfolio.cost_model import estimate_round_trip_cost_cny
 from quant.portfolio.allocator import affordable_lots
 from quant.tradability.mask import evaluate_tradability
+from quant.screener.names import resolve_name
+from quant.screener.trade_zones import compute_trade_zones
+from quant.screener.beginner_guide import build_detailed_reasons
 
-MODEL_VERSION = "screener_v2_multi_target_2026-06-17"
+MODEL_VERSION = "screener_v3_alpha158_blend_2026-06-17"
 FORECAST_HORIZON = "T+1_close_to_close"
+
+
+def _as_pct(val: Any) -> float:
+    v = float(val or 0)
+    return v if abs(v) > 3 else v * 100.0
 
 
 def enrich_candidate(
@@ -25,6 +33,7 @@ def enrich_candidate(
 ) -> dict[str, Any]:
     """Add return/risk/uncertainty/cost channels to a screener row."""
     sym = row["symbol"]
+    stock_name = row.get("name") or resolve_name(sym)
     last_close = float(row.get("last_close") or 0)
     last_pct = float(row.get("last_pct") or 0)
     vol = float(row.get("vol_20") or 0)
@@ -68,11 +77,20 @@ def enrich_candidate(
     val = validation_status or {}
     reg = regime or {}
     eligibility = _eligibility(mask, val, uncertainty)
+    factor_breakdown = row.get("factor_breakdown") or []
+    detailed_reasons = build_detailed_reasons(row, factor_breakdown)
+    trade_zones = compute_trade_zones(
+        symbol=sym,
+        price=last_close,
+        trend_pct=float(row.get("trend") or 0) * 100,
+        vol_20=vol,
+        last_pct=last_pct,
+    )
 
     return {
         **row,
         "rank": rank,
-        "name": row.get("name", ""),
+        "name": stock_name,
         "data_cutoff": as_of_date,
         "model_version": MODEL_VERSION,
         "forecast_horizon": FORECAST_HORIZON,
@@ -89,11 +107,15 @@ def enrich_candidate(
         "positive_factors": pos,
         "negative_factors": neg,
         "factor_contributions": {
-            "momentum_20d": round(float(row.get("ret_20", 0)) * 100, 2),
-            "momentum_60d": round(float(row.get("ret_60", 0)) * 100, 2),
-            "trend_vs_ma20": round(float(row.get("trend", 0)) * 100, 2),
+            "momentum_20d": round(_as_pct(row.get("ret_20", 0)), 2),
+            "momentum_60d": round(_as_pct(row.get("ret_60", 0)), 2),
+            "trend_vs_ma20": round(_as_pct(row.get("trend", 0)), 2),
             "volatility_penalty": round(vol, 2),
+            "alpha158_lite": round(float(row.get("alpha_score") or 0), 4),
         },
+        "factor_breakdown": factor_breakdown,
+        "detailed_reasons": detailed_reasons,
+        "trade_zones": trade_zones,
         "regime_compatibility": reg.get("label", "UNKNOWN"),
         "validation_status": val.get("verdict", "NOT_RUN"),
         "purged_kfold_passed": val.get("purged_kfold_passed"),

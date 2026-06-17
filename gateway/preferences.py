@@ -28,6 +28,9 @@ class UserPreferences:
     horizon: str = "3-10 sessions"
     preferred_sectors: list[str] = field(default_factory=list)
     excluded_sectors: list[str] = field(default_factory=list)
+    price_min_cny: float = 0.0
+    price_max_cny: float | None = None
+    enforce_capital_price_ceiling: bool = True
 
     def to_dict(self) -> dict[str, Any]:
         data = asdict(self)
@@ -53,6 +56,9 @@ def load_preferences() -> UserPreferences:
         horizon=str(defaults["horizon"] or "3-10 sessions"),
         preferred_sectors=_norm_sector_list(defaults.get("preferred_sectors", [])),
         excluded_sectors=_norm_sector_list(defaults.get("excluded_sectors", [])),
+        price_min_cny=max(0.0, float(defaults.get("price_min_cny", 0) or 0)),
+        price_max_cny=_optional_float(defaults.get("price_max_cny")),
+        enforce_capital_price_ceiling=bool(defaults.get("enforce_capital_price_ceiling", True)),
     )
 
 
@@ -70,6 +76,9 @@ def save_preferences(data: dict[str, Any]) -> UserPreferences:
         horizon=str(current["horizon"] or "3-10 sessions"),
         preferred_sectors=_norm_sector_list(current.get("preferred_sectors", [])),
         excluded_sectors=_norm_sector_list(current.get("excluded_sectors", [])),
+        price_min_cny=max(0.0, float(current.get("price_min_cny", 0) or 0)),
+        price_max_cny=_optional_float(current.get("price_max_cny")),
+        enforce_capital_price_ceiling=bool(current.get("enforce_capital_price_ceiling", True)),
     )
     PREF_PATH.parent.mkdir(parents=True, exist_ok=True)
     PREF_PATH.write_text(json.dumps(pref.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8")
@@ -101,3 +110,13 @@ def _norm_sector_list(value: Any) -> list[str]:
     else:
         parts = []
     return [str(x).strip() for x in parts if str(x).strip()]
+
+
+def _optional_float(value: Any) -> float | None:
+    if value is None or value == "":
+        return None
+    try:
+        f = float(value)
+        return f if f > 0 else None
+    except (TypeError, ValueError):
+        return None

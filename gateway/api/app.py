@@ -6,7 +6,7 @@ from typing import Any, Dict, Optional
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, HTMLResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -111,6 +111,11 @@ class BacktestBody(BaseModel):
     lookback_days: int = 60
     top_n: int = 5
     engine: str = "screener_portfolio"
+
+
+@app.get("/")
+def root_redirect() -> RedirectResponse:
+    return RedirectResponse(url="/portal", status_code=302)
 
 
 @app.get("/health")

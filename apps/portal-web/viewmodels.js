@@ -172,7 +172,14 @@
         paper_status: c.paper_status,
         reasons_not_to_trade: c.reasons_not_to_trade || [],
         invalidation_conditions: c.invalidation_conditions || [],
+        detailed_reasons: c.detailed_reasons || [],
+        trade_zones: c.trade_zones || {},
+        factor_breakdown: c.factor_breakdown || [],
+        alpha_score: c.alpha_score,
       })),
+      selectionGuide: d.selection_guide || {},
+      priceFilters: d.price_filters || {},
+      capitalCny: d.capital_cny || 5000,
     };
   }
 

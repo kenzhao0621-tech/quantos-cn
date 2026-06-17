@@ -220,6 +220,10 @@ def screener_run(
     mode: str = "eod",
     preferred_sectors: str = "",
     excluded_sectors: str = "",
+    price_min_cny: Optional[float] = None,
+    price_max_cny: Optional[float] = None,
+    capital_cny: Optional[float] = None,
+    enforce_capital_price_ceiling: Optional[bool] = None,
     principal: Optional[Principal] = Depends(_principal),
 ) -> Dict[str, Any]:
     _require(principal, "market:read")
@@ -230,6 +234,14 @@ def screener_run(
     pref_sectors = _split_csv(preferred_sectors) or prefs.preferred_sectors
     excl_sectors = _split_csv(excluded_sectors) or prefs.excluded_sectors
     top_n = max(5, min(int(top_n), 100))
+    eff_cap = float(capital_cny) if capital_cny is not None else prefs.capital_cny
+    eff_pmin = float(price_min_cny) if price_min_cny is not None else prefs.price_min_cny
+    eff_pmax = float(price_max_cny) if price_max_cny is not None else prefs.price_max_cny
+    eff_ceiling = (
+        bool(enforce_capital_price_ceiling)
+        if enforce_capital_price_ceiling is not None
+        else prefs.enforce_capital_price_ceiling
+    )
     result = get_screener_service().screen(
         preset=preset or prefs.strategy_preset,
         top_n=top_n,
@@ -238,6 +250,10 @@ def screener_run(
         mode=mode,
         preferred_sectors=pref_sectors,
         excluded_sectors=excl_sectors,
+        price_min_cny=eff_pmin,
+        price_max_cny=eff_pmax,
+        capital_cny=eff_cap,
+        enforce_capital_price_ceiling=eff_ceiling,
     )
     return envelope_ok(result.to_dict(), provenance={"source": "canonical_duckdb", "engine": "multi_factor_screener"})
 

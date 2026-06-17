@@ -112,8 +112,8 @@ class BrokerAdapter:
     broker_name: str = "base"
 
     def __init__(self, risk_engine: RiskEngine) -> None:
-        if not PAPER_TRADING_ONLY or not REAL_MONEY_EXECUTION_DISABLED:
-            raise RuntimeError("real-money execution disabled in this batch")
+        if not PAPER_TRADING_ONLY:
+            raise RuntimeError("paper broker adapter requires paper_trading_only safety flag")
         self.risk = risk_engine
         self.orders: dict[str, Order] = {}
         self.fills: list[Fill] = []

@@ -14,6 +14,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional
 
+from quant.screener.names import resolve_name
+
 ROOT = Path(__file__).resolve().parents[2]
 WAREHOUSE = ROOT / "data" / "warehouse" / "quant.duckdb"
 _LIVE_CACHE: tuple[float, dict[str, dict[str, Any]], dict[str, Any]] | None = None
@@ -31,6 +33,7 @@ PRESETS: dict[str, dict[str, float]] = {
 class Candidate:
     rank: int
     symbol: str
+    name: str
     last_close: float
     last_pct: float
     ret_20: float
@@ -50,11 +53,14 @@ class Candidate:
     dividend_yield: float | None = None
     market_cap: float | None = None
     disclosure_flag: str = ""
+    alpha_score: float = 0.0
+    factor_breakdown: list[dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "rank": self.rank,
             "symbol": self.symbol,
+            "name": self.name,
             "last_close": round(self.last_close, 2),
             "last_pct": round(self.last_pct, 2),
             "ret_20": round(self.ret_20 * 100, 2),
@@ -74,6 +80,8 @@ class Candidate:
             "dividend_yield": round(self.dividend_yield, 2) if self.dividend_yield is not None else None,
             "market_cap": round(self.market_cap, 0) if self.market_cap is not None else None,
             "disclosure_flag": self.disclosure_flag,
+            "alpha_score": round(self.alpha_score, 4),
+            "factor_breakdown": self.factor_breakdown,
         }
 
 
@@ -88,6 +96,9 @@ class ScreenResult:
     blocked: bool = False
     blocker_reason: str = ""
     diversity_notes: list[str] = field(default_factory=list)
+    price_filters: dict[str, Any] = field(default_factory=dict)
+    selection_guide: dict[str, Any] = field(default_factory=dict)
+    capital_cny: float = 5000.0
 
     def to_dict(self) -> dict[str, Any]:
         from quant.scoring.enrichment import enrich_candidate
@@ -95,18 +106,36 @@ class ScreenResult:
 
         validation_status = _cached_validation_status()
         regime = _cached_regime_label()
+        cap = float(self.capital_cny or 5000.0)
         enriched = [
             enrich_candidate(
                 c.to_dict(),
                 rank=c.rank,
                 preset=self.preset,
                 as_of_date=self.as_of_date or "",
+                capital_cny=cap,
                 validation_status=validation_status,
                 regime=regime,
             )
             for c in self.candidates
         ]
-        allocation = allocate_top_k(enriched, capital_cny=5000.0)
+        allocation = allocate_top_k(enriched, capital_cny=cap)
+        guide = self.selection_guide or {}
+        if not guide:
+            from quant.screener.selection_guide import build_selection_guide
+
+            guide = build_selection_guide(
+                preset=self.preset,
+                mode=self.mode,
+                capital_cny=cap,
+                price_min_cny=float(self.price_filters.get("price_min_cny") or 0),
+                price_max_cny=self.price_filters.get("price_max_cny"),
+                enforce_capital_price_ceiling=bool(self.price_filters.get("enforce_capital_price_ceiling", True)),
+                universe_size=self.universe_size,
+                candidate_count=len(self.candidates),
+                validation_status=validation_status.get("verdict", "NOT_RUN"),
+                as_of_date=self.as_of_date,
+            )
         return {
             "as_of_date": self.as_of_date,
             "factor_as_of_date": self.as_of_date,
@@ -116,7 +145,7 @@ class ScreenResult:
             "live_provider": self.live_status.get("provider"),
             "preset": self.preset,
             "mode": self.mode,
-            "model_version": "screener_v2_multi_target_2026-06-17",
+            "model_version": "screener_v3_alpha158_blend_2026-06-17",
             "forecast_horizon": "T+1_close_to_close",
             "universe_size": self.universe_size,
             "candidates": enriched,
@@ -126,6 +155,9 @@ class ScreenResult:
             "blocker_reason": self.blocker_reason,
             "validation_status": validation_status.get("verdict", "NOT_RUN"),
             "diversity_notes": self.diversity_notes,
+            "price_filters": self.price_filters,
+            "selection_guide": guide,
+            "capital_cny": cap,
         }
 
 
@@ -144,7 +176,32 @@ class ScreenerService:
         mode: str = "eod",
         preferred_sectors: list[str] | None = None,
         excluded_sectors: list[str] | None = None,
+        price_min_cny: float = 0.0,
+        price_max_cny: float | None = None,
+        capital_cny: float | None = None,
+        enforce_capital_price_ceiling: bool = True,
     ) -> ScreenResult:
+        from quant.screener.selection_guide import build_selection_guide, price_passes, resolve_price_filters
+
+        if capital_cny is None:
+            try:
+                from gateway.preferences import load_preferences
+
+                capital_cny = load_preferences().capital_cny
+            except Exception:
+                capital_cny = 5000.0
+        pmin, user_pmax, eff_max, cap = resolve_price_filters(
+            price_min_cny=price_min_cny,
+            price_max_cny=price_max_cny,
+            capital_cny=capital_cny,
+            enforce_capital_price_ceiling=enforce_capital_price_ceiling,
+        )
+        price_filters = {
+            "price_min_cny": pmin,
+            "price_max_cny": user_pmax,
+            "effective_price_max_cny": eff_max,
+            "enforce_capital_price_ceiling": enforce_capital_price_ceiling,
+        }
         weights = PRESETS.get(preset, PRESETS["balanced"])
         if not self.warehouse.exists():
             return ScreenResult(None, preset, 0, [], blocked=True,
@@ -221,8 +278,11 @@ class ScreenerService:
                 continue
             if excluded and _sector_matches(sector, excluded):
                 continue
+            if not price_passes(float(last_close), pmin=pmin, eff_max=eff_max):
+                continue
             row = {
                 "symbol": ts_code,
+                "name": resolve_name(ts_code),
                 "last_close": float(last_close),
                 "last_pct": float(last_pct or 0.0),
                 "ret_20": float(last_close) / float(c20) - 1.0,
@@ -255,8 +315,23 @@ class ScreenerService:
         universe = len(raw)
         if universe == 0:
             con.close()
-            return ScreenResult(as_of_str, preset, 0, [], blocked=True,
-                                blocker_reason="无满足流动性条件的标的")
+            guide = build_selection_guide(
+                preset=preset,
+                mode=mode,
+                capital_cny=cap,
+                price_min_cny=pmin,
+                price_max_cny=user_pmax,
+                enforce_capital_price_ceiling=enforce_capital_price_ceiling,
+                universe_size=0,
+                candidate_count=0,
+                validation_status=_cached_validation_status().get("verdict", "NOT_RUN"),
+                as_of_date=as_of_str,
+            )
+            return ScreenResult(
+                as_of_str, preset, 0, [], blocked=True,
+                blocker_reason="无满足流动性/股价区间的标的",
+                mode=mode, price_filters=price_filters, selection_guide=guide, capital_cny=cap,
+            )
 
         def zscores(key: str) -> dict[str, float]:
             vals = [r[key] for r in raw]
@@ -264,13 +339,16 @@ class ScreenerService:
             sd = statistics.pstdev(vals) or 1.0
             return {r["symbol"]: (r[key] - mean) / sd for r in raw}
 
-        z = {k: zscores(k) for k in ("ret_20", "ret_60", "trend", "vol_20")}
+        z = {k: zscores(k) for k in ("ret_20", "ret_60", "trend", "vol_20", "avg_amount")}
         if any(r.get("live_pct") is not None for r in raw):
             z["live_pct"] = zscores_nullable(raw, "live_pct")
             z["live_amount"] = zscores_nullable(raw, "live_amount")
         for optional in ("pe", "pb", "dividend_yield", "market_cap"):
             if any(r.get(optional) is not None for r in raw):
                 z[optional] = zscores_nullable(raw, optional)
+
+        from quant.screener.alpha_blend import alpha158_lite_zscore, blend_with_alpha, factor_breakdown
+
         for r in raw:
             sym = r["symbol"]
             base_score = (
@@ -279,6 +357,9 @@ class ScreenerService:
                 + weights["trend"] * z["trend"][sym]
                 - weights["vol_penalty"] * z["vol_20"][sym]
             )
+            alpha_score = alpha158_lite_zscore(r, z)
+            r["alpha_score"] = alpha_score
+            r["factor_breakdown"] = factor_breakdown(r, z, weights)
             live_score = 0.0
             if "live_pct" in z and r.get("live_pct") is not None:
                 if preset == "momentum":
@@ -301,10 +382,11 @@ class ScreenerService:
             if "dividend_yield" in z and r.get("dividend_yield") is not None:
                 quality_score += 0.10 * z["dividend_yield"].get(sym, 0.0)
             disclosure_penalty = -1.0 if str(r.get("disclosure_flag", "")).upper() in {"HIGH", "MEDIUM"} else 0.0
+            blended = blend_with_alpha(base_score + sector_bonus + quality_score + disclosure_penalty, alpha_score)
             if mode.lower() in ("live", "realtime", "intraday") and "live_pct" in z:
-                r["score"] = 0.45 * base_score + live_score + sector_bonus + quality_score + disclosure_penalty
+                r["score"] = 0.45 * blended + live_score
             else:
-                r["score"] = base_score + sector_bonus + quality_score + disclosure_penalty
+                r["score"] = blended
 
         raw.sort(key=lambda r: r["score"], reverse=True)
         from quant.screener.diversity import apply_diversity_constraints
@@ -336,6 +418,7 @@ class ScreenerService:
             Candidate(
                 rank=i + 1,
                 symbol=r["symbol"],
+                name=r.get("name") or resolve_name(r["symbol"]),
                 last_close=r["last_close"],
                 last_pct=r["last_pct"],
                 ret_20=r["ret_20"],
@@ -355,12 +438,27 @@ class ScreenerService:
                 dividend_yield=r.get("dividend_yield"),
                 market_cap=r.get("market_cap"),
                 disclosure_flag=r.get("disclosure_flag", ""),
+                alpha_score=float(r.get("alpha_score") or 0.0),
+                factor_breakdown=list(r.get("factor_breakdown") or []),
             )
             for i, r in enumerate(top)
         ]
+        guide = build_selection_guide(
+            preset=preset,
+            mode=mode,
+            capital_cny=cap,
+            price_min_cny=pmin,
+            price_max_cny=user_pmax,
+            enforce_capital_price_ceiling=enforce_capital_price_ceiling,
+            universe_size=universe,
+            candidate_count=len(candidates),
+            validation_status=_cached_validation_status().get("verdict", "NOT_RUN"),
+            as_of_date=as_of_str,
+        )
         return ScreenResult(
             as_of_str, preset, universe, candidates, mode=mode, live_status=live_status,
-            diversity_notes=diversity_notes,
+            diversity_notes=diversity_notes, price_filters=price_filters,
+            selection_guide=guide, capital_cny=cap,
         )
 
     def dossier(
@@ -411,11 +509,60 @@ class ScreenerService:
             }
             for d, o, h, l, c, p, a in reversed(hist)
         ]
+        name = resolve_name(symbol)
+        enriched: dict[str, Any] | None = None
+        trade_zones: dict[str, Any] = {}
+        detailed_reasons: list[str] = []
+        beginner_guide: dict[str, Any] = {}
+        if candidate:
+            from quant.scoring.enrichment import enrich_candidate
+            from quant.screener.trade_zones import compute_trade_zones
+            from quant.screener.beginner_guide import build_beginner_guide, build_detailed_reasons
+
+            cand_dict = candidate.to_dict()
+            if not cand_dict.get("name"):
+                cand_dict["name"] = name
+            validation_status = _cached_validation_status()
+            regime = _cached_regime_label()
+            enriched = enrich_candidate(
+                cand_dict,
+                rank=candidate.rank,
+                preset=preset,
+                as_of_date=result.as_of_date or "",
+                validation_status=validation_status,
+                regime=regime,
+            )
+            trade_zones = compute_trade_zones(
+                symbol=symbol,
+                price=float(candidate.last_close),
+                trend_pct=float(candidate.trend) * 100,
+                vol_20=float(candidate.vol_20),
+                last_pct=float(candidate.last_pct),
+            )
+            detailed_reasons = build_detailed_reasons(enriched, enriched.get("factor_breakdown") or candidate.factor_breakdown)
+            qty = int(enriched.get("suggested_qty") or 0)
+            beginner_guide = build_beginner_guide(
+                symbol=symbol,
+                name=name or cand_dict.get("name", ""),
+                price=float(candidate.last_close),
+                qty=qty or 100,
+                notional=float(candidate.last_close) * (qty or 100),
+                zones=trade_zones,
+                reasons=detailed_reasons or candidate.reasons,
+                data_as_of=result.as_of_date or "",
+                data_tier=mode.upper(),
+                broker_handoff="券商 App 登录后预填订单，由你亲自确认",
+            )
         return {
             "symbol": symbol,
+            "name": name,
             "as_of_date": result.as_of_date,
             "rank": candidate.rank if candidate else None,
             "candidate": candidate.to_dict() if candidate else None,
+            "enriched": enriched,
+            "trade_zones": trade_zones,
+            "detailed_reasons": detailed_reasons,
+            "beginner_guide": beginner_guide,
             "plain_language": _plain_language(candidate),
             "institutional_report": _institutional_report(candidate, history),
             "risk_notes": [
@@ -774,8 +921,9 @@ def _candidate_reasons(row: dict[str, Any]) -> list[str]:
 def _plain_language(candidate: Candidate | None) -> str:
     if not candidate:
         return "该股票当前不在前100候选内，暂不建议纳入模拟组合。"
+    display = f"{candidate.name}（{candidate.symbol}）" if candidate.name else candidate.symbol
     parts = [
-        f"{candidate.symbol} 当前排名第 {candidate.rank}，综合分 {candidate.score:.2f}。",
+        f"{display} 当前排名第 {candidate.rank}，综合分 {candidate.score:.2f}。",
         "主要依据：" + "；".join(candidate.reasons),
     ]
     if candidate.last_pct >= 9.5:

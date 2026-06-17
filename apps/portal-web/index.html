@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="portal-build-id" content="__BUILD_ID__" />
   <meta name="quantos-build" content="__BUILD_ID__" />
   <title>QuantOS CN · 中国 A 股智能量化操作系统</title>
   <link rel="stylesheet" href="/portal/assets/styles.css?v=__BUILD_ID__" />
@@ -44,6 +45,7 @@
 
   <header class="top-bar" role="banner">
     <div class="brand">QuantOS · A股入门量化</div>
+    <div id="gateway-offline-banner" class="gateway-offline-banner hidden" role="alert"></div>
     <div class="status-grid beginner-header" id="header-status" aria-live="polite">
       <span class="pill" id="role-pill">身份: —</span>
       <span class="pill" id="mode-pill">模式: —</span>
@@ -177,6 +179,9 @@
           <label>单票上限%<input id="pref-single" type="number" min="1" max="80" step="1" value="18" /></label>
           <label>偏好板块<input id="pref-sectors" type="text" placeholder="如：银行,半导体" /></label>
           <label>排除板块<input id="pref-exclude-sectors" type="text" placeholder="如：房地产,ST" /></label>
+          <label>最低股价(元)<input id="pref-price-min" type="number" min="0" step="0.01" value="0" /></label>
+          <label>最高股价(元)<input id="pref-price-max" type="number" min="0" step="0.01" placeholder="不限" /></label>
+          <label><input type="checkbox" id="pref-price-ceiling" checked /> 按资金自动限制最高价（一手100股）</label>
           <button data-action="save-preferences" type="button">保存偏好</button>
         </div>
       </div>
@@ -216,6 +221,7 @@
         <button data-action="paper-from-screener" type="button">加入 Paper 模拟组合</button>
       </div>
       <div id="screener-meta" class="metric-row"></div>
+      <div id="screener-guide" class="sub-panel"></div>
       <div id="screener-proof" class="sub-panel"></div>
       <div id="screener-dossier" class="sub-panel"></div>
       <div id="screener-table" class="primary-view" data-primary-view="screener"></div>

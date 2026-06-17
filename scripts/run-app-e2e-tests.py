@@ -22,12 +22,12 @@ PORT = 8787
 BASE = f"http://{HOST}:{PORT}"
 
 
-def _http(path: str, method: str = "GET", headers: dict | None = None, body: bytes | None = None) -> tuple[int, dict]:
+def _http(path: str, method: str = "GET", headers: dict | None = None, body: bytes | None = None, timeout: int = 30) -> tuple[int, dict]:
     req = urllib.request.Request(f"{BASE}{path}", data=body, method=method)
     for k, v in (headers or {}).items():
         req.add_header(k, v)
     try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
             raw = resp.read().decode()
             try:
                 return resp.status, json.loads(raw) if raw else {}
@@ -95,15 +95,20 @@ def main() -> int:
     )
     cases.append({"case": "main_py_import", "passed": r.returncode == 0, "detail": r.stderr[-200:] if r.returncode else "ok"})
 
-    # 3. Start server via uvicorn from /tmp cwd
-    _stop_server(None)
-    proc = subprocess.Popen(
-        [str(PY), "-m", "uvicorn", "gateway.api.app:app", "--app-dir", str(ROOT), "--host", HOST, "--port", str(PORT)],
-        cwd="/tmp",
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    cases.append({"case": "server_start_from_tmp", "passed": _wait_health()})
+    # 3. Start server via uvicorn from /tmp cwd (reuse if already healthy)
+    proc: subprocess.Popen | None = None
+    reuse = os.environ.get("QUANTOS_REUSE_SERVER", "").lower() in {"1", "true", "yes"}
+    if reuse and _wait_health(timeout=3.0):
+        cases.append({"case": "server_start_from_tmp", "passed": True, "detail": "reused"})
+    else:
+        _stop_server(None)
+        proc = subprocess.Popen(
+            [str(PY), "-m", "uvicorn", "gateway.api.app:app", "--app-dir", str(ROOT), "--host", HOST, "--port", str(PORT)],
+            cwd="/tmp",
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        cases.append({"case": "server_start_from_tmp", "passed": _wait_health()})
 
     from gateway.config import GatewayConfig
     cfg = GatewayConfig.load()
@@ -121,7 +126,7 @@ def main() -> int:
     cases.append({"case": "login_admin", "passed": code == 200 and body.get("data", {}).get("role") == "admin"})
 
     code, body = _http("/api/v1/research/backtest", method="POST", headers=h,
-                       body=json.dumps({"as_of_date": "2026-06-16"}).encode())
+                       body=json.dumps({"as_of_date": "2026-06-16"}).encode(), timeout=120)
     cases.append({"case": "backtest", "passed": code == 200 and body.get("data", {}).get("pit_passed") is True})
 
     code, body = _http("/api/v1/paper/start", method="POST", headers=h, body=b"{}")

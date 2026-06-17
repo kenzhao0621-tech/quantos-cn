@@ -76,13 +76,21 @@ def main() -> int:
             page.screenshot(path=str(path))
             return str(path)
 
+        def dismiss_legal() -> None:
+            page.evaluate("() => { localStorage.setItem('quantos_legal_ack', '1'); }")
+            if page.locator("#legal-overlay").is_visible():
+                page.click("#btn-legal-accept")
+            page.wait_for_function(
+                "() => document.getElementById('legal-overlay')?.classList.contains('hidden')",
+                timeout=5000,
+            )
+
         # Login — beginner investor (default product persona)
         page.goto(f"{BASE}/portal")
         page.select_option("#login-role", "investor")
         page.click("#btn-login")
-        if page.locator("#legal-overlay").is_visible():
-            page.click("#btn-legal-accept")
-            page.wait_for_timeout(300)
+        page.wait_for_timeout(800)
+        dismiss_legal()
         page.wait_for_selector("#beginner-steps", state="visible", timeout=15000)
         page.wait_for_function(
             """() => {
@@ -99,6 +107,7 @@ def main() -> int:
         cases.append({"case": "beginner_guide", "passed": steps >= 4, "screenshot": shot("02_guide")})
 
         # Overview (advanced) still works
+        dismiss_legal()
         page.click('button.tab[data-page="overview"]')
         page.wait_for_selector("#overview-body", state="visible", timeout=10000)
         overview = page.locator("#overview-body").inner_text()
@@ -115,6 +124,7 @@ def main() -> int:
         })
 
         # Broker connect — investor must not get 403
+        dismiss_legal()
         page.click('button.tab[data-page="brokers"]')
         page.wait_for_timeout(500)
         page.locator('#page-brokers [data-action="broker-connect"]').click()
@@ -124,6 +134,7 @@ def main() -> int:
         cases.append({"case": "broker_connect", "passed": broker_ok, "screenshot": shot("05_broker")})
 
         # Help / disclaimer page
+        dismiss_legal()
         page.click('button.tab[data-page="help"]')
         page.wait_for_timeout(500)
         page.click('.help-nav-btn[data-help-section="legal"]')
@@ -136,6 +147,7 @@ def main() -> int:
         })
 
         # Paper start/stop — use paper page buttons (visible)
+        dismiss_legal()
         page.click('button.tab[data-page="paper"]')
         page.wait_for_timeout(300)
         page.locator('#page-paper [data-action="paper-start"]').click()

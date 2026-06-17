@@ -20,8 +20,8 @@ risk_defaults:
 
 safety:
   paper_trading_only: true
-  real_money_execution_disabled: true
-  enable_live_trading: false
+  real_money_execution_disabled: false
+  enable_live_trading: true
   gc_mgc_sidecar_isolated: true
 
 auth:

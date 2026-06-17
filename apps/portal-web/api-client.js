@@ -25,12 +25,25 @@
     if (res.status === "timeout" || res.error?.code === "TIMEOUT") {
       return "请求超时：智能选股请改用「收盘数据」模式，或先在高级·数据刷新行情";
     }
+    if (res.status === "network_error" || res.error?.code === "NETWORK") {
+      return "无法连接 Gateway — 请运行 make app 或 bash scripts/start-portal.sh";
+    }
     return res.error?.message || res.error?.code || "请求失败";
+  }
+
+  function resolveApiBase() {
+    const stored = sessionStorage.getItem("quantos_api_base") || localStorage.getItem("quantos_api_base");
+    if (stored) return String(stored).replace(/\/$/, "");
+    const origin = window.location.origin;
+    if (!origin || origin === "null" || origin.startsWith("file:")) {
+      return "http://127.0.0.1:8787";
+    }
+    return origin.replace(/\/$/, "");
   }
 
   class ApiClient {
     constructor() {
-      this.base = window.location.origin;
+      this.base = resolveApiBase();
     }
 
     get apiKey() {
@@ -51,9 +64,20 @@
       sessionStorage.removeItem(STORAGE_KEY);
     }
 
+    async ping() {
+      const res = await this.request("/health", { skipAuth: true, timeoutMs: 5000 });
+      return res.ok || res.httpStatus === 200;
+    }
+
     async login(role) {
       const apiKey = DEV_KEYS[role];
       if (!apiKey) throw new Error(`未知角色: ${role}`);
+      const up = await this.ping();
+      if (!up) {
+        throw new Error(
+          `无法连接 Gateway（${this.base}）。请在终端运行：make app  或  bash scripts/start-portal.sh`,
+        );
+      }
       const res = await this.request("/api/v1/auth/login", {
         method: "POST",
         body: JSON.stringify({ role }),

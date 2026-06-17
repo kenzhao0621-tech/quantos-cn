@@ -44,7 +44,15 @@ class BrokerConfig:
 def load_broker_config() -> BrokerConfig:
     if not CONFIG_PATH.exists():
         return BrokerConfig()
-    raw = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+    text = CONFIG_PATH.read_text(encoding="utf-8").strip()
+    if not text:
+        return BrokerConfig()
+    try:
+        raw = json.loads(text)
+    except json.JSONDecodeError:
+        return BrokerConfig()
+    if not isinstance(raw, dict):
+        return BrokerConfig()
     defaults = BrokerConfig().to_dict()
     defaults.update({k: v for k, v in raw.items() if k in defaults})
     return BrokerConfig(

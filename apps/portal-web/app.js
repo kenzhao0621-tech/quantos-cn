@@ -22,6 +22,29 @@
     el.classList.toggle("kill", !!danger);
   }
 
+  async function pingGateway() {
+    return api.ping();
+  }
+
+  function showGatewayBanner(up, message) {
+    const banner = $("gateway-offline-banner");
+    if (!banner) return;
+    if (!up) {
+      banner.textContent = message || `Gateway 未连接（${api.base}）— 请运行：make app`;
+      banner.classList.remove("hidden");
+    } else {
+      banner.classList.add("hidden");
+    }
+  }
+
+  async function safeSection(label, fn) {
+    try {
+      await fn();
+    } catch (err) {
+      console.error(`portal:${label}`, err);
+    }
+  }
+
   function logAction(label, res) {
     const summary = VM.actionSummary(label, res);
     UI.renderActionLog($("action-log-body"), {
@@ -222,6 +245,10 @@
     return res;
   }
 
+  async function refreshPlatformHealth() {
+    return refreshSetupCenter();
+  }
+
   async function handleSetupAction(action) {
     if (action === "market-sync-all") return marketSyncAll(null);
     if (action === "goto-brokers") {
@@ -289,7 +316,11 @@
     if (!banner) return;
     try {
       const ver = await api.request("/api/v1/system/version");
-      const embedded = document.querySelector('meta[name="portal-build-id"]')?.content || "";
+      const embedded =
+        document.querySelector('meta[name="portal-build-id"]')?.content
+        || document.querySelector('meta[name="quantos-build"]')?.content
+        || document.body.dataset.portalBuild
+        || "";
       const backend = ver.data?.portal_build_id || ver.data?.backend_build_id || "";
       if (embedded && backend && embedded !== backend) {
         banner.textContent = `STALE_BUILD_DETECTED — 请硬刷新 (前端 ${embedded} ≠ 后端 ${backend})`;
@@ -379,6 +410,9 @@
     if ($("pref-single")) $("pref-single").value = Math.round((p.max_single_position_pct || 0.18) * 100);
     if ($("pref-sectors")) $("pref-sectors").value = (p.preferred_sectors || []).join(",");
     if ($("pref-exclude-sectors")) $("pref-exclude-sectors").value = (p.excluded_sectors || []).join(",");
+    if ($("pref-price-min")) $("pref-price-min").value = p.price_min_cny || 0;
+    if ($("pref-price-max")) $("pref-price-max").value = p.price_max_cny ?? "";
+    if ($("pref-price-ceiling")) $("pref-price-ceiling").checked = p.enforce_capital_price_ceiling !== false;
     if ($("screener-preset") && p.strategy_preset) $("screener-preset").value = p.strategy_preset;
     if ($("screener-minamt") && p.min_amount_cny) $("screener-minamt").value = String(p.min_amount_cny);
   }
@@ -396,6 +430,9 @@
         strategy_preset: $("screener-preset")?.value || "balanced",
         preferred_sectors: splitCsv($("pref-sectors")?.value || ""),
         excluded_sectors: splitCsv($("pref-exclude-sectors")?.value || ""),
+        price_min_cny: Number($("pref-price-min")?.value || 0),
+        price_max_cny: $("pref-price-max")?.value ? Number($("pref-price-max").value) : null,
+        enforce_capital_price_ceiling: !!$("pref-price-ceiling")?.checked,
       };
       const res = await api.request("/api/v1/user/preferences", { method: "PUT", body: JSON.stringify(body) });
       logAction("保存用户偏好", res);
@@ -413,10 +450,18 @@
       const topN = $("screener-topn")?.value || "25";
       const minAmt = $("screener-minamt")?.value || "50000000";
       const capital = Number($("pref-capital")?.value || 5000);
+      const priceMin = Number($("pref-price-min")?.value || 0);
+      const priceMaxRaw = $("pref-price-max")?.value;
+      const priceMax = priceMaxRaw ? Number(priceMaxRaw) : "";
+      const priceCeiling = $("pref-price-ceiling")?.checked !== false;
       const sectors = encodeURIComponent($("pref-sectors")?.value || "");
       const excluded = encodeURIComponent($("pref-exclude-sectors")?.value || "");
+      const priceQ =
+        `&capital_cny=${capital}&price_min_cny=${priceMin}` +
+        (priceMax !== "" ? `&price_max_cny=${priceMax}` : "") +
+        `&enforce_capital_price_ceiling=${priceCeiling}`;
       const res = await api.request(
-        `/api/v1/screener/run?preset=${preset}&top_n=${topN}&min_amount_cny=${minAmt}&mode=${mode}&preferred_sectors=${sectors}&excluded_sectors=${excluded}`,
+        `/api/v1/screener/run?preset=${preset}&top_n=${topN}&min_amount_cny=${minAmt}&mode=${mode}&preferred_sectors=${sectors}&excluded_sectors=${excluded}${priceQ}`,
         { timeoutMs: mode === "live" ? 45000 : 20000 },
       );
       if (!res.ok) {
@@ -429,16 +474,23 @@
       const vm = VM.fromScreener(res);
       lastScreenerVm = vm;
       UI.renderScreener($("screener-table"), vm);
+      UI.renderSelectionGuide($("screener-guide"), vm);
       const meta = $("screener-meta");
       if (meta) {
         const liveNote = vm.liveStatus?.hint || (vm.mode === "live" && !vm.liveStatus?.used ? "（未接入实时行情，已用收盘因子）" : "");
+        const pf = vm.priceFilters || {};
+        const priceChip =
+          pf.effective_price_max_cny || pf.price_min_cny
+            ? `<span class="metric-chip">股价 <b>¥${pf.price_min_cny || 0}–${pf.effective_price_max_cny ?? "∞"}</b></span>`
+            : "";
         meta.innerHTML = vm.blocked
           ? ""
           : `<span class="metric-chip">截止 <b>${vm.dataCutoff}</b></span>` +
             `<span class="metric-chip">模型 <b>${vm.modelVersion}</b></span>` +
             `<span class="metric-chip">验证 <b>${vm.validationStatus}</b></span>` +
             `<span class="metric-chip">模式 <b>${vm.mode === "eod" ? "收盘·快速" : "实时"}</b></span>` +
-            `<span class="metric-chip">资金参考 <b>¥${capital}</b></span>` +
+            `<span class="metric-chip">资金参考 <b>¥${vm.capitalCny || capital}</b></span>` +
+            priceChip +
             `<span class="metric-chip">候选池 <b>${vm.universeSize}</b> 只</span>` +
             `<span class="metric-chip">入选 <b>${vm.rows.length}</b> 只</span>` +
             (liveNote ? `<span class="metric-chip warn">${liveNote}</span>` : "");
@@ -952,7 +1004,7 @@
       }
       if (b.note) cl.appendChild(Object.assign(document.createElement("p"), { className: "muted", textContent: b.note }));
     }
-    refreshBrokerPanel();
+    void refreshBrokerPanel();
   }
 
   function refreshShadow(shadow, events) {
@@ -973,9 +1025,9 @@
   }
 
   function refreshModels(registry) {
-    const models = registry?.data?.models || registry?.data || [];
+    const models = registry?.models || registry?.data?.models || (Array.isArray(registry) ? registry : []);
     const rows = (Array.isArray(models) ? models : []).map((m) => [
-      m.id || m.name || "—",
+      m.id || m.model_id || m.name || "—",
       m.status || "—",
       m.native ? "原生" : "兼容",
       m.dsr ?? m.sharpe ?? "—",
@@ -985,18 +1037,27 @@
 
   async function refreshFooterVersion() {
     const ver = await api.request("/api/v1/system/version", { skipAuth: true });
-    if (!ver.ok) return;
-    const d = ver.data;
+    const fv = $("footer-version");
+    const fbw = $("footer-build-warn");
+    if (!ver.ok || !fv) return;
+    const d = ver.data || {};
     const pageBuild = document.body.dataset.portalBuild || "";
-    // Compare the build the browser loaded against the SAME server's stable build.
-    // Mismatch => the browser is holding HTML from a previous server instance.
     const mismatch = !!(pageBuild && d.portal_build_id && pageBuild !== d.portal_build_id);
-    $("footer-version").textContent = `Backend ${d.git_commit_short} · PID ${d.process_id}`;
-    $("footer-build-warn").classList.toggle("hidden", !mismatch);
+    fv.textContent = `Backend ${d.git_commit_short || "—"} · PID ${d.process_id ?? "—"}`;
+    if (fbw) fbw.classList.toggle("hidden", !mismatch);
   }
 
   async function refresh() {
     if (!api.apiKey) return;
+    const up = await pingGateway();
+    showGatewayBanner(
+      up,
+      `无法连接 Gateway（${api.base}）— 请在终端运行：make app  或  bash scripts/start-portal.sh`,
+    );
+    if (!up) {
+      UI.renderEmpty($("overview-cards"), "Gateway 未连接", "所有功能需要本机 Gateway", "终端执行 make app 后刷新页面");
+      return;
+    }
     try {
       const [st, risk, reports, shadow, nativeStatus, quantosStatus, events] = await Promise.all([
         api.request("/api/v1/system/status"),
@@ -1013,22 +1074,24 @@
       refreshBrokers(await api.request("/api/v1/brokers/wizard"));
       refreshShadow(shadow, events);
       refreshModels(quantosStatus?.data?.model_registry);
-      refreshPaper();
+      await refreshPaper();
       await loadPreferences();
       await refreshMarket();
       await refreshSetupCenter();
 
       UI.renderReportSummary($("report-detail"), VM.fromSystemStatus(st?.data)?.latestReport);
       const list = $("report-list");
-      list.innerHTML = "";
-      if (reports.ok && reports.data?.reports?.length) {
-        reports.data.reports.slice(0, 15).forEach((r) => {
-          const li = document.createElement("li");
-          li.textContent = typeof r === "string" ? r : r.path || r.date || JSON.stringify(r);
-          list.appendChild(li);
-        });
-      } else {
-        list.appendChild(Object.assign(document.createElement("li"), { className: "muted", textContent: "尚无历史报告" }));
+      if (list) {
+        list.innerHTML = "";
+        if (reports.ok && reports.data?.reports?.length) {
+          reports.data.reports.slice(0, 15).forEach((r) => {
+            const li = document.createElement("li");
+            li.textContent = typeof r === "string" ? r : r.path || r.date || JSON.stringify(r);
+            list.appendChild(li);
+          });
+        } else {
+          list.appendChild(Object.assign(document.createElement("li"), { className: "muted", textContent: "尚无历史报告" }));
+        }
       }
 
       if (lastAgentRun) UI.renderAgentPanel($("agents-body"), VM.fromAgentsRun(lastAgentRun));
@@ -1038,20 +1101,27 @@
   }
 
   async function showApp() {
-    $("login-overlay").classList.add("hidden");
+    $("login-overlay")?.classList.add("hidden");
     if (!localStorage.getItem("quantos_legal_ack")) {
       $("legal-overlay")?.classList.remove("hidden");
     }
     setPill("role-pill", `身份: ${api.role === "investor" ? "新手投资者" : api.role}`);
+    try {
       await loadBrokerEcosystem();
       await refreshFooterVersion();
-    await refresh();
-    await refreshBeginnerGuide();
-    refreshHelpPage();
-    await checkBuildSync();
-    await refreshOverviewLive();
-    setInterval(refresh, 30000);
-    setInterval(refreshOverviewLive, 15000);
+      await refresh();
+      await safeSection("beginner", refreshBeginnerGuide);
+      refreshHelpPage();
+      await checkBuildSync();
+      await safeSection("overview-live", refreshOverviewLive);
+      if (!window.__quantosRefreshTimer) {
+        window.__quantosRefreshTimer = setInterval(refresh, 30000);
+        window.__quantosLiveTimer = setInterval(refreshOverviewLive, 15000);
+      }
+    } catch (err) {
+      showGatewayBanner(false, err.message || "门户初始化失败");
+      UI.renderEmpty($("overview-cards"), "门户加载失败", err.message, "请确认 Gateway 已启动后刷新");
+    }
   }
 
   $("btn-login")?.addEventListener("click", async () => {

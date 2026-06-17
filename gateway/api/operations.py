@@ -112,6 +112,9 @@ class UserPreferencesBody(BaseModel):
     horizon: str = "3-10 sessions"
     preferred_sectors: list[str] = Field(default_factory=list)
     excluded_sectors: list[str] = Field(default_factory=list)
+    price_min_cny: float = 0.0
+    price_max_cny: Optional[float] = None
+    enforce_capital_price_ceiling: bool = True
 
 
 class AutopilotTicketBody(BaseModel):
@@ -299,6 +302,11 @@ def system_status_v2(principal: Optional[Principal] = Depends(get_principal_ops)
 
     rt = get_runtime()
     deploy = compute_deployment_eligibility()
+    from gateway import PAPER_TRADING_ONLY, REAL_MONEY_EXECUTION_DISABLED
+    from gateway.live_trading.gates import load_gates
+
+    gates = load_gates()
+    real_disabled = REAL_MONEY_EXECUTION_DISABLED or not gates.real_money_enabled
     return envelope_ok({
         "mode": _state.mode.value,
         "deployment_eligibility": deploy["deployment_eligibility"],
@@ -314,9 +322,12 @@ def system_status_v2(principal: Optional[Principal] = Depends(get_principal_ops)
         "kill_switch": snap.kill_switch,
         "halted": snap.halted,
         "blockers": snap.blockers,
-        "paper_trading_only": True,
-        "real_money_execution_disabled": True,
+        "paper_trading_only": PAPER_TRADING_ONLY,
+        "real_money_execution_disabled": real_disabled,
+        "real_money_gates": gates.to_dict(),
+        "live_execution": "LIVE_MANUAL_ALLOWED" if not real_disabled else "LIVE_DISABLED",
         "real_execution_mode": "MANUAL_CONFIRM_ONLY",
+        "unattended_auto_enabled": gates.unattended_auto_enabled,
         "runtime": runtime,
         "vnpy": rt.status(),
         "qlib": CNMarketProvider().health(),
@@ -1098,7 +1109,7 @@ def app_version() -> Dict[str, Any]:
         "gateway_version": gateway.__version__,
         "commit": commit,
         "product": "QuantOS CN",
-        "real_money_disabled": True,
+        "real_money_disabled": gateway.REAL_MONEY_EXECUTION_DISABLED,
     })
 
 

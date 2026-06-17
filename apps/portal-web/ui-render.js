@@ -214,9 +214,12 @@
       return;
     }
     const maxScore = Math.max(...vm.rows.map((r) => r.final_score ?? r.score)) || 1;
-    const table = el("table", "data-table");
+    const table = el("table", "data-table screener-table");
+    const capLabel = vm.capitalCny ? `¥${Math.round(vm.capitalCny)}` : "5000元";
     table.innerHTML =
-      "<thead><tr><th>#</th><th>代码</th><th>板块</th><th>价格</th><th>收益区间%</th><th>下行%</th><th>崩盘</th><th>可买</th><th>5000元</th><th>综合分</th><th>资格</th><th>走势</th></tr></thead>";
+      "<thead><tr><th>#</th><th>代码</th><th>名称</th><th>板块</th><th>价格</th><th>收益区间%</th><th>下行%</th><th>可买</th><th>" +
+      capLabel +
+      "</th><th>综合分</th><th>资格</th><th>专业说明</th><th>走势</th></tr></thead>";
     const tb = el("tbody");
     vm.rows.forEach((r) => {
       const tr = el("tr");
@@ -226,24 +229,98 @@
       const eligCls = elig === "PAPER_ELIGIBLE" ? "up" : (elig === "BLOCKED" ? "down" : "");
       const retRange = `${r.expected_return_lo_pct ?? "—"}~${r.expected_return_hi_pct ?? "—"}`;
       const afford = r.affordable_lots ? `${r.affordable_lots}手/${r.suggested_qty || 0}股` : "—";
+      const displayName = r.name || "—";
+      const detailLines = (r.detailed_reasons || r.positive_factors || []).slice(0, 2);
+      const detailHtml = detailLines.length
+        ? `<ul class="screener-detail-list">${detailLines.map((x) => `<li>${x}</li>`).join("")}</ul>`
+        : `<span class="muted">点击代码查看完整解释</span>`;
       tr.innerHTML =
         `<td>${r.rank}</td>` +
         `<td><button type="button" class="symbol-link" data-dossier-symbol="${r.symbol}" title="${(r.reasons_not_to_trade || []).join("；")}">${r.symbol}</button>
           <button type="button" class="mini-btn" data-watchlist-add="${r.symbol}" data-watchlist-name="${r.name || ""}" title="收藏">★</button></td>` +
+        `<td class="stock-name">${displayName}</td>` +
         `<td>${r.sector || "—"}</td>` +
         `<td class="num">${r.live_price || r.last_close}</td>` +
         `<td class="num">${retRange}</td>` +
         `<td class="num">${r.downside_risk_pct ?? "—"}</td>` +
-        `<td class="num">${r.crash_risk ?? "—"}</td>` +
         `<td>${r.valid_for_purchase ? "是" : "否"}</td>` +
         `<td class="num">${afford}</td>` +
         `<td><span class="score-bar" style="width:${barW}px"></span> ${(r.final_score ?? r.score).toFixed(2)}</td>` +
         `<td class="${eligCls}">${elig}${r.valid_for_purchase && r.suggested_qty ? ` <button type="button" class="mini-btn" data-live-order="${r.symbol}" data-live-name="${r.name || ""}" data-live-qty="${r.suggested_qty}" data-live-price="${r.last_close}">实盘</button>` : ""}</td>` +
+        `<td class="screener-detail-cell">${detailHtml}</td>` +
         `<td>${sparklineSvg(r.spark, up)}</td>`;
       tb.appendChild(tr);
     });
     table.appendChild(tb);
     container.appendChild(table);
+    renderScreenerInsights(container, vm);
+  }
+
+  function renderScreenerInsights(container, vm) {
+    if (!vm?.rows?.length) return;
+    const top = vm.rows[0];
+    const box = el("div", "screener-insights");
+    const title = top.name ? `${top.name}（${top.symbol}）` : top.symbol;
+    box.appendChild(el("h3", "", `榜首解读 · ${title}`));
+    const summary = el("p", "muted", "");
+    summary.innerHTML =
+      `模型 <b>${vm.modelVersion || top.model_version || "—"}</b> · ` +
+      `验证 <b>${vm.validationStatus || top.validation_status || "NOT_RUN"}</b> · ` +
+      `Alpha158-lite 分 <b>${(top.alpha_score ?? 0).toFixed(3)}</b> · ` +
+      `数据截止 <b>${vm.dataCutoff || top.data_cutoff || "—"}</b>`;
+    box.appendChild(summary);
+    if (top.trade_zones?.buy_zone_low) {
+      const z = top.trade_zones;
+      box.appendChild(el("p", "", `参考买入区间 ¥${z.buy_zone_low} – ¥${z.buy_zone_high}；止损约 ¥${z.stop_loss}；止盈参考 ¥${z.sell_zone_low} – ¥${z.sell_zone_high}。`));
+    }
+    if (top.detailed_reasons?.length) {
+      const ul = el("ul", "checklist");
+      top.detailed_reasons.slice(0, 6).forEach((line) => ul.appendChild(el("li", "", line)));
+      box.appendChild(ul);
+    } else if (top.positive_factors?.length || top.negative_factors?.length) {
+      const ul = el("ul", "checklist");
+      (top.positive_factors || []).forEach((line) => ul.appendChild(el("li", "up", "✓ " + line)));
+      (top.negative_factors || []).forEach((line) => ul.appendChild(el("li", "down", "✗ " + line)));
+      box.appendChild(ul);
+    }
+    if (top.invalidation_conditions?.length) {
+      box.appendChild(el("p", "warn small", "失效条件：" + top.invalidation_conditions.join("；")));
+    }
+    container.appendChild(box);
+  }
+
+  function renderSelectionGuide(container, vm) {
+    if (!container) return;
+    container.innerHTML = "";
+    const g = vm?.selectionGuide;
+    if (!g || !g.title) return;
+    const card = el("div", "dossier-card selection-guide");
+    card.appendChild(el("h3", "", g.title));
+    const sub = el("p", "muted", "");
+    sub.innerHTML =
+      `策略 <b>${g.preset_label || "—"}</b> · 模式 <b>${g.mode_label || "—"}</b> · ` +
+      `资金 <b>¥${Number(g.capital_cny || 0).toLocaleString("zh-CN")}</b> · ` +
+      `筛选 <b>${g.price_filter_summary || "—"}</b>`;
+    card.appendChild(sub);
+    if (g.warnings?.length) {
+      g.warnings.forEach((w) => card.appendChild(el("p", "warn small", w)));
+    }
+    if (g.steps?.length) {
+      const ol = el("ol", "checklist");
+      g.steps.forEach((step) => ol.appendChild(el("li", "", step)));
+      card.appendChild(ol);
+    }
+    if (g.field_glossary?.length) {
+      const gl = el("details", "glossary");
+      gl.appendChild(el("summary", "", "术语速查"));
+      const ul = el("ul", "screener-detail-list");
+      g.field_glossary.forEach((item) => {
+        ul.appendChild(el("li", "", `<b>${item.term}</b>：${item.plain}`));
+      });
+      gl.appendChild(ul);
+      card.appendChild(gl);
+    }
+    container.appendChild(card);
   }
 
   function renderLiveRadar(container, data, series) {
@@ -415,13 +492,45 @@
       container.appendChild(renderEmpty("暂无个股解释", "先运行选股并选择候选", ""));
       return;
     }
+    const display = d.name ? `${d.name}（${d.symbol}）` : d.symbol;
     const box = el("div", "dossier-card");
-    box.appendChild(el("h3", "", `${d.symbol} · 候选解释`));
-    box.appendChild(el("p", "", d.plain_language || "暂无解释"));
+    box.appendChild(el("h3", "", `${display} · 候选解释`));
+    box.appendChild(el("p", "", d.plain_language || d.beginner_guide?.summary || "暂无解释"));
+    const enriched = d.enriched || d.candidate || {};
+    if (enriched.detailed_reasons?.length) {
+      box.appendChild(el("h4", "", "专业因子说明"));
+      const ul = el("ul", "checklist");
+      enriched.detailed_reasons.forEach((r) => ul.appendChild(el("li", "", r)));
+      box.appendChild(ul);
+    } else if (d.detailed_reasons?.length) {
+      box.appendChild(el("h4", "", "专业因子说明"));
+      const ul = el("ul", "checklist");
+      d.detailed_reasons.forEach((r) => ul.appendChild(el("li", "", r)));
+      box.appendChild(ul);
+    }
+    if (d.trade_zones?.buy_zone_low) {
+      const z = d.trade_zones;
+      box.appendChild(el("h4", "", "买卖区间参考（非盈利承诺）"));
+      box.appendChild(el("p", "", `买入 ¥${z.buy_zone_low} – ¥${z.buy_zone_high} · 止损 ¥${z.stop_loss} · 止盈 ¥${z.sell_zone_low} – ¥${z.sell_zone_high}`));
+      if (z.chase_warning) box.appendChild(el("p", "warn", "接近涨停，不建议追入。"));
+    }
+    if (enriched.positive_factors?.length || enriched.negative_factors?.length) {
+      box.appendChild(el("h4", "", "多空因子"));
+      const ul = el("ul", "checklist");
+      (enriched.positive_factors || []).forEach((r) => ul.appendChild(el("li", "up", "✓ " + r)));
+      (enriched.negative_factors || []).forEach((r) => ul.appendChild(el("li", "down", "✗ " + r)));
+      box.appendChild(ul);
+    }
     if (d.candidate?.reasons?.length) {
       const ul = el("ul", "checklist");
       d.candidate.reasons.forEach((r) => ul.appendChild(el("li", "", r)));
       box.appendChild(ul);
+    }
+    if (d.beginner_guide?.steps?.length) {
+      box.appendChild(el("h4", "", "新手操作步骤"));
+      const ol = el("ol", "help-steps");
+      d.beginner_guide.steps.forEach((s) => ol.appendChild(el("li", "", s)));
+      box.appendChild(ol);
     }
     if (d.institutional_report?.factors?.length) {
       box.appendChild(el("h3", "", `机构因子报告 · ${d.institutional_report.weighted_score} / 100`));
@@ -703,6 +812,7 @@
     renderActionLog,
     renderJob,
     renderScreener,
+    renderSelectionGuide,
     renderLiveRadar,
     renderBrokerLinks,
     renderBrokerSession,

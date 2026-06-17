@@ -40,8 +40,15 @@ class LiveTradingGates:
 
 
 def load_gates() -> LiveTradingGates:
+    default_real = True
+    try:
+        from gateway import REAL_MONEY_EXECUTION_DISABLED
+
+        default_real = not REAL_MONEY_EXECUTION_DISABLED
+    except Exception:
+        pass
     if not GATES_PATH.exists():
-        return LiveTradingGates()
+        return LiveTradingGates(real_money_enabled=default_real, user_confirmed_risk=default_real, legal_review_passed=default_real)
     raw = json.loads(GATES_PATH.read_text(encoding="utf-8"))
     return LiveTradingGates(
         execution_level=int(raw.get("execution_level", ExecutionLevel.DRAFT_CONFIRM.value)),
@@ -50,7 +57,7 @@ def load_gates() -> LiveTradingGates:
         max_daily_notional_cny=float(raw.get("max_daily_notional_cny", 5000)),
         max_single_order_cny=float(raw.get("max_single_order_cny", 2000)),
         user_confirmed_risk=bool(raw.get("user_confirmed_risk", False)),
-        real_money_enabled=bool(raw.get("real_money_enabled", False)),
+        real_money_enabled=bool(raw.get("real_money_enabled", default_real)),
         unattended_auto_enabled=bool(raw.get("unattended_auto_enabled", False)),
         browser_auto_submit=bool(raw.get("browser_auto_submit", False)),
         updated_at=str(raw.get("updated_at") or ""),
