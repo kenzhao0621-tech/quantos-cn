@@ -1,0 +1,138 @@
+{
+  "generated_at": "2026-06-17T01:12:29.160028+00:00",
+  "runtime": {
+    "generated_at": "2026-06-17T01:12:03.071691+00:00",
+    "git_commit": "66cd1b538ad176bb3fa5a10b4b991bb6b6708cdc",
+    "git_commit_short": "66cd1b5",
+    "gateway_module": "/Users/kenzhao/Projects/netlify-demo/gateway/__init__.py",
+    "app_module": "/Users/kenzhao/Projects/netlify-demo/gateway/api/app.py",
+    "repository_root": "/Users/kenzhao/Projects/netlify-demo",
+    "portal_source_hashes": {
+      "index.html": {
+        "sha256": "fd8e640d8e347b88",
+        "size": 10694
+      },
+      "app.js": {
+        "sha256": "36a728f290df344c",
+        "size": 13932
+      },
+      "viewmodels.js": {
+        "sha256": "5681a6e8e0a92455",
+        "size": 8304
+      },
+      "ui-render.js": {
+        "sha256": "2f5a506fb152960e",
+        "size": 6572
+      },
+      "quantos.js": {
+        "sha256": "e9c1b7c9fc9ee6f6",
+        "size": 1643
+      },
+      "styles.css": {
+        "sha256": "aa97c570b594aa6e",
+        "size": 2601
+      }
+    }
+  },
+  "cases": [
+    {
+      "case": "version_endpoint",
+      "passed": true,
+      "backend_commit": "66cd1b5",
+      "frontend_build": "66cd1b5-index.html:1781658558-app.js:1781658717-viewmodels.js:17"
+    },
+    {
+      "case": "login",
+      "passed": true,
+      "screenshot": "/Users/kenzhao/Projects/netlify-demo/docs/ai/final-ui/screenshots/01_login.png"
+    },
+    {
+      "case": "overview_no_raw_json",
+      "passed": true,
+      "raw_json_blocks": 0,
+      "screenshot": "/Users/kenzhao/Projects/netlify-demo/docs/ai/final-ui/screenshots/02_overview.png"
+    },
+    {
+      "case": "tab_market",
+      "passed": true,
+      "raw_json": 0
+    },
+    {
+      "case": "tab_reports",
+      "passed": true,
+      "raw_json": 0
+    },
+    {
+      "case": "tab_models",
+      "passed": true,
+      "raw_json": 0
+    },
+    {
+      "case": "tab_agents",
+      "passed": true,
+      "raw_json": 0
+    },
+    {
+      "case": "tab_native",
+      "passed": true,
+      "raw_json": 0
+    },
+    {
+      "case": "tab_paper",
+      "passed": true,
+      "raw_json": 0
+    },
+    {
+      "case": "tab_shadow",
+      "passed": true,
+      "raw_json": 0
+    },
+    {
+      "case": "tab_risk",
+      "passed": true,
+      "raw_json": 0
+    },
+    {
+      "case": "tab_brokers",
+      "passed": true,
+      "raw_json": 0
+    },
+    {
+      "case": "tabs_distinct_content",
+      "passed": true
+    },
+    {
+      "case": "paper_start_business",
+      "passed": true,
+      "mode_before": "RESEARCH_ONLY",
+      "mode_after": "PAPER_TRADING",
+      "screenshot": "/Users/kenzhao/Projects/netlify-demo/docs/ai/final-ui/screenshots/03_paper_start.png"
+    },
+    {
+      "case": "doctor_business",
+      "passed": true,
+      "screenshot": "/Users/kenzhao/Projects/netlify-demo/docs/ai/final-ui/screenshots/04_doctor.png"
+    },
+    {
+      "case": "native_label_consistent",
+      "passed": true,
+      "header": "原生·运行中 · 原生就绪",
+      "vn_tag": "原生·运行中"
+    },
+    {
+      "case": "no_js_errors",
+      "passed": true,
+      "errors": []
+    },
+    {
+      "case": "no_api_404",
+      "passed": true,
+      "urls": []
+    }
+  ],
+  "har": "/Users/kenzhao/Projects/netlify-demo/docs/ai/final-ui/har/portal_20260617T011213.har",
+  "screenshot_dir": "/Users/kenzhao/Projects/netlify-demo/docs/ai/final-ui/screenshots",
+  "overall_passed": true,
+  "raw_json_primary_views": 0,
+  "verdict": "PASS"
+}

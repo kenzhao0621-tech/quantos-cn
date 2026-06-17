@@ -6,7 +6,7 @@ from typing import Any, Dict, Optional
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -372,8 +372,28 @@ app.include_router(ops_module.router)
 # Portal static files
 PORTAL_DIR = ROOT / "apps" / "portal-web"
 if PORTAL_DIR.exists():
-    app.mount("/portal/assets", StaticFiles(directory=PORTAL_DIR), name="portal-assets")
+    from gateway.build_info import frontend_build_id
+
+    _PORTAL_BUILD = frontend_build_id()
+
+    class _PortalStaticFiles(StaticFiles):
+        async def get_response(self, path: str, scope):  # type: ignore[override]
+            response = await super().get_response(path, scope)
+            if path.endswith((".js", ".css")):
+                response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+            return response
+
+    app.mount("/portal/assets", _PortalStaticFiles(directory=PORTAL_DIR), name="portal-assets")
 
     @app.get("/portal")
-    def portal_index() -> FileResponse:
-        return FileResponse(PORTAL_DIR / "index.html")
+    def portal_index() -> HTMLResponse:
+        html = (PORTAL_DIR / "index.html").read_text(encoding="utf-8")
+        html = html.replace("__BUILD_ID__", _PORTAL_BUILD)
+        return HTMLResponse(
+            content=html,
+            headers={
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Pragma": "no-cache",
+                "X-Portal-Build": _PORTAL_BUILD,
+            },
+        )

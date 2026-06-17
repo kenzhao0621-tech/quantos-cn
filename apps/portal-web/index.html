@@ -3,16 +3,17 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="quantos-build" content="__BUILD_ID__" />
   <title>QuantOS CN · 中国 A 股智能量化操作系统</title>
-  <link rel="stylesheet" href="/portal/assets/styles.css" />
-  <link rel="stylesheet" href="/portal/assets/quantos.css" />
+  <link rel="stylesheet" href="/portal/assets/styles.css?v=__BUILD_ID__" />
+  <link rel="stylesheet" href="/portal/assets/quantos.css?v=__BUILD_ID__" />
 </head>
-<body>
+<body data-portal-build="__BUILD_ID__">
   <div id="login-overlay" class="login-overlay">
     <div class="login-card">
       <h1>QuantOS CN 登录</h1>
       <p class="muted">本地开发账号 · 非生产部署</p>
-      <label>选择角色</label>
+      <label for="login-role">选择角色</label>
       <select id="login-role">
         <option value="admin">admin — 全部管理权限</option>
         <option value="researcher">researcher — 研究/日报/回测</option>
@@ -35,33 +36,35 @@
       <span class="pill" id="capital-pill">总资金: —</span>
       <span class="pill" id="budget-pill">亏损额度: —</span>
       <span class="pill kill" id="kill-pill">Kill: —</span>
-      <span class="pill" id="native-pill">Native: SHIM</span>
+      <span class="pill" id="native-pill">引擎: —</span>
     </div>
     <button id="btn-logout" type="button" class="btn-secondary">退出</button>
   </header>
 
   <nav class="nav-tabs" aria-label="主导航">
-    <button class="tab active" data-page="overview">总览</button>
-    <button class="tab" data-page="market">市场中心</button>
-    <button class="tab" data-page="reports">量化日报</button>
-    <button class="tab" data-page="models">模型实验室</button>
-    <button class="tab" data-page="agents">多智能体研究室</button>
-    <button class="tab" data-page="native">原生引擎</button>
-    <button class="tab" data-page="paper">模拟交易</button>
-    <button class="tab" data-page="shadow">影子实盘</button>
-    <button class="tab" data-page="risk">风险中心</button>
-    <button class="tab" data-page="brokers">券商连接</button>
+    <button class="tab active" data-page="overview" type="button">总览</button>
+    <button class="tab" data-page="market" type="button">市场中心</button>
+    <button class="tab" data-page="reports" type="button">量化日报</button>
+    <button class="tab" data-page="models" type="button">模型实验室</button>
+    <button class="tab" data-page="agents" type="button">多智能体研究室</button>
+    <button class="tab" data-page="native" type="button">原生引擎</button>
+    <button class="tab" data-page="paper" type="button">模拟交易</button>
+    <button class="tab" data-page="shadow" type="button">影子实盘</button>
+    <button class="tab" data-page="risk" type="button">风险中心</button>
+    <button class="tab" data-page="brokers" type="button">券商连接</button>
   </nav>
 
   <section id="action-log" class="action-log" aria-live="polite">
     <strong>最近操作</strong>
-    <pre id="action-log-body" class="mono">—</pre>
+    <div id="action-log-body" class="action-log-body">—</div>
   </section>
 
   <main class="layout" id="page-overview">
     <section class="panel full">
       <h2>系统总览</h2>
-      <div id="overview-body" class="mono block">加载中…</div>
+      <div id="overview-cards" class="primary-view" data-primary-view="overview"></div>
+      <div id="overview-blockers" class="blockers-panel"></div>
+      <div id="overview-report" class="sub-panel"></div>
       <div class="actions wrap">
         <button data-action="doctor" type="button">系统体检</button>
         <button data-action="market-update" type="button">更新数据</button>
@@ -77,16 +80,16 @@
       </div>
     </section>
     <section class="panel">
-      <h2>vn.py 运行时 <span class="tag" id="vnpy-mode-tag">SHIM</span></h2>
-      <div id="vnpy-status" class="mono block small">—</div>
+      <h2>vn.py 运行时 <span class="tag" id="vnpy-mode-tag">—</span></h2>
+      <div id="vnpy-status" class="primary-view" data-primary-view="vnpy"></div>
       <div class="actions">
         <button id="btn-vnpy-start" type="button">启动 Runtime</button>
         <button id="btn-vnpy-stop" type="button">停止</button>
       </div>
     </section>
     <section class="panel">
-      <h2>Qlib 研究 <span class="tag" id="qlib-mode-tag">SHIM</span></h2>
-      <div id="qlib-status" class="mono block small">—</div>
+      <h2>Qlib 研究 <span class="tag" id="qlib-mode-tag">—</span></h2>
+      <div id="qlib-status" class="primary-view" data-primary-view="qlib"></div>
       <button id="btn-qlib-baseline" type="button">运行基线工作流</button>
     </section>
   </main>
@@ -94,7 +97,11 @@
   <main class="layout hidden" id="page-market">
     <section class="panel full">
       <h2>市场中心</h2>
-      <div id="market-body" class="mono block">加载中…</div>
+      <div id="market-summary" class="market-banner"></div>
+      <h3>主要指数</h3>
+      <div id="market-indices" class="primary-view" data-primary-view="market"></div>
+      <h3>数据 Provider</h3>
+      <div id="market-providers"></div>
       <button data-action="market-refresh" type="button">刷新行情</button>
     </section>
   </main>
@@ -102,21 +109,20 @@
   <main class="layout hidden" id="page-reports">
     <section class="panel full">
       <h2>量化日报</h2>
-      <div id="report-detail" class="mono block">—</div>
+      <div id="report-detail" class="primary-view" data-primary-view="reports"></div>
+      <ul id="report-list" class="list report-list"></ul>
       <div class="actions wrap">
         <button data-action="daily-run" type="button">立即生成日报</button>
         <button data-action="candidate-gate" type="button">重新运行候选门</button>
         <button data-action="open-pdf" type="button">打开桌面 PDF</button>
-        <button data-action="open-json" type="button">查看 JSON</button>
       </div>
-      <ul id="report-list" class="list"></ul>
     </section>
   </main>
 
   <main class="layout hidden" id="page-models">
     <section class="panel full">
       <h2>模型实验室</h2>
-      <div id="model-registry" class="mono block">—</div>
+      <div id="model-registry" class="primary-view" data-primary-view="models"></div>
       <div class="actions wrap">
         <button id="btn-qlib-baseline-models" type="button">运行基线</button>
         <button data-action="backtest" type="button">运行回测</button>
@@ -129,7 +135,7 @@
     <section class="panel full">
       <h2>多智能体研究室</h2>
       <p class="warn">研究/建议用途 · 不可直接下单 · Bull/Bear 双通道保留</p>
-      <div id="agents-body" class="mono block">—</div>
+      <div id="agents-body" class="primary-view" data-primary-view="agents"></div>
       <button data-action="agents-run" type="button">运行多智能体研究</button>
     </section>
   </main>
@@ -137,7 +143,7 @@
   <main class="layout hidden" id="page-native">
     <section class="panel full">
       <h2>原生引擎 · vn.py / Qlib</h2>
-      <div id="native-body" class="mono block">—</div>
+      <div id="native-body" class="primary-view" data-primary-view="native"></div>
       <div class="actions wrap">
         <button data-action="native-vnpy-accept" type="button">vn.py 原生验收</button>
         <button data-action="native-qlib-accept" type="button">Qlib 原生验收</button>
@@ -150,9 +156,11 @@
   <main class="layout hidden" id="page-paper">
     <section class="panel full">
       <h2>模拟交易 · Paper</h2>
-      <div id="paper-pnl" class="mono block">—</div>
-      <div id="paper-positions" class="mono block small">—</div>
-      <div id="paper-orders" class="mono block small">—</div>
+      <div id="paper-pnl" class="primary-view" data-primary-view="paper-pnl"></div>
+      <h3>持仓</h3>
+      <div id="paper-positions"></div>
+      <h3>订单</h3>
+      <div id="paper-orders"></div>
       <div class="actions wrap">
         <button data-action="paper-start" type="button">启动 Paper</button>
         <button data-action="paper-stop" type="button">停止 Paper</button>
@@ -165,8 +173,9 @@
     <section class="panel full">
       <h2>影子实盘 · Shadow</h2>
       <p class="warn">ZERO_REAL_ORDERS_SENT · 零真实订单</p>
-      <div id="shadow-status" class="mono block">—</div>
-      <div id="shadow-events" class="mono block small">—</div>
+      <div id="shadow-status" class="primary-view" data-primary-view="shadow"></div>
+      <h3>最近事件</h3>
+      <div id="shadow-events"></div>
       <div class="actions wrap">
         <button data-action="shadow-start" type="button">启动 Shadow</button>
         <button data-action="shadow-stop" type="button">停止 Shadow</button>
@@ -177,7 +186,7 @@
   <main class="layout hidden" id="page-risk">
     <section class="panel full">
       <h2>风险中心</h2>
-      <div id="risk-detail" class="mono block">—</div>
+      <div id="risk-detail" class="primary-view" data-primary-view="risk"></div>
       <div class="actions wrap">
         <button data-action="risk-check" type="button">风险自检</button>
         <button data-action="halt" type="button" class="danger">紧急停机</button>
@@ -189,8 +198,9 @@
 
   <main class="layout hidden" id="page-brokers">
     <section class="panel full">
-      <h2>券商 Gateway 注册表</h2>
-      <div id="gateway-list" class="mono block">—</div>
+      <h2>券商 Gateway 能力矩阵</h2>
+      <div id="gateway-list" class="primary-view" data-primary-view="brokers"></div>
+      <div id="broker-checklist" class="sub-panel"></div>
       <div class="actions wrap">
         <button data-action="broker-readonly" type="button">只读连接向导</button>
       </div>
@@ -200,10 +210,15 @@
 
   <footer class="footer">
     <span>PAPER_TRADING_ONLY · 真实资金交易已禁用 · QuantOS CN V4</span>
+    <span id="footer-version" class="footer-version">版本加载中…</span>
+    <span id="footer-build-warn" class="build-warn hidden">前后端 Build ID 不一致 — 请强制刷新 (Ctrl+Shift+R)</span>
   </footer>
-  <script src="/portal/assets/api-client.js"></script>
-  <script src="/portal/assets/action-registry.js"></script>
-  <script src="/portal/assets/app.js"></script>
-  <script src="/portal/assets/quantos.js"></script>
+
+  <script src="/portal/assets/api-client.js?v=__BUILD_ID__"></script>
+  <script src="/portal/assets/viewmodels.js?v=__BUILD_ID__"></script>
+  <script src="/portal/assets/ui-render.js?v=__BUILD_ID__"></script>
+  <script src="/portal/assets/action-registry.js?v=__BUILD_ID__"></script>
+  <script src="/portal/assets/app.js?v=__BUILD_ID__"></script>
+  <script src="/portal/assets/quantos.js?v=__BUILD_ID__"></script>
 </body>
 </html>

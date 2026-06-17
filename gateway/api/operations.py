@@ -131,6 +131,13 @@ def auth_me(principal: Optional[Principal] = Depends(get_principal_ops)) -> Dict
     })
 
 
+@router.get("/api/v1/system/version")
+def system_version() -> Dict[str, Any]:
+    from gateway.build_info import version_payload
+
+    return envelope_ok(version_payload())
+
+
 @router.get("/api/v1/system/status")
 def system_status_v2(principal: Optional[Principal] = Depends(get_principal_ops)) -> Dict[str, Any]:
     _require(principal, "market:read")

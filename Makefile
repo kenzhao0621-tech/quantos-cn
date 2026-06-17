@@ -169,3 +169,6 @@ native-acceptance: setup-native-venvs
 
 final-test:
 	$(PYTHON) scripts/run-final-acceptance.py
+
+fresh-ui-test:
+	$(PYTHON) scripts/run-fresh-browser-ui-e2e.py
