@@ -228,7 +228,8 @@
       const afford = r.affordable_lots ? `${r.affordable_lots}手/${r.suggested_qty || 0}股` : "—";
       tr.innerHTML =
         `<td>${r.rank}</td>` +
-        `<td><button type="button" class="symbol-link" data-dossier-symbol="${r.symbol}" title="${(r.reasons_not_to_trade || []).join("；")}">${r.symbol}</button></td>` +
+        `<td><button type="button" class="symbol-link" data-dossier-symbol="${r.symbol}" title="${(r.reasons_not_to_trade || []).join("；")}">${r.symbol}</button>
+          <button type="button" class="mini-btn" data-watchlist-add="${r.symbol}" data-watchlist-name="${r.name || ""}" title="收藏">★</button></td>` +
         `<td>${r.sector || "—"}</td>` +
         `<td class="num">${r.live_price || r.last_close}</td>` +
         `<td class="num">${retRange}</td>` +
@@ -237,7 +238,7 @@
         `<td>${r.valid_for_purchase ? "是" : "否"}</td>` +
         `<td class="num">${afford}</td>` +
         `<td><span class="score-bar" style="width:${barW}px"></span> ${(r.final_score ?? r.score).toFixed(2)}</td>` +
-        `<td class="${eligCls}">${elig}</td>` +
+        `<td class="${eligCls}">${elig}${r.valid_for_purchase && r.suggested_qty ? ` <button type="button" class="mini-btn" data-live-order="${r.symbol}" data-live-name="${r.name || ""}" data-live-qty="${r.suggested_qty}" data-live-price="${r.last_close}">实盘</button>` : ""}</td>` +
         `<td>${sparklineSvg(r.spark, up)}</td>`;
       tb.appendChild(tr);
     });
@@ -444,6 +445,48 @@
     container.appendChild(box);
   }
 
+  function renderSetupCenter(container, data) {
+    if (!container || !data) return;
+    container.innerHTML = "";
+    const score = data.score || { complete: 0, total: 5 };
+    const head = el("div", "setup-head");
+    head.innerHTML = `<strong>入门进度 ${score.complete}/${score.total}</strong>`;
+    if (score.complete < score.total) {
+      head.appendChild(el("p", "muted", "完成下列步骤后即可开始 Paper → 订单票据 → 券商人工确认。"));
+    }
+    container.appendChild(head);
+
+    const list = el("ol", "setup-steps");
+    (data.steps || []).forEach((step) => {
+      const li = el("li", step.done ? "setup-step done" : "setup-step");
+      li.innerHTML = `<span class="setup-step-title">${step.done ? "✓" : "○"} ${step.title}</span>`;
+      if (step.hint) li.appendChild(el("div", "stat-hint", step.hint));
+      if (step.action && !step.done) {
+        const btn = el("button", "setup-action-btn", "执行");
+        btn.type = "button";
+        btn.dataset.setupAction = step.action;
+        li.appendChild(btn);
+      }
+      list.appendChild(li);
+    });
+    container.appendChild(list);
+
+    const arts = data.artifacts || {};
+    const paths = el("div", "setup-artifacts");
+    paths.appendChild(el("h4", "", "本地文件路径"));
+    Object.entries(arts).forEach(([key, path]) => {
+      const row = el("div", "setup-path-row");
+      row.appendChild(el("span", "setup-path-key", key));
+      row.appendChild(el("code", "setup-path-val", path));
+      const copy = el("button", "copy-path-btn", "复制");
+      copy.type = "button";
+      copy.dataset.copyPath = path;
+      row.appendChild(copy);
+      paths.appendChild(row);
+    });
+    container.appendChild(paths);
+  }
+
   function toast(title, message, tone) {
     let stack = document.getElementById("toast-stack");
     if (!stack) {
@@ -495,6 +538,75 @@
     return count;
   }
 
+  function renderBrokerSession(container, data) {
+    if (!container) return;
+    const d = data || {};
+    const bs = d.browser_session || {};
+    const chips = [
+      `券商 <b>${d.active_broker || "—"}</b>`,
+      `会话 <b>${bs.saved ? "已保存" : "未登录"}</b>`,
+      `Playwright <b>${bs.playwright_ready ? "就绪" : "未安装"}</b>`,
+      `真实资金 <b>${d.real_money_enabled ? "已启用" : "关闭"}</b>`,
+    ];
+    container.innerHTML = chips.map((c) => `<span class="metric-chip">${c}</span>`).join("");
+  }
+
+  function renderWatchlist(container, items) {
+    if (!container) return;
+    container.innerHTML = "";
+    const h = el("h3", "", `我的收藏 (${items.length})`);
+    container.appendChild(h);
+    if (!items.length) {
+      container.appendChild(el("p", "muted", "在智能选股页点击 ★ 收藏股票，然后点「同步收藏到券商」"));
+      return;
+    }
+    const ul = el("ul", "checklist");
+    items.slice(0, 30).forEach((it) => {
+      const li = el("li", "", `${it.symbol} ${it.name || ""}`);
+      ul.appendChild(li);
+    });
+    container.appendChild(ul);
+  }
+
+  function renderExecutionPaths(container, data) {
+    if (!container) return;
+    const paths = data?.paths || [];
+    container.innerHTML = "";
+    const h = el("h3", "", "执行路径（按优先级回退）");
+    container.appendChild(h);
+    if (!paths.length) {
+      container.appendChild(el("p", "muted", "点击「检测执行路径」"));
+      return;
+    }
+    renderTable(
+      container,
+      ["路径", "无人值守", "可用", "状态", "说明"],
+      paths.map((p) => [
+        p.label || p.path_id,
+        p.unattended_capable ? "是" : "否",
+        p.available ? "✓" : "—",
+        p.status || "",
+        p.message || "",
+      ]),
+      "无路径",
+    );
+  }
+
+  function renderBeginnerGuide(stepsEl, learningEl, data) {
+    if (!stepsEl || !data) return;
+    stepsEl.innerHTML = "";
+    (data.steps || []).forEach((s) => {
+      const card = el("div", "beginner-step-card");
+      card.appendChild(el("strong", "", `${s.id}. ${s.title}`));
+      card.appendChild(el("p", "muted", s.hint || ""));
+      stepsEl.appendChild(card);
+    });
+    if (learningEl && data.daily_learning) {
+      const L = data.daily_learning;
+      learningEl.innerHTML = `<h3>每日算法学习</h3><p>已记录 <b>${L.screener_runs || L.scored_days || 0}</b> 次选股运行；系统对照后续走势持续改进（不承诺收益）。</p><p class="muted">${L.status || ""} ${(L.recommendations || []).slice(0, 2).join(" · ")}</p>`;
+    }
+  }
+
   global.QuantOSUI = {
     renderCardGrid,
     renderTable,
@@ -509,11 +621,16 @@
     renderScreener,
     renderLiveRadar,
     renderBrokerLinks,
+    renderBrokerSession,
+    renderWatchlist,
+    renderExecutionPaths,
+    renderBeginnerGuide,
     renderAutopilot,
     renderModelValidation,
     renderGatewayReadiness,
     renderProof,
     renderDossier,
+    renderSetupCenter,
     toast,
     setLoading,
     countPrimaryRawJson,

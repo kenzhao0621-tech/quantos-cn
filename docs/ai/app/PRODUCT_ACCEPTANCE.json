@@ -1,0 +1,55 @@
+{
+  "generated_at": "2026-06-17T14:15:02.755828+00:00",
+  "audience": "A\u80a1\u65b0\u6295\u8d44\u8005 \u00b7 \u5165\u95e8\u91cf\u5316\u5de5\u5177",
+  "product_acceptance_status": "PASS",
+  "api_cases": [
+    {
+      "case": "health",
+      "passed": true,
+      "detail": "ok"
+    },
+    {
+      "case": "onboarding_beginner",
+      "passed": true,
+      "detail": "steps loaded"
+    },
+    {
+      "case": "broker_ecosystem",
+      "passed": true,
+      "detail": "brokers listed"
+    },
+    {
+      "case": "broker_connect_flow",
+      "passed": true,
+      "detail": "no 403"
+    },
+    {
+      "case": "execution_paths",
+      "passed": true,
+      "detail": "paths listed"
+    },
+    {
+      "case": "deployment_eligibility",
+      "passed": true,
+      "detail": "BLOCKED"
+    },
+    {
+      "case": "paper_start_investor",
+      "passed": true,
+      "detail": "paper active"
+    }
+  ],
+  "unit_tests": {
+    "passed": true,
+    "returncode": 0,
+    "stdout_tail": "",
+    "stderr_tail": "_broker_permissions.TestBrokerPermissions) ... ok\ntest_investor_paper_start (tests.test_broker_permissions.TestBrokerPermissions) ... ok\ntest_viewer_connect_flow_forbidden (tests.test_broker_permissions.TestBrokerPermissions) ... ok\ntest_idempotency_duplicate (tests.test_paper_engine.TestPaperEngine) ... ok\ntest_insufficient_cash (tests.test_paper_engine.TestPaperEngine) ... ok\ntest_invalid_buy_lot_rejected (tests.test_paper_engine.TestPaperEngine) ... ok\ntest_partial_fill (tests.test_paper_engine.TestPaperEngine) ... ok\ntest_restart_recovery (tests.test_paper_engine.TestPaperEngine) ... ok\ntest_t1_sell_after_settlement (tests.test_paper_engine.TestPaperEngine) ... ok\ntest_t1_sell_blocked_same_day (tests.test_paper_engine.TestPaperEngine) ... ok\ntest_list_paths_includes_sidecar_when_configured (tests.test_execution_router.TestExecutionRouter) ... ok\ntest_unattended_blocked_without_gates (tests.test_execution_router.TestExecutionRouter) ... ok\ntest_unattended_uses_sidecar_first (tests.test_execution_router.TestExecutionRouter) ... ok\ntest_huatai_launch (tests.test_broker_bridge.TestCnBrokerRegistry) ... ok\ntest_huatai_urls (tests.test_broker_bridge.TestCnBrokerRegistry) ... ok\ntest_build_urls_quote (tests.test_broker_bridge.TestEastmoneyLauncher) ... ok\ntest_launch_trade_login (tests.test_broker_bridge.TestEastmoneyLauncher) ... ok\ntest_symbol_sh (tests.test_broker_bridge.TestEastmoneyLauncher) ... ok\ntest_symbol_sz (tests.test_broker_bridge.TestEastmoneyLauncher) ... ok\ntest_eastmoney_browser_path (tests.test_broker_bridge.TestUnifiedBridge) ... ok\ntest_gate_blocks_order (tests.test_broker_bridge.TestUnifiedBridge) ... ok\ntest_session_status_shape (tests.test_broker_bridge.TestUnifiedBridge) ... ok\ntest_detect_paths_returns_list (tests.test_broker_bridge.TestXtQuantBridge) ... ok\ntest_xtquant_unavailable_without_path (tests.test_broker_bridge.TestXtQuantBridge) ... ok\n\n----------------------------------------------------------------------\nRan 27 tests in 1.282s\n\nOK\n"
+  },
+  "criteria": {
+    "investor_broker_no_403": true,
+    "beginner_onboarding": true,
+    "paper_for_investor": true,
+    "disclaimer_synced": true,
+    "ui_simplified": true
+  }
+}

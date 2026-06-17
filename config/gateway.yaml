@@ -27,6 +27,8 @@ safety:
 auth:
   demo_api_key: demo-local-key-change-in-prod
   service_accounts:
+    - id: dev-investor-key
+      role: investor
     - id: dev-researcher-key
       role: researcher
     - id: dev-service-risk-key

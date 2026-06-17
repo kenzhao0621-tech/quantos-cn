@@ -11,28 +11,31 @@
 <body data-portal-build="__BUILD_ID__">
   <div id="legal-overlay" class="login-overlay hidden">
     <div class="login-card legal-card">
-      <h1>风险与法律确认</h1>
-      <p class="muted">QuantOS CN 是研究、分析、模拟交易与人工确认辅助工具，不承诺收益，不构成投资建议。</p>
+      <h1>风险与法律确认（必读）</h1>
+      <p class="muted">QuantOS 入门量化工具 · 面向 A 股新投资者的学习与模拟平台。</p>
       <ul class="checklist">
-        <li>真实证券交易必须由用户本人在合法券商官方平台完成或人工确认。</li>
-        <li>软件不会绕过券商风控、不会保存交易密码、不会自动真实下单。</li>
-        <li>量化模型可能失效，用户需自行承担投资风险。</li>
+        <li><strong>不是投资建议</strong>：选股结果、收益率区间均为模型估算，不构成买卖建议。</li>
+        <li><strong>真实交易须本人确认</strong>：系统可打开券商页面并预填订单，但<strong>不会</strong>自动扣款；最终点击「买入/卖出」必须由你在券商官方 App 完成。</li>
+        <li><strong>不保存密码</strong>：不收集交易密码、短信验证码、资金密码。</li>
+        <li><strong>A 股规则</strong>：T+1（今日买入明日才能卖）、100 股整数倍、涨跌停可能无法成交。</li>
+        <li><strong>模型会失效</strong>：历史表现不代表未来，请先用「模拟练习」验证。</li>
+        <li><strong>每日学习</strong>：系统会记录选股结果并对照后续走势，用于改进算法（非承诺收益）。</li>
       </ul>
+      <p class="muted small">完整说明见门户「使用指南」页及项目 docs/USER_GUIDE.md</p>
       <button id="btn-legal-accept" type="button">我理解并同意</button>
     </div>
   </div>
 
   <div id="login-overlay" class="login-overlay">
     <div class="login-card">
-      <h1>QuantOS CN 登录</h1>
-      <p class="muted">本地开发账号 · 非生产部署</p>
-      <label for="login-role">选择角色</label>
+      <h1>欢迎 · 入门量化</h1>
+      <p class="muted">面向 A 股新投资者 · 选股 · 模拟 · 券商辅助</p>
+      <label for="login-role">选择身份</label>
       <select id="login-role">
-        <option value="admin">admin — 全部管理权限</option>
-        <option value="researcher">researcher — 研究/日报/回测</option>
-        <option value="viewer">viewer — 只读</option>
-        <option value="service_risk">service_risk — 风险停机/恢复</option>
-        <option value="service_research">service_research — 研究服务</option>
+        <option value="investor" selected>新手投资者（推荐）</option>
+        <option value="admin">管理员</option>
+        <option value="researcher">研究者</option>
+        <option value="viewer">只读</option>
       </select>
       <button id="btn-login" type="button">登录</button>
       <p id="login-error" class="error hidden"></p>
@@ -40,46 +43,64 @@
   </div>
 
   <header class="top-bar" role="banner">
-    <div class="brand">QuantOS CN · 中国 A 股智能量化操作系统</div>
-    <div class="status-grid" id="header-status" aria-live="polite">
-      <span class="pill" id="role-pill">角色: —</span>
+    <div class="brand">QuantOS · A股入门量化</div>
+    <div class="status-grid beginner-header" id="header-status" aria-live="polite">
+      <span class="pill" id="role-pill">身份: —</span>
       <span class="pill" id="mode-pill">模式: —</span>
-      <span class="pill" id="session-pill">时段: —</span>
       <span class="pill" id="freshness-pill">数据: —</span>
-      <span class="pill" id="capital-pill">总资金: —</span>
-      <span class="pill" id="budget-pill">亏损额度: —</span>
-      <span class="pill kill" id="kill-pill">Kill: —</span>
-      <span class="pill" id="native-pill">引擎: —</span>
+      <span class="pill" id="capital-pill">资金: —</span>
     </div>
     <button id="btn-logout" type="button" class="btn-secondary">退出</button>
   </header>
 
   <nav class="nav-tabs" aria-label="主导航">
-    <button class="tab active" data-page="overview" type="button">总览</button>
-    <button class="tab" data-page="market" type="button">市场中心</button>
+    <button class="tab active" data-page="guide" type="button">新手入门</button>
     <button class="tab" data-page="screener" type="button">智能选股</button>
-    <button class="tab" data-page="reports" type="button">报告历史</button>
-    <button class="tab" data-page="models" type="button">模型实验室·建设中</button>
-    <button class="tab" data-page="agents" type="button">研究室·实验</button>
-    <button class="tab" data-page="native" type="button">引擎状态</button>
-    <button class="tab" data-page="paper" type="button">模拟交易</button>
-    <button class="tab" data-page="shadow" type="button">影子实盘</button>
-    <button class="tab" data-page="risk" type="button">风险中心</button>
-    <button class="tab" data-page="brokers" type="button">券商连接</button>
+    <button class="tab" data-page="paper" type="button">模拟练习</button>
+    <button class="tab" data-page="brokers" type="button">券商助手</button>
+    <button class="tab" data-page="help" type="button">使用指南</button>
+    <button class="tab tab-advanced" data-page="overview" type="button">高级·总览</button>
+    <button class="tab tab-advanced" data-page="market" type="button">高级·数据</button>
   </nav>
 
-  <section id="action-log" class="action-log" aria-live="polite">
+  <section id="action-log" class="action-log collapsed-log" aria-live="polite">
     <strong>最近操作</strong>
     <div id="action-log-body" class="action-log-body">—</div>
   </section>
 
-  <main class="layout" id="page-overview">
+  <main class="layout" id="page-guide">
+    <section class="panel full beginner-panel">
+      <h2>四步开始（新投资者）</h2>
+      <div id="beginner-steps" class="beginner-steps"></div>
+      <div id="daily-learning" class="sub-panel"></div>
+      <div class="actions wrap beginner-actions">
+        <button data-action="market-update" type="button" class="primary">① 更新数据</button>
+        <button data-action="screener-run" type="button" class="primary">② 运行选股</button>
+        <button data-action="paper-start" type="button">③ 启动模拟</button>
+        <button data-action="broker-connect" type="button">④ 连接券商</button>
+      </div>
+      <p class="muted">真实买卖：选股后点「实盘辅助」→ 在券商 App 亲自确认。系统不自动下单。</p>
+    </section>
+  </main>
+
+  <main class="layout hidden" id="page-help">
+    <section class="panel full">
+      <h2>使用指南与免责说明</h2>
+      <div id="help-content" class="help-content"></div>
+    </section>
+  </main>
+
+  <main class="layout hidden" id="page-overview">
     <section class="panel full">
       <h2>系统总览</h2>
+      <div id="overview-body" class="overview-status" aria-live="polite"></div>
+      <div id="build-sync-banner" class="build-banner hidden" role="alert"></div>
       <div id="overview-cards" class="primary-view" data-primary-view="overview"></div>
       <h3>实时市场雷达</h3>
       <div id="overview-live" class="sub-panel"></div>
       <div id="overview-blockers" class="blockers-panel"></div>
+      <h3>配置中心</h3>
+      <div id="setup-center" class="sub-panel setup-center-panel"></div>
       <div id="overview-report" class="sub-panel"></div>
       <div class="actions wrap">
         <button data-action="doctor" type="button">系统体检</button>
@@ -114,10 +135,13 @@
     <section class="panel full">
       <h2>市场中心</h2>
       <div id="market-summary" class="market-banner"></div>
+      <div class="actions wrap">
+        <button data-action="market-sync-all" type="button" class="primary-action">同步全部数据</button>
+        <button data-action="market-live-refresh" type="button">刷新实时行情</button>
+      </div>
       <h3>实时/近实时行情</h3>
       <div id="market-live" class="sub-panel"></div>
       <div id="market-live-plan" class="sub-panel"></div>
-      <button data-action="market-live-refresh" type="button">刷新实时行情</button>
       <h3>主要指数</h3>
       <div id="market-indices" class="primary-view" data-primary-view="market"></div>
       <h3>数据 Provider</h3>
@@ -133,12 +157,12 @@
 
   <main class="layout hidden" id="page-screener">
     <section class="panel full">
-      <h2>智能选股 · 多因子排名</h2>
-      <p class="muted">基于规范化日线（动量 + 趋势 + 流动性，波动率惩罚）。仅研究用途，不直接下单。</p>
+      <h2>智能选股 · 今日机会</h2>
+      <p class="muted">为新投资者简化：默认 5000 元资金、均衡策略。先模拟，再考虑真实辅助下单。</p>
       <div class="dossier-card">
         <h3>用户资金与风险偏好</h3>
         <div class="screener-controls">
-          <label>可用资金(元)<input id="pref-capital" type="number" min="1000" step="1000" value="100000" /></label>
+          <label>可用资金(元)<input id="pref-capital" type="number" min="1000" step="1000" value="5000" /></label>
           <label>最大亏损%<input id="pref-loss" type="number" min="0.1" max="50" step="0.1" value="8" /></label>
           <label>最大持仓数<input id="pref-positions" type="number" min="1" max="30" step="1" value="5" /></label>
           <label>单票上限%<input id="pref-single" type="number" min="1" max="80" step="1" value="18" /></label>
@@ -302,16 +326,51 @@
 
   <main class="layout hidden" id="page-brokers">
     <section class="panel full">
-      <h2>券商 Gateway 能力矩阵</h2>
-      <p class="warn">仅提供官方平台/软件下载/仿真/只读路径。真实交易由用户本人在券商官方页面操作；本软件不自动真实下单。</p>
-      <div id="gateway-readiness" class="sub-panel"></div>
-      <div id="gateway-list" class="primary-view" data-primary-view="brokers"></div>
-      <div id="broker-links" class="sub-panel"></div>
-      <div id="broker-checklist" class="sub-panel"></div>
-      <div class="actions wrap">
-        <button data-action="broker-readonly" type="button">只读连接向导</button>
+      <h2>券商助手 · 帮你预填，你来确认</h2>
+      <p class="warn">三步即可：选券商 → 登录一次 → 选股后点「实盘辅助」。系统<strong>不会</strong>自动扣款，最后一步必须在券商官方 App 点击确认。</p>
+      <div class="broker-wizard">
+        <div class="broker-step">
+          <span class="step-num">1</span>
+          <label>选择券商
+            <select id="broker-profile"></select>
+          </label>
+          <button data-action="broker-connect" type="button" class="primary">连接并打开登录页</button>
+        </div>
+        <div class="broker-step">
+          <span class="step-num">2</span>
+          <button data-action="broker-login" type="button">登录一次（浏览器）</button>
+          <span class="muted">登录成功后系统自动记住，下次可预填订单</span>
+        </div>
+        <div class="broker-step">
+          <span class="step-num">3</span>
+          <button data-action="broker-sync-watchlist" type="button">同步自选股</button>
+          <button data-action="broker-test-paths" type="button">检测是否可下单</button>
+        </div>
       </div>
-      <p class="warn">真实执行模式: MANUAL_CONFIRM_ONLY · Real Execution: DISABLED</p>
+      <div id="broker-session-status" class="metric-row"></div>
+      <div id="broker-execution-paths" class="sub-panel"></div>
+      <div id="broker-watchlist" class="sub-panel"></div>
+      <details class="sub-panel advanced-broker">
+        <summary>高级设置（有经验的用户）</summary>
+        <div id="broker-gates-panel" class="sub-panel">
+        <h3>实盘门控与无人值守</h3>
+        <label>Sidecar URL（Mac 推荐）
+          <input id="broker-sidecar-url" type="text" placeholder="http://127.0.0.1:8799" />
+        </label>
+        <label>资金账号
+          <input id="broker-account-id" type="text" placeholder="券商资金账号" />
+        </label>
+        <button data-action="broker-save-config" type="button">保存券商配置</button>
+        <label><input type="checkbox" id="gate-real-money" /> 启用真实资金通道</label>
+        <label><input type="checkbox" id="gate-user-risk" /> 我确认风险自负</label>
+        <label><input type="checkbox" id="gate-legal" /> 合规审查已通过</label>
+        <label><input type="checkbox" id="gate-unattended" /> 启用无人值守自动执行 (CONDITIONAL_AUTO)</label>
+        <label><input type="checkbox" id="gate-browser-auto" /> 浏览器路径自动点击提交（需已登录）</label>
+        <label><input type="checkbox" id="gate-local-consent" /> 本机 QMT/Sidecar 路径授权</label>
+        <button data-action="broker-save-gates" type="button">保存门控</button>
+      </div>
+      </details>
+      <p class="warn" id="broker-execution-mode">执行模式加载中…</p>
     </section>
   </main>
 

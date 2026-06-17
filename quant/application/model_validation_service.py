@@ -20,7 +20,7 @@ WAREHOUSE = ROOT / "data" / "warehouse" / "quant.duckdb"
 @dataclass
 class ValidationConfig:
     preset: str = "balanced"
-    lookback_days: int = 45
+    lookback_days: int = 120
     top_n: int = 10
     max_per_sector: int = 2
     cost_bps: float = 8.0
@@ -97,6 +97,7 @@ class ModelValidationService:
         daily_results: list[dict[str, Any]] = []
         prev_rank: dict[str, int] | None = None
         overlaps: list[float] = []
+        daily_rank_ics: list[float | None] = []
 
         for i, signal_date in enumerate(eval_dates):
             proof_date = dates[dates.index(signal_date) + 1]
@@ -145,12 +146,18 @@ class ModelValidationService:
             executable = [r for r in proof_rows if r.get("status") == "EXECUTABLE"]
             net_rets = [float(r["net_return"]) for r in executable]
             excess = [float(r["excess"]) for r in executable]
+            from quant.validation.rank_ic import daily_rank_ic
+
+            pred_scores = {c.symbol: float(c.score) for c in selected}
+            realized = {r["symbol"]: float(r["net_return"]) for r in executable if "net_return" in r}
+            daily_rank_ics.append(daily_rank_ic(pred_scores, realized))
             daily_results.append({
                 "signal_date": signal_date,
                 "proof_date": proof_date,
                 "count": len(proof_rows),
                 "executable_count": len(executable),
                 "avg_net_return": round(statistics.fmean(net_rets), 3) if net_rets else 0.0,
+                "avg_gross_return": round(statistics.fmean([float(r["gross_return"]) for r in executable]), 3) if executable else 0.0,
                 "win_rate": round(sum(1 for x in net_rets if x > 0) / max(len(net_rets), 1) * 100, 1),
                 "outperform_rate": round(sum(1 for x in excess if x > 0) / max(len(excess), 1) * 100, 1),
                 "limit_blocked": sum(1 for r in proof_rows if r.get("buy_blocked_limit_up")),
@@ -159,15 +166,25 @@ class ModelValidationService:
             })
         con.close()
 
+        from quant.validation.performance import summarize_performance
+        from quant.validation.rank_ic import summarize_rank_ic
+
         all_net = [r["avg_net_return"] for r in daily_results]
+        all_gross = [r.get("avg_gross_return", r["avg_net_return"]) for r in daily_results]
         oos_cut = max(1, int(len(daily_results) * 0.7))
         train = daily_results[:oos_cut]
         test = daily_results[oos_cut:]
         out = _summarize_days(test, label="out_of_sample")
+        out["performance"] = summarize_performance(all_gross, all_net, label="oos_holdout", cost_profile="research")
         rolling = _summarize_days(daily_results, label="rolling")
+        rolling["performance"] = summarize_performance(all_gross, all_net, label="rolling_full", cost_profile="research")
+        rank_ic_summary = summarize_rank_ic(daily_rank_ics)
         stability = {
             "top30_overlap_avg": round(statistics.fmean(overlaps) * 100, 1) if overlaps else 0.0,
-            "interpretation": "过低说明每日换手过高，过高说明模型迟钝；30%-70%更健康。",
+            "top30_overlap_metric": "recommendation_stability",
+            "not_rank_ic": True,
+            "rank_ic": rank_ic_summary,
+            "interpretation": "top30_overlap=推荐稳定性；rank_ic=真实截面预测相关。",
         }
         execution = {
             "cost_bps": cfg.cost_bps,
@@ -343,24 +360,37 @@ def _run_walk_forward_validation(dates: list[str], daily_results: list[dict]) ->
 
 
 def _dsr_pbo_metrics(returns: list[float]) -> dict[str, Any]:
-    if len(returns) < 5:
-        return {"dsr": None, "pbo": None}
-    try:
-        from quant.validation.overfitting import deflated_sharpe_ratio, probability_backtest_overfitting
-
-        mean = statistics.fmean(returns)
-        std = statistics.pstdev(returns) if len(returns) > 1 else 1.0
-        sharpe = (mean / std) * (252 ** 0.5) if std > 1e-9 else 0.0
-        dsr_result = deflated_sharpe_ratio(sharpe, n_trials=3, n_obs=len(returns))
-        pbo_result = probability_backtest_overfitting([returns])
+    if len(returns) < 10:
         return {
-            "dsr": dsr_result.get("dsr"),
+            "dsr": None,
+            "dsr_status": "INSUFFICIENT_SAMPLE",
+            "pbo": None,
+            "pbo_status": "INSUFFICIENT_SAMPLE",
+        }
+    try:
+        from quant.validation.overfitting import (
+            build_pbo_candidate_matrix,
+            deflated_sharpe_ratio,
+            probability_backtest_overfitting,
+        )
+        from quant.validation.performance import sharpe_ratio
+
+        sharpe = sharpe_ratio(returns)
+        dsr_result = deflated_sharpe_ratio(sharpe, n_trials=12, n_obs=len(returns))
+        matrix = build_pbo_candidate_matrix(returns, n_variants=12)
+        pbo_result = probability_backtest_overfitting(matrix)
+        return {
+            "dsr_statistic": dsr_result.get("dsr_statistic"),
+            "dsr_probability": dsr_result.get("dsr_probability"),
+            "dsr_status": dsr_result.get("status"),
             "dsr_passed": dsr_result.get("passed"),
             "pbo": pbo_result.get("pbo"),
+            "pbo_status": pbo_result.get("status"),
             "pbo_passed": pbo_result.get("passed"),
+            "sharpe_observed": dsr_result.get("sharpe_observed"),
         }
-    except Exception:
-        return {"dsr": None, "pbo": None}
+    except Exception as exc:
+        return {"dsr_status": "ERROR", "pbo_status": "ERROR", "error": str(exc)[:120]}
 
 
 def _persist_validation(result: ValidationResult, purged: dict[str, Any]) -> None:
@@ -395,7 +425,7 @@ def _verdict(
     if not paper.get("sample_ready"):
         actions.append("Paper/Shadow 样本少于 20 条，不能升级真实交易流程。")
     if not actions and purged and purged.get("purged_kfold_passed"):
-        return "PASS", ["验证通过，可进入扩展 Paper / Shadow。"]
+        return "READY_FOR_EXTENDED_PAPER", ["验证通过，可进入扩展 Paper / Shadow。"]
     if not actions:
         return "CAUTION", ["继续扩展 Paper/Shadow 样本并每日复盘。"]
     return "NOT_READY", actions

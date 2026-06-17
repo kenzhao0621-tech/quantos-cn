@@ -1,12 +1,12 @@
 # Browser E2E
 
-- Overall: **PASS**
+- Overall: **FAIL**
 - login: PASS
+- beginner_guide: PASS
 - overview: PASS
 - doctor: PASS
-- backtest: PASS
+- broker_connect: PASS
+- help_disclaimer: PASS
 - paper_start_stop: PASS
-- shadow_start_stop: PASS
-- risk_halt_reset: PASS
-- vnpy_start: PASS
+- vnpy_start: FAIL
 - no_js_errors: PASS

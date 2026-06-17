@@ -59,6 +59,7 @@
       method: "POST",
       body: JSON.stringify({ targets: ["indices", "bars"] }),
     }, btn),
+    "market-sync-all": (btn) => marketSyncAll(btn),
     "daily-run": (btn) => act("生成日报", "/api/v1/research/daily-run", { method: "POST" }, btn),
     "risk-check": (btn) => act("风险自检", "/api/v1/risk/status", {}, btn),
     "paper-start": (btn) => act("Paper 启动", "/api/v1/paper/start", { method: "POST" }, btn),
@@ -113,6 +114,13 @@
       method: "POST",
       body: JSON.stringify({ broker: "ReadOnlyGateway", config: { readonly: true } }),
     }, btn),
+    "broker-connect": (btn) => brokerConnect(btn),
+    "broker-login": (btn) => brokerLogin(btn),
+    "broker-sync-watchlist": (btn) => brokerSyncWatchlist(btn),
+    "broker-export-fills": (btn) => brokerExportFills(btn),
+    "broker-save-gates": (btn) => brokerSaveGates(btn),
+    "broker-save-config": (btn) => brokerSaveConfig(btn),
+    "broker-test-paths": (btn) => brokerTestPaths(btn),
   };
 
   document.querySelectorAll("[data-action]").forEach((btn) => {
@@ -126,9 +134,34 @@
   });
 
   document.addEventListener("click", async (ev) => {
+    const watchStar = ev.target?.closest?.("[data-watchlist-add]");
+    if (watchStar) {
+      await addToWatchlist(watchStar.dataset.watchlistAdd, watchStar.dataset.watchlistName || "");
+      return;
+    }
+    const liveBtn = ev.target?.closest?.("[data-live-order]");
+    if (liveBtn) {
+      await submitLiveOrder(liveBtn);
+      return;
+    }
     const btn = ev.target?.closest?.("[data-dossier-symbol]");
     if (btn) {
       await runDossier(btn.dataset.dossierSymbol, btn);
+      return;
+    }
+    const setupBtn = ev.target?.closest?.("[data-setup-action]");
+    if (setupBtn) {
+      await handleSetupAction(setupBtn.dataset.setupAction);
+      return;
+    }
+    const copyBtn = ev.target?.closest?.("[data-copy-path]");
+    if (copyBtn?.dataset.copyPath) {
+      try {
+        await navigator.clipboard.writeText(copyBtn.dataset.copyPath);
+        UI.toast("已复制路径", copyBtn.dataset.copyPath, "ok");
+      } catch {
+        UI.toast("复制失败", copyBtn.dataset.copyPath, "fail");
+      }
       return;
     }
     const broker = ev.target?.closest?.("[data-broker-url]");
@@ -153,23 +186,140 @@
 
   function applyHeader(vm) {
     if (!vm) return;
+    setPill("role-pill", `身份: ${api.role === "investor" ? "新手投资者" : api.role}`);
     setPill("mode-pill", `模式: ${vm.modeLabel}`);
-    setPill("session-pill", `时段: ${vm.sessionLabel}`);
+    if ($("session-pill")) setPill("session-pill", `时段: ${vm.sessionLabel}`);
     setPill("freshness-pill", `数据: ${vm.dataStatusLabel}`);
-    setPill("capital-pill", `总资金: ${VM.fmtCny(vm.capitalCny)}`);
-    setPill("budget-pill", `亏损额度: ${VM.fmtCny(vm.remainingLossBudgetCny)}`);
-    setPill("kill-pill", `Kill: ${vm.killSwitchLabel}`, vm.killSwitchLabel === "已触发");
-    setPill("native-pill", `${vm.vnpyShort} · ${vm.qlibShort}`);
-    $("vnpy-mode-tag").textContent = vm.vnpyShort;
-    $("qlib-mode-tag").textContent = vm.qlibShort;
+    setPill("capital-pill", `资金: ${VM.fmtCny(vm.capitalCny)}`);
+    if ($("budget-pill")) setPill("budget-pill", `亏损额度: ${VM.fmtCny(vm.remainingLossBudgetCny)}`);
+    if ($("kill-pill")) setPill("kill-pill", `Kill: ${vm.killSwitchLabel}`, vm.killSwitchLabel === "已触发");
+    if ($("native-pill")) setPill("native-pill", `${vm.vnpyShort} · ${vm.qlibShort}`);
+    if ($("vnpy-mode-tag")) $("vnpy-mode-tag").textContent = vm.vnpyShort;
+    if ($("qlib-mode-tag")) $("qlib-mode-tag").textContent = vm.qlibShort;
+  }
+
+  async function refreshBeginnerGuide() {
+    const res = await api.request("/api/v1/onboarding/beginner");
+    if (res.ok) UI.renderBeginnerGuide($("beginner-steps"), $("daily-learning"), res.data);
+    return res;
+  }
+
+  function refreshHelpPage() {
+    const el = $("help-content");
+    if (!el) return;
+    el.innerHTML = `
+      <section class="help-block">
+        <h3>你是谁？</h3>
+        <p>本工具面向<strong>刚接触 A 股的新投资者</strong>，用简单语言解释选股逻辑，并支持<strong>模拟练习</strong>和<strong>券商辅助填单</strong>。</p>
+      </section>
+      <section class="help-block">
+        <h3>推荐流程</h3>
+        <ol>
+          <li>新手入门 → 更新数据</li>
+          <li>智能选股 → 设 5000 元资金 → 运行选股</li>
+          <li>模拟练习 → 先观察 3–5 天</li>
+          <li>券商助手 → 登录东方财富/华泰等 → 选股页点「实盘辅助」</li>
+          <li>在券商官方 App <strong>亲自点击确认</strong> 买入/卖出</li>
+        </ol>
+      </section>
+      <section class="help-block warn-block">
+        <h3>免责说明（必读）</h3>
+        <ul>
+          <li>本软件<strong>不构成投资建议</strong>，不承诺收益。</li>
+          <li><strong>不会</strong>自动真实下单、<strong>不会</strong>保存交易密码。</li>
+          <li>模型可能失效；T+1、涨跌停、停牌可能导致无法成交。</li>
+          <li>每日会记录选股并对照后续走势以改进算法，这不等于未来盈利保证。</li>
+        </ul>
+        <p>完整文档：<code>docs/USER_GUIDE.md</code></p>
+      </section>
+    `;
+  }
+
+  async function refreshSetupCenter() {
+    const res = await api.request("/api/v1/system/setup-checklist");
+    if (res.ok) UI.renderSetupCenter($("setup-center"), res.data);
+    if (res.ok && $("guide-setup")) UI.renderSetupCenter($("guide-setup"), res.data);
+    return res;
+  }
+
+  async function handleSetupAction(action) {
+    if (action === "market-sync-all") return marketSyncAll(null);
+    if (action === "goto-brokers") {
+      document.querySelector('.tab[data-page="brokers"]')?.click();
+      return;
+    }
+    if (action === "goto-screener") {
+      document.querySelector('.tab[data-page="screener"]')?.click();
+      return;
+    }
+    if (action === "goto-paper") {
+      document.querySelector('.tab[data-page="paper"]')?.click();
+      return;
+    }
+    if (action === "show-env") {
+      const res = await api.request("/api/v1/system/setup-checklist");
+      const p = res.data?.artifacts?.env_example || ".env.example";
+      UI.toast("配置 Tushare", `复制 ${p} 为 .env 并填入 TUSHARE_TOKEN，然后重启 make app`, "info");
+      $("setup-center")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }
+
+  async function marketSyncAll(btn) {
+    UI.setLoading(btn, true, "同步中…");
+    try {
+      const res = await api.request("/api/v1/market/sync-all", { method: "POST" });
+      logAction("同步全部数据", res);
+      const ms = res.data?.market_status?.labels;
+      if (res.ok) {
+        UI.toast(
+          res.data?.ok ? "同步完成" : "部分完成",
+          ms?.pill || "请查看配置中心",
+          res.data?.ok ? "ok" : "fail",
+        );
+      }
+      await refreshMarket();
+      await refreshOverviewLive();
+      await refreshSetupCenter();
+      await refreshPlatformHealth();
+      return res;
+    } finally {
+      UI.setLoading(btn, false);
+    }
   }
 
   async function refreshOverview(st, nativeStatus, quantosStatus) {
     const vm = VM.fromSystemStatus(st?.data, nativeStatus, quantosStatus);
     applyHeader(vm);
+    const ob = $("overview-body");
+    if (ob) {
+      ob.textContent = [
+        `mode: ${st?.data?.mode || "RESEARCH_ONLY"}`,
+        `PAPER: ${vm?.paperLabel || "—"}`,
+        `SHADOW: ${vm?.shadowLabel || "—"}`,
+        `deployment: ${st?.data?.deployment_eligibility || "—"}`,
+      ].join(" · ");
+    }
     UI.renderCardGrid($("overview-cards"), VM.overviewCards(vm));
     UI.renderBlockers($("overview-blockers"), vm?.blockers);
     UI.renderReportSummary($("overview-report"), vm?.latestReport);
+  }
+
+  async function checkBuildSync() {
+    const banner = $("build-sync-banner");
+    if (!banner) return;
+    try {
+      const ver = await api.request("/api/v1/system/version");
+      const embedded = document.querySelector('meta[name="portal-build-id"]')?.content || "";
+      const backend = ver.data?.portal_build_id || ver.data?.backend_build_id || "";
+      if (embedded && backend && embedded !== backend) {
+        banner.textContent = `STALE_BUILD_DETECTED — 请硬刷新 (前端 ${embedded} ≠ 后端 ${backend})`;
+        banner.classList.remove("hidden");
+      } else {
+        banner.classList.add("hidden");
+      }
+    } catch {
+      banner.classList.add("hidden");
+    }
   }
 
   async function refreshMarket() {
@@ -533,6 +683,240 @@
     ]);
   }
 
+  function selectedBrokerId() {
+    return $("broker-profile")?.value || "eastmoney_manual";
+  }
+
+  async function loadBrokerEcosystem() {
+    const res = await api.request("/api/v1/brokers/ecosystem");
+    const sel = $("broker-profile");
+    if (!sel || !res.ok) return;
+    const cfg = await api.request("/api/v1/brokers/config");
+    const active = cfg.data?.active_broker || "eastmoney_manual";
+    sel.innerHTML = "";
+    (res.data?.brokers || []).forEach((b) => {
+      const opt = document.createElement("option");
+      opt.value = b.broker_id;
+      opt.textContent = `${b.label}${b.browser_capable ? "" : " (API/模拟)"}`;
+      if (b.broker_id === active) opt.selected = true;
+      sel.appendChild(opt);
+    });
+    sel.onchange = async () => {
+      await api.request("/api/v1/brokers/config", {
+        method: "PUT",
+        body: JSON.stringify({ active_broker: sel.value, readonly: false }),
+      });
+      await refreshBrokerPanel();
+    };
+  }
+
+  async function brokerConnect(btn) {
+    UI.setLoading(btn, true, "连接中…");
+    try {
+      const bid = selectedBrokerId();
+      const res = await api.request("/api/v1/brokers/connect-flow", {
+        method: "POST",
+        body: JSON.stringify({ broker_id: bid, open_login: true, sync_watchlist: true }),
+      });
+      const d = res.data || {};
+      if (d.client_url) window.open(d.client_url, "_blank", "noopener,noreferrer");
+      logAction("券商连接", res);
+      UI.toast(res.ok ? "券商已连接" : "连接失败", window.QuantOSFriendlyError?.(res) || d.message || "", res.ok ? "ok" : "fail");
+      await refreshBrokerPanel();
+      return res;
+    } finally {
+      UI.setLoading(btn, false);
+    }
+  }
+
+  async function brokerLogin(btn) {
+    UI.setLoading(btn, true, "等待登录…");
+    try {
+      const bid = selectedBrokerId();
+      const res = await api.request("/api/v1/brokers/login-assist", {
+        method: "POST",
+        body: JSON.stringify({ broker_id: bid, wait_seconds: 180, force: false }),
+      });
+      const d = res.data || {};
+      if (d.url && d.mode === "manual_browser_only") window.open(d.url, "_blank");
+      UI.toast(
+        d.logged_in_detected ? "登录成功" : "请完成浏览器登录",
+        d.logged_in_detected ? "会话已保存，可预填订单" : (window.QuantOSFriendlyError?.(res) || d.message || "在弹出窗口完成登录"),
+        d.logged_in_detected ? "ok" : "fail",
+      );
+      await refreshBrokerPanel();
+      return res;
+    } finally {
+      UI.setLoading(btn, false);
+    }
+  }
+
+  async function brokerSyncWatchlist(btn) {
+    UI.setLoading(btn, true, "同步中…");
+    try {
+      const res = await api.request("/api/v1/watchlist/sync", { method: "POST" });
+      UI.toast(res.ok ? "自选同步" : "同步失败", res.data?.message || "", res.ok ? "ok" : "fail");
+      await refreshBrokerPanel();
+      return res;
+    } finally {
+      UI.setLoading(btn, false);
+    }
+  }
+
+  async function brokerExportFills(btn) {
+    UI.setLoading(btn, true, "抓取成交…");
+    try {
+      const res = await api.request("/api/v1/brokers/export-fills", { method: "POST" });
+      UI.toast(res.ok ? "成交已导入" : "抓取失败", res.data?.message || "", res.ok ? "ok" : "fail");
+      return res;
+    } finally {
+      UI.setLoading(btn, false);
+    }
+  }
+
+  async function brokerSaveConfig(btn) {
+    UI.setLoading(btn, true, "保存中…");
+    try {
+      const res = await api.request("/api/v1/brokers/config", {
+        method: "PUT",
+        body: JSON.stringify({
+          active_broker: selectedBrokerId(),
+          account_id: $("broker-account-id")?.value || "",
+          sidecar_url: $("broker-sidecar-url")?.value || "",
+          auto_trade_via_sidecar: !!($("broker-sidecar-url")?.value),
+          readonly: false,
+        }),
+      });
+      UI.toast(res.ok ? "配置已保存" : "保存失败", "", res.ok ? "ok" : "fail");
+      await refreshBrokerPanel();
+      return res;
+    } finally {
+      UI.setLoading(btn, false);
+    }
+  }
+
+  async function brokerTestPaths(btn) {
+    UI.setLoading(btn, true, "检测中…");
+    try {
+      const res = await api.request("/api/v1/brokers/execution-paths");
+      UI.renderExecutionPaths($("broker-execution-paths"), res.data);
+      UI.toast("路径检测完成", `${(res.data?.paths || []).filter((p) => p.available).length} 条可用`, "ok");
+      return res;
+    } finally {
+      UI.setLoading(btn, false);
+    }
+  }
+
+  async function brokerSaveGates(btn) {
+    UI.setLoading(btn, true, "保存中…");
+    try {
+      if ($("gate-local-consent")?.checked) {
+        await api.request("/api/v1/brokers/local-consent", {
+          method: "POST",
+          body: JSON.stringify({ granted: true }),
+        });
+      }
+      const res = await api.request("/api/v1/live-trading/gates", {
+        method: "PUT",
+        body: JSON.stringify({
+          execution_level: $("gate-unattended")?.checked ? 3 : 2,
+          real_money_enabled: !!$("gate-real-money")?.checked,
+          user_confirmed_risk: !!$("gate-user-risk")?.checked,
+          legal_review_passed: !!$("gate-legal")?.checked,
+          unattended_auto_enabled: !!$("gate-unattended")?.checked,
+          browser_auto_submit: !!$("gate-browser-auto")?.checked,
+        }),
+      });
+      UI.toast(res.ok ? "门控已保存" : "保存失败", res.data?.unattended_auto_enabled ? "无人值守已启用" : "草稿/人工确认模式", res.ok ? "ok" : "fail");
+      await refreshBrokerPanel();
+      return res;
+    } finally {
+      UI.setLoading(btn, false);
+    }
+  }
+
+  async function addToWatchlist(symbol, name) {
+    const res = await api.request("/api/v1/watchlist", {
+      method: "POST",
+      body: JSON.stringify({ symbol, name }),
+    });
+    UI.toast(res.ok ? "已收藏" : "收藏失败", `${symbol} ${name}`, res.ok ? "ok" : "fail");
+    await refreshBrokerPanel();
+    return res;
+  }
+
+  async function submitLiveOrder(btn) {
+    const symbol = btn.dataset.liveOrder;
+    const name = btn.dataset.liveName || "";
+    const qty = Number(btn.dataset.liveQty || 100);
+    const price = Number(btn.dataset.livePrice || 0);
+    if (!symbol || !price) {
+      UI.toast("无法下单", "缺少价格或代码", "fail");
+      return;
+    }
+    const unattended = !!$("gate-unattended")?.checked;
+    const msg = unattended
+      ? `无人值守自动执行？\n${name || symbol}\n${qty}股 @ ¥${price}\n\n将按 Sidecar → Playwright → CSV 顺序尝试。`
+      : `确认向券商提交真实买入委托？\n${name || symbol}\n${qty}股 @ ¥${price}\n\n最后一步仍需在券商页面点击确认。`;
+    if (!confirm(msg)) return;
+    UI.setLoading(btn, true, "提交中…");
+    try {
+      const endpoint = unattended ? "/api/v1/brokers/execute-auto" : "/api/v1/brokers/live-order";
+      const res = await api.request(endpoint, {
+        method: "POST",
+        body: JSON.stringify({
+          symbol,
+          name,
+          side: "BUY",
+          quantity: qty,
+          limit_price: price,
+          user_confirmed: true,
+          unattended,
+        }),
+      });
+      const d = res.data || {};
+      const url = d.handoff?.web_url || d.handoff?.client_url;
+      if (url && !unattended) window.open(url, "_blank", "noopener,noreferrer");
+      const pathHint = d.winning_path ? `路径: ${d.winning_path}` : "";
+      UI.toast(
+        res.ok ? (unattended ? "无人值守已执行" : "订单已推送券商") : "下单被拦截",
+        [d.message || res.error?.message || d.user_action || "", pathHint].filter(Boolean).join(" · "),
+        res.ok ? "ok" : "fail",
+      );
+      return res;
+    } finally {
+      UI.setLoading(btn, false);
+    }
+  }
+
+  async function refreshBrokerPanel() {
+    const [session, gates, watchlist, cfg] = await Promise.all([
+      api.request("/api/v1/brokers/session"),
+      api.request("/api/v1/live-trading/gates"),
+      api.request("/api/v1/watchlist"),
+      api.request("/api/v1/brokers/config"),
+    ]);
+    if ($("broker-sidecar-url") && cfg.data?.sidecar_url) $("broker-sidecar-url").value = cfg.data.sidecar_url;
+    if ($("broker-account-id") && cfg.data?.account_id) $("broker-account-id").value = cfg.data.account_id;
+    UI.renderBrokerSession($("broker-session-status"), session?.data);
+    UI.renderWatchlist($("broker-watchlist"), watchlist?.data?.items || []);
+    UI.renderExecutionPaths($("broker-execution-paths"), { paths: session?.data?.execution_paths || [] });
+    const g = gates?.data || {};
+    if ($("gate-real-money")) $("gate-real-money").checked = !!g.real_money_enabled;
+    if ($("gate-user-risk")) $("gate-user-risk").checked = !!g.user_confirmed_risk;
+    if ($("gate-legal")) $("gate-legal").checked = !!g.legal_review_passed;
+    if ($("gate-unattended")) $("gate-unattended").checked = !!g.unattended_auto_enabled;
+    if ($("gate-browser-auto")) $("gate-browser-auto").checked = !!g.browser_auto_submit;
+    const mode = $("broker-execution-mode");
+    if (mode) {
+      mode.textContent = g.unattended_auto_enabled
+        ? "执行模式: CONDITIONAL_AUTO · Mac 无人值守已启用（Sidecar 优先）"
+        : g.real_money_enabled
+          ? "执行模式: MANUAL_CONFIRM_ON_BROKER · 真实通道已开"
+          : "执行模式: DRAFT_ONLY · 请配置门控";
+    }
+  }
+
   function refreshBrokers(broker) {
     const b = VM.fromBrokers(broker?.data);
     UI.renderTable($("gateway-list"), ["Gateway", "状态", "真实下单"], b.rows, "券商 Gateway 未配置");
@@ -553,6 +937,7 @@
       }
       if (b.note) cl.appendChild(Object.assign(document.createElement("p"), { className: "muted", textContent: b.note }));
     }
+    refreshBrokerPanel();
   }
 
   function refreshShadow(shadow, events) {
@@ -616,6 +1001,7 @@
       refreshPaper();
       await loadPreferences();
       await refreshMarket();
+      await refreshSetupCenter();
 
       UI.renderReportSummary($("report-detail"), VM.fromSystemStatus(st?.data)?.latestReport);
       const list = $("report-list");
@@ -641,9 +1027,13 @@
     if (!localStorage.getItem("quantos_legal_ack")) {
       $("legal-overlay")?.classList.remove("hidden");
     }
-    setPill("role-pill", `角色: ${api.role}`);
-    await refreshFooterVersion();
+    setPill("role-pill", `身份: ${api.role === "investor" ? "新手投资者" : api.role}`);
+      await loadBrokerEcosystem();
+      await refreshFooterVersion();
     await refresh();
+    await refreshBeginnerGuide();
+    refreshHelpPage();
+    await checkBuildSync();
     await refreshOverviewLive();
     setInterval(refresh, 30000);
     setInterval(refreshOverviewLive, 15000);

@@ -5,11 +5,25 @@
 
   const DEV_KEYS = {
     admin: "demo-local-key-change-in-prod",
+    investor: "dev-investor-key",
     researcher: "dev-researcher-key",
     viewer: "svc-portal-read",
     service_risk: "dev-service-risk-key",
     service_research: "svc-quant-pipeline",
   };
+
+  function friendlyApiError(res) {
+    if (res.httpStatus === 403) {
+      return "权限不足：请选择「新手投资者」或 admin 角色登录";
+    }
+    if (res.httpStatus === 404) {
+      return "接口不存在：请重启门户（终端执行 bash scripts/start-portal.sh）";
+    }
+    if (res.httpStatus === 401) {
+      return "未登录或会话过期，请重新登录";
+    }
+    return res.error?.message || res.error?.code || "请求失败";
+  }
 
   class ApiClient {
     constructor() {
@@ -50,7 +64,11 @@
     async request(path, options = {}) {
       const request_id = crypto.randomUUID();
       const trace_id = crypto.randomUUID();
-      const timeoutMs = options.timeoutMs || 90000;
+      const timeoutMs = options.timeoutMs || (
+        path.includes("/market/sync-all") ? 240000
+        : path.includes("/autopilot/order-ticket") ? 45000
+        : 90000
+      );
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeoutMs);
       const headers = {
@@ -96,4 +114,5 @@
 
   global.QuantOSApi = new ApiClient();
   global.QuantOSDevKeys = DEV_KEYS;
+  global.QuantOSFriendlyError = friendlyApiError;
 })(window);

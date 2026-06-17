@@ -11,6 +11,9 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from gateway import __version__, PAPER_TRADING_ONLY, REAL_MONEY_EXECUTION_DISABLED
+from gateway.env_loader import load_project_env
+
+load_project_env()
 from gateway.agents.catalog import AgentCatalog
 from gateway.agents.governance import governance_report, validate_tool_invocation
 from gateway.api.envelope import envelope_err, envelope_ok
@@ -115,25 +118,31 @@ def health() -> dict[str, str]:
     return {"status": "ok", "version": __version__}
 
 
+@app.get("/build-info")
+def build_info() -> Dict[str, Any]:
+    from gateway.build_info import version_payload
+    return version_payload()
+
+
 @app.get("/ready")
 def ready() -> Dict[str, Any]:
-    return {
-        "status": "ready",
-        "mode": _state.mode.value,
-        "paper_trading_only": PAPER_TRADING_ONLY,
-        "real_money_execution_disabled": REAL_MONEY_EXECUTION_DISABLED,
-    }
+    from gateway.lifecycle import readiness_payload
+    return readiness_payload(mode=_state.mode.value)
 
 
 @app.get("/api/v1/market/status")
 def market_status(principal: Optional[Principal] = Depends(get_principal)) -> Dict[str, Any]:
     _require(principal, "market:read")
+    from gateway.market_status import get_market_status_summary
+
     runtime = load_runtime_state()
+    freshness = get_market_status_summary()
     return envelope_ok({
         "mode": _state.mode.value,
         "session": "CLOSED",
         "paper_trading_only": PAPER_TRADING_ONLY,
         "runtime": runtime,
+        **freshness,
     }, request_id=str(uuid.uuid4()))
 
 

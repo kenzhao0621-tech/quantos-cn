@@ -56,7 +56,8 @@
     return {
       modeLabel: MODE_LABELS[data.mode] || data.mode || "—",
       sessionLabel: SESSION_LABELS[data.market_session] || data.market_session || "—",
-      dataStatusLabel: data.data_status || "—",
+      dataStatusLabel: data.data_freshness?.labels?.pill || data.data_status || "—",
+      dataFreshness: data.data_freshness || null,
       capitalCny: data.capital,
       equityCny: data.equity_cny,
       remainingLossBudgetCny: data.remaining_loss_budget,
@@ -82,6 +83,8 @@
             verdict: data.latest_candidate.verdict || data.latest_candidate.status,
           }
         : null,
+      deploymentEligibility: data.deployment_eligibility || "RESEARCH_ONLY",
+      deploymentBlockers: data.deployment_blockers || [],
       blockers,
       raw: data,
     };
@@ -94,10 +97,11 @@
       { title: "总资金", value: fmtCny(vm.capitalCny), hint: `权益 ${fmtCny(vm.equityCny)}` },
       { title: "剩余亏损额度", value: fmtCny(vm.remainingLossBudgetCny), hint: "¥1,000 累计上限" },
       { title: "Kill Switch", value: vm.killSwitchLabel, tone: vm.killSwitchLabel === "已触发" ? "danger" : "ok" },
-      { title: "数据状态", value: vm.dataStatusLabel, hint: "Canonical DuckDB" },
+      { title: "数据状态", value: vm.dataStatusLabel, hint: vm.dataFreshness?.labels?.eod || "Canonical DuckDB" },
       { title: "vn.py", value: vm.vnpyLabel, tone: vm.vnpyShort.includes("原生") ? "ok" : "muted" },
       { title: "Qlib", value: vm.qlibLabel, tone: vm.qlibShort.includes("原生") ? "ok" : "muted" },
       { title: "Paper / Shadow", value: `${vm.paperLabel} / ${vm.shadowLabel}` },
+      { title: "部署资格", value: vm.deploymentEligibility || "—", hint: (vm.deploymentBlockers || []).join(" · ") || "后端计算" },
     ];
   }
 

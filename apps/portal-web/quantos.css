@@ -150,7 +150,18 @@ button.danger { background: var(--danger); }
   background: var(--bg-elev); color: var(--text); border: 1px solid var(--border);
   border-radius: 8px; padding: 0.45rem 0.6rem; font-size: 0.82rem;
 }
-.screener-controls label { display: inline-flex; align-items: center; gap: 0.35rem; color: var(--muted); font-size: 0.8rem; }
+.broker-controls { margin-bottom: 0.8rem; }
+.beginner-steps { display: grid; gap: 0.75rem; margin: 1rem 0; }
+.beginner-step-card { padding: 0.85rem 1rem; border: 1px solid var(--border, #333); border-radius: 8px; background: var(--panel, #1a1a2e); }
+.beginner-actions { margin-top: 1rem; }
+.broker-wizard { display: grid; gap: 1rem; margin: 1rem 0; }
+.broker-step { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; padding: 0.75rem; border-radius: 8px; background: rgba(255,255,255,0.03); }
+.broker-step .step-num { display: inline-flex; width: 1.6rem; height: 1.6rem; align-items: center; justify-content: center; border-radius: 50%; background: var(--accent, #4a9); color: #111; font-weight: 700; }
+.help-block { margin-bottom: 1.2rem; }
+.warn-block { border-left: 3px solid #e6a23c; padding-left: 1rem; }
+.collapsed-log { font-size: 0.85rem; max-height: 6rem; overflow: auto; }
+.tab-advanced { opacity: 0.75; font-size: 0.9em; }
+.mini-btn { margin-left: 0.25rem; padding: 0.1rem 0.35rem; font-size: 0.75rem; cursor: pointer; border: 1px solid var(--border); border-radius: 4px; background: var(--panel); color: var(--accent); }
 .screener-controls input { max-width: 130px; }
 .symbol-link { background: transparent; border: 0; color: var(--accent); padding: 0; font-weight: 800; cursor: pointer; }
 .symbol-link:hover { text-decoration: underline; filter: none; }

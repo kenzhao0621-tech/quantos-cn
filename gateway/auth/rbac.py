@@ -9,24 +9,28 @@ from typing import Optional
 
 class Role(str, Enum):
     ADMIN = "admin"
+    INVESTOR = "investor"
     RESEARCHER = "researcher"
     VIEWER = "viewer"
     SERVICE_RESEARCH = "service_research"
     SERVICE_RISK = "service_risk"
 
 
+_BEGINNER_PERMS = {
+    "agents:invoke", "tasks:create", "tasks:read", "market:read",
+    "research:run", "research:read", "risk:read", "paper:read", "paper:trade",
+    "audit:read", "obs:read", "mode:promote", "broker:connect", "broker:assist",
+}
+
 PERMISSIONS: dict[Role, set[str]] = {
     Role.ADMIN: {
         "agents:invoke", "tasks:create", "tasks:read", "market:read",
         "research:run", "research:read", "risk:read", "risk:halt",
         "risk:reset_request", "risk:reset_confirm", "paper:read", "paper:trade", "audit:read", "obs:read",
-        "mode:promote", "portal:admin",
+        "mode:promote", "portal:admin", "broker:connect", "broker:assist",
     },
-    Role.RESEARCHER: {
-        "agents:invoke", "tasks:create", "tasks:read", "market:read",
-        "research:run", "research:read", "risk:read", "paper:read", "paper:trade",
-        "audit:read", "obs:read",
-    },
+    Role.INVESTOR: set(_BEGINNER_PERMS),
+    Role.RESEARCHER: set(_BEGINNER_PERMS),
     Role.VIEWER: {
         "market:read", "research:read", "risk:read", "paper:read", "audit:read",
     },

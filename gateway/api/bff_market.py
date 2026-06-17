@@ -8,6 +8,8 @@ to the typed MarketDataService and the Job system. No private provider functions
 from __future__ import annotations
 
 import json
+import subprocess
+import uuid
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -140,9 +142,73 @@ def market_live_snapshot(
 def market_live_refresh(principal: Optional[Principal] = Depends(_principal)) -> Dict[str, Any]:
     _require(principal, "research:run")
     snap = fetch_live_snapshot(require_live=True)
+    if not snap.get("success") or (snap.get("row_count") or 0) < 100:
+        snap = fetch_live_snapshot(require_live=False)
     LIVE_STATE.parent.mkdir(parents=True, exist_ok=True)
     LIVE_STATE.write_text(json.dumps(snap, ensure_ascii=False, indent=2), encoding="utf-8")
     return envelope_ok(snap)
+
+
+@router.post("/api/v1/market/sync-all")
+def market_sync_all(principal: Optional[Principal] = Depends(_principal)) -> Dict[str, Any]:
+    """One-click EOD index/bars refresh, warehouse sync, and live snapshot persist."""
+    _require(principal, "research:run")
+    from gateway.market_status import get_market_status_summary
+
+    run_id = str(uuid.uuid4())[:8]
+    py = ROOT / ".venv-china-quant" / "bin" / "python"
+    results: list[dict[str, Any]] = []
+    for target, cmd in (
+        ("indices", [str(py), "-m", "quant", "update-indices"]),
+        ("bars", [str(py), "-m", "quant", "update-daily-bars"]),
+    ):
+        try:
+            r = subprocess.run(cmd, cwd=str(ROOT), capture_output=True, text=True, timeout=300)
+            results.append({
+                "target": target,
+                "ok": r.returncode == 0,
+                "tail": (r.stdout + r.stderr)[-500:],
+            })
+        except subprocess.TimeoutExpired:
+            results.append({"target": target, "ok": False, "error": "timeout after 300s"})
+        except Exception as exc:
+            results.append({"target": target, "ok": False, "error": str(exc)[:120]})
+
+    warehouse_sync: dict[str, Any] = {}
+    try:
+        from quant.warehouse import sync_from_partitions
+
+        warehouse_sync = sync_from_partitions(run_id=run_id)
+    except Exception as exc:
+        warehouse_sync = {"error": str(exc)[:120]}
+
+    snap = fetch_live_snapshot(require_live=False)
+    if not snap.get("success") or (snap.get("row_count") or 0) < 100:
+        snap = fetch_live_snapshot(require_live=True)
+    LIVE_STATE.parent.mkdir(parents=True, exist_ok=True)
+    LIVE_STATE.write_text(json.dumps(snap, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    market_status = get_market_status_summary()
+    updates_ok = all(x.get("ok") for x in results)
+    ok = updates_ok and not market_status.get("needs_index_sync") and market_status.get("live", {}).get("ok")
+
+    return envelope_ok(
+        {
+            "run_id": run_id,
+            "ok": ok,
+            "updates": results,
+            "warehouse_sync": warehouse_sync,
+            "live_snapshot": {
+                "success": snap.get("success"),
+                "row_count": snap.get("row_count"),
+                "provider": snap.get("provider"),
+                "reason": snap.get("reason"),
+            },
+            "market_status": market_status,
+            "message": market_status.get("labels", {}).get("pill", ""),
+        },
+        run_id=run_id,
+    )
 
 
 @router.get("/api/v1/screener/run")

@@ -66,6 +66,7 @@ def _require(principal: Optional[Principal], permission: str) -> Principal:
 
 DEV_ROLE_KEYS: dict[str, str] = {
     "admin": "demo-local-key-change-in-prod",
+    "investor": "dev-investor-key",
     "researcher": "dev-researcher-key",
     "viewer": "svc-portal-read",
     "service_risk": "dev-service-risk-key",
@@ -129,6 +130,75 @@ class ModelValidationBody(BaseModel):
     min_amount_cny: float = 100000000.0
 
 
+class BrokerConfigBody(BaseModel):
+    active_broker: str = "eastmoney_manual"
+    account_id: str = ""
+    readonly: bool = False
+    sidecar_url: str = ""
+    sidecar_api_key: str = ""
+    auto_trade_via_sidecar: bool = False
+    qmt_order_dir: str = ""
+
+
+class ConnectFlowBody(BaseModel):
+    broker_id: str = ""
+    open_login: bool = True
+    sync_watchlist: bool = True
+    wait_seconds: int = 120
+
+
+class LoginAssistBody(BaseModel):
+    broker_id: str = ""
+    wait_seconds: int = 180
+    force: bool = False
+
+
+class BrokerLaunchBody(BaseModel):
+    broker_id: str = ""
+    target: str = "trade_login"
+    symbol: str = ""
+    name: str = ""
+
+
+class LiveOrderBody(BaseModel):
+    symbol: str
+    name: str = ""
+    side: str = "BUY"
+    quantity: int = 100
+    limit_price: float = 0.0
+    user_confirmed: bool = False
+    unattended: bool = False
+
+
+class ExecuteAutoBody(BaseModel):
+    symbol: str
+    name: str = ""
+    side: str = "BUY"
+    quantity: int = 100
+    limit_price: float = 0.0
+
+
+class WatchlistMutateBody(BaseModel):
+    symbol: str
+    name: str = ""
+    notes: str = ""
+
+
+class LocalConsentBody(BaseModel):
+    granted: bool = True
+
+
+class LiveGatesBody(BaseModel):
+    execution_level: int = 2
+    real_money_enabled: bool = False
+    user_confirmed_risk: bool = False
+    legal_review_passed: bool = False
+    unattended_auto_enabled: bool = False
+    browser_auto_submit: bool = False
+    max_single_order_cny: float = 2000.0
+    max_daily_notional_cny: float = 5000.0
+
+
 def _load_runs() -> dict[str, Any]:
     _RUNS_PATH.parent.mkdir(parents=True, exist_ok=True)
     if not _RUNS_PATH.exists():
@@ -173,6 +243,42 @@ def auth_me(principal: Optional[Principal] = Depends(get_principal_ops)) -> Dict
     })
 
 
+@router.get("/api/v1/onboarding/beginner")
+def onboarding_beginner(principal: Optional[Principal] = Depends(get_principal_ops)) -> Dict[str, Any]:
+    _require(principal, "market:read")
+    from quant.learning.outcome_tracker import compute_learning_summary
+
+    learning = compute_learning_summary()
+    return envelope_ok({
+        "title": "新手入门量化投资",
+        "audience": "A股新投资者",
+        "steps": [
+            {"id": 1, "title": "更新数据", "action": "market-update", "hint": "市场中心 → 同步数据"},
+            {"id": 2, "title": "智能选股", "action": "screener-run", "hint": "设置资金（如5000元）→ 运行选股"},
+            {"id": 3, "title": "模拟练习", "action": "paper-start", "hint": "先用模拟盘验证，零真实资金"},
+            {"id": 4, "title": "连接券商", "action": "broker-connect", "hint": "登录一次 → 系统帮你预填订单"},
+            {"id": 5, "title": "人工确认下单", "action": "broker-assist", "hint": "在券商官方 App 点击确认，系统不自动扣款"},
+        ],
+        "disclaimer": {
+            "not_investment_advice": True,
+            "no_auto_real_orders": True,
+            "no_password_storage": True,
+            "t_plus_one": True,
+            "model_may_fail": True,
+        },
+        "daily_learning": learning,
+        "help_doc": "/docs/USER_GUIDE.md",
+    })
+
+
+@router.get("/api/v1/deployment/eligibility")
+def deployment_eligibility(principal: Optional[Principal] = Depends(get_principal_ops)) -> Dict[str, Any]:
+    _require(principal, "market:read")
+    from gateway.deployment.eligibility import compute_deployment_eligibility
+
+    return envelope_ok(compute_deployment_eligibility())
+
+
 @router.get("/api/v1/system/version")
 def system_version() -> Dict[str, Any]:
     from gateway.build_info import version_payload
@@ -188,12 +294,19 @@ def system_status_v2(principal: Optional[Principal] = Depends(get_principal_ops)
     runtime = load_runtime_state()
     from services.vnpy_runtime.main import get_runtime
     from integrations.qlib.provider import CNMarketProvider
+    from gateway.deployment.eligibility import compute_deployment_eligibility
+
     rt = get_runtime()
+    deploy = compute_deployment_eligibility()
     return envelope_ok({
         "mode": _state.mode.value,
+        "deployment_eligibility": deploy["deployment_eligibility"],
+        "deployment_gates": deploy.get("gates", {}),
+        "deployment_blockers": deploy.get("blockers", []),
         "autonomous_label": _state.max_autonomous_label(),
         "market_session": _market_session(),
         "data_status": _data_status(),
+        "data_freshness": _data_freshness(),
         "capital": snap.capital_total_cny,
         "remaining_loss_budget": snap.remaining_loss_budget_cny,
         "equity_cny": snap.equity_cny,
@@ -546,6 +659,315 @@ def research_agents_run(body: dict, principal: Optional[Principal] = Depends(get
     return envelope_ok(result.to_dict(), run_id=result.run_id, artifact_path=artifact)
 
 
+@router.get("/api/v1/brokers/ecosystem")
+def brokers_ecosystem(principal: Optional[Principal] = Depends(get_principal_ops)) -> Dict[str, Any]:
+    _require(principal, "market:read")
+    from gateway.brokers.cn_broker_registry import CN_BROKER_ECOSYSTEM, BROWSER_BROKER_IDS, portal_links
+
+    brokers = []
+    for bid, spec in CN_BROKER_ECOSYSTEM.items():
+        brokers.append({
+            "broker_id": bid,
+            "label": spec.get("label", bid),
+            "handoff": spec.get("handoff", ""),
+            "ecosystem": spec.get("ecosystem", []),
+            "urls": spec.get("urls", {}),
+            "browser_capable": bid in BROWSER_BROKER_IDS,
+            "order_hint": spec.get("order_hint", ""),
+            "watchlist_hint": spec.get("watchlist_hint", ""),
+            "notes": spec.get("notes", ""),
+        })
+    return envelope_ok({
+        "brokers": brokers,
+        "portal_links": portal_links(),
+        "default_broker": "eastmoney_manual",
+    })
+
+
+@router.get("/api/v1/brokers/config")
+def brokers_config_get(principal: Optional[Principal] = Depends(get_principal_ops)) -> Dict[str, Any]:
+    _require(principal, "market:read")
+    from gateway.brokers.connection_manager import load_broker_config
+
+    return envelope_ok(load_broker_config().to_dict())
+
+
+@router.put("/api/v1/brokers/config")
+def brokers_config_put(
+    body: BrokerConfigBody,
+    principal: Optional[Principal] = Depends(get_principal_ops),
+) -> Dict[str, Any]:
+    p = _require(principal, "broker:connect")
+    from gateway.brokers.connection_manager import save_broker_config
+
+    cfg = save_broker_config(body.model_dump())
+    _audit.emit("broker_config_save", p.user_id, {"active_broker": cfg.active_broker})
+    return envelope_ok(cfg.to_dict())
+
+
+@router.post("/api/v1/brokers/connect-flow")
+def brokers_connect_flow(
+    body: ConnectFlowBody,
+    principal: Optional[Principal] = Depends(get_principal_ops),
+) -> Dict[str, Any]:
+    p = _require(principal, "broker:connect")
+    from gateway.brokers.broker_autopilot import run_connect_flow
+
+    result = run_connect_flow(
+        broker_id=body.broker_id or None,
+        user_id=p.user_id,
+        open_login=body.open_login,
+        sync_watchlist=body.sync_watchlist,
+        wait_seconds=body.wait_seconds,
+    )
+    _audit.emit("broker_connect_flow", p.user_id, {
+        "broker_id": result.get("broker_id"),
+        "ready": result.get("ready_for_trade"),
+    })
+    return envelope_ok(result)
+
+
+@router.post("/api/v1/brokers/login-assist")
+def brokers_login_assist(
+    body: LoginAssistBody,
+    principal: Optional[Principal] = Depends(get_principal_ops),
+) -> Dict[str, Any]:
+    p = _require(principal, "broker:connect")
+    from gateway.brokers.connection_manager import load_broker_config, save_broker_config
+    from gateway.brokers.playwright_assist import run_login_assist, session_path
+
+    cfg = load_broker_config()
+    bid = body.broker_id or cfg.active_broker
+    if body.force and session_path(bid).exists():
+        session_path(bid).unlink(missing_ok=True)
+    save_broker_config({"active_broker": bid, "readonly": False})
+    result = run_login_assist(bid, wait_seconds=body.wait_seconds)
+    _audit.emit("broker_login_assist", p.user_id, {"broker_id": bid, "logged_in": result.get("logged_in_detected")})
+    return envelope_ok(result)
+
+
+@router.post("/api/v1/brokers/auto-session")
+def brokers_auto_session(
+    principal: Optional[Principal] = Depends(get_principal_ops),
+) -> Dict[str, Any]:
+    p = _require(principal, "broker:connect")
+    from gateway.brokers.broker_autopilot import run_post_login_automation
+
+    result = run_post_login_automation(user_id=p.user_id, export_fills=True)
+    _audit.emit("broker_auto_session", p.user_id, {"actions": len(result.get("actions", []))})
+    return envelope_ok(result)
+
+
+@router.post("/api/v1/brokers/launch")
+def brokers_launch(
+    body: BrokerLaunchBody,
+    principal: Optional[Principal] = Depends(get_principal_ops),
+) -> Dict[str, Any]:
+    _require(principal, "broker:connect")
+    from gateway.brokers.broker_launcher import launch_cn_broker
+    from gateway.brokers.connection_manager import load_broker_config
+
+    cfg = load_broker_config()
+    bid = body.broker_id or cfg.active_broker
+    result = launch_cn_broker(bid, symbol=body.symbol, name=body.name, target=body.target)
+    return envelope_ok(result)
+
+
+@router.get("/api/v1/brokers/session")
+def brokers_session(principal: Optional[Principal] = Depends(get_principal_ops)) -> Dict[str, Any]:
+    _require(principal, "market:read")
+    from gateway.brokers.unified_bridge import broker_session_status
+
+    return envelope_ok(broker_session_status())
+
+
+@router.get("/api/v1/brokers/acceptance")
+def brokers_acceptance(principal: Optional[Principal] = Depends(get_principal_ops)) -> Dict[str, Any]:
+    _require(principal, "market:read")
+    from gateway.brokers.acceptance import run_broker_acceptance
+
+    return envelope_ok(run_broker_acceptance())
+
+
+@router.get("/api/v1/brokers/monitor")
+def brokers_monitor(principal: Optional[Principal] = Depends(get_principal_ops)) -> Dict[str, Any]:
+    _require(principal, "market:read")
+    from gateway.brokers.connection_manager import load_broker_config
+    from gateway.brokers.playwright_assist import session_status
+    from gateway.brokers.unified_bridge import broker_session_status
+    from gateway.live_trading.gates import load_gates
+
+    cfg = load_broker_config()
+    gates = load_gates()
+    return envelope_ok({
+        "active_broker": cfg.active_broker,
+        "gates": gates.to_dict(),
+        "browser_session": session_status(cfg.active_broker),
+        "session": broker_session_status(cfg),
+    })
+
+
+@router.get("/api/v1/live-trading/gates")
+def live_gates_get(principal: Optional[Principal] = Depends(get_principal_ops)) -> Dict[str, Any]:
+    _require(principal, "market:read")
+    from gateway.live_trading.gates import load_gates
+
+    return envelope_ok(load_gates().to_dict())
+
+
+@router.put("/api/v1/live-trading/gates")
+def live_gates_put(
+    body: LiveGatesBody,
+    principal: Optional[Principal] = Depends(get_principal_ops),
+) -> Dict[str, Any]:
+    p = _require(principal, "portal:admin")
+    from gateway.live_trading.gates import save_gates
+
+    gates = save_gates(body.model_dump())
+    _audit.emit("live_gates_update", p.user_id, gates.to_dict())
+    return envelope_ok(gates.to_dict())
+
+
+@router.post("/api/v1/brokers/live-order")
+def brokers_live_order(
+    body: LiveOrderBody,
+    principal: Optional[Principal] = Depends(get_principal_ops),
+) -> Dict[str, Any]:
+    p = _require(principal, "broker:assist")
+    from gateway.brokers.unified_bridge import place_real_order
+
+    result = place_real_order(
+        symbol=body.symbol,
+        name=body.name,
+        side=body.side,
+        quantity=body.quantity,
+        limit_price=body.limit_price,
+        user_confirmed=body.user_confirmed,
+        user_id=p.user_id,
+        unattended=body.unattended,
+    )
+    _audit.emit("broker_live_order", p.user_id, {
+        "symbol": body.symbol,
+        "ok": result.get("ok"),
+        "mode": (result.get("handoff") or {}).get("mode"),
+    })
+    if result.get("ok"):
+        return envelope_ok(result)
+    return envelope_err(
+        result.get("error", {}).get("code", "LIVE_ORDER_FAILED"),
+        result.get("error", {}).get("message", result.get("user_action", "下单失败")),
+        blockers=result.get("blockers"),
+        gates=result.get("gates"),
+    )
+
+
+@router.get("/api/v1/watchlist")
+def watchlist_list(principal: Optional[Principal] = Depends(get_principal_ops)) -> Dict[str, Any]:
+    p = _require(principal, "market:read")
+    from gateway.screener.watchlist import list_watchlist
+
+    return envelope_ok({"items": list_watchlist(p.user_id)})
+
+
+@router.post("/api/v1/watchlist")
+def watchlist_add(
+    body: WatchlistMutateBody,
+    principal: Optional[Principal] = Depends(get_principal_ops),
+) -> Dict[str, Any]:
+    p = _require(principal, "market:read")
+    from gateway.screener.watchlist import add_to_watchlist
+
+    item = add_to_watchlist(p.user_id, symbol=body.symbol, name=body.name, notes=body.notes)
+    return envelope_ok(item)
+
+
+@router.delete("/api/v1/watchlist/{symbol}")
+def watchlist_remove(
+    symbol: str,
+    principal: Optional[Principal] = Depends(get_principal_ops),
+) -> Dict[str, Any]:
+    p = _require(principal, "market:read")
+    from gateway.screener.watchlist import remove_from_watchlist
+
+    removed = remove_from_watchlist(p.user_id, symbol)
+    return envelope_ok({"removed": removed, "symbol": symbol})
+
+
+@router.post("/api/v1/watchlist/sync")
+def watchlist_sync(principal: Optional[Principal] = Depends(get_principal_ops)) -> Dict[str, Any]:
+    p = _require(principal, "broker:connect")
+    from gateway.brokers.unified_bridge import sync_watchlist_to_broker
+    from gateway.screener.watchlist import list_watchlist
+
+    items = list_watchlist(p.user_id)
+    result = sync_watchlist_to_broker(p.user_id, items)
+    _audit.emit("watchlist_sync", p.user_id, {"count": len(items), "ok": result.get("ok")})
+    return envelope_ok(result)
+
+
+@router.get("/api/v1/brokers/execution-paths")
+def brokers_execution_paths(principal: Optional[Principal] = Depends(get_principal_ops)) -> Dict[str, Any]:
+    _require(principal, "market:read")
+    from gateway.brokers.execution_router import list_execution_paths
+
+    return envelope_ok({"paths": list_execution_paths(), "platform": __import__("platform").system()})
+
+
+@router.post("/api/v1/brokers/execute-auto")
+def brokers_execute_auto(
+    body: ExecuteAutoBody,
+    principal: Optional[Principal] = Depends(get_principal_ops),
+) -> Dict[str, Any]:
+    p = _require(principal, "mode:promote")
+    from gateway.brokers.execution_router import execute_order
+
+    result = execute_order(
+        symbol=body.symbol,
+        name=body.name,
+        side=body.side,
+        quantity=body.quantity,
+        limit_price=body.limit_price,
+        user_id=p.user_id,
+        unattended=True,
+        source="execute_auto",
+    )
+    _audit.emit("broker_execute_auto", p.user_id, {
+        "symbol": body.symbol,
+        "ok": result.get("ok"),
+        "winning_path": result.get("winning_path"),
+    })
+    if result.get("ok"):
+        return envelope_ok(result)
+    return envelope_err(
+        result.get("error", {}).get("code", "EXECUTE_AUTO_FAILED"),
+        result.get("error", {}).get("message", result.get("user_action", "无人值守执行失败")),
+        paths_tried=result.get("paths_tried"),
+    )
+
+
+@router.post("/api/v1/brokers/local-consent")
+def brokers_local_consent(
+    body: LocalConsentBody,
+    principal: Optional[Principal] = Depends(get_principal_ops),
+) -> Dict[str, Any]:
+    p = _require(principal, "broker:connect")
+    from gateway.brokers.local_auth import save_consent
+
+    return envelope_ok(save_consent(p.user_id, granted=body.granted))
+
+
+@router.post("/api/v1/brokers/export-fills")
+def brokers_export_fills(principal: Optional[Principal] = Depends(get_principal_ops)) -> Dict[str, Any]:
+    p = _require(principal, "broker:connect")
+    from gateway.brokers.connection_manager import load_broker_config
+    from gateway.brokers.playwright_assist import auto_export_fills
+
+    cfg = load_broker_config()
+    result = auto_export_fills(cfg.active_broker)
+    _audit.emit("broker_export_fills", p.user_id, {"imported": result.get("fills_imported", 0)})
+    return envelope_ok(result)
+
+
 @router.get("/api/v1/brokers/wizard")
 def brokers_wizard(principal: Optional[Principal] = Depends(get_principal_ops)) -> Dict[str, Any]:
     _require(principal, "market:read")
@@ -609,7 +1031,7 @@ def models_validate(
 
 @router.post("/api/v1/brokers/readonly-connect")
 def brokers_readonly_connect(body: dict, principal: Optional[Principal] = Depends(get_principal_ops)) -> Dict[str, Any]:
-    p = _require(principal, "portal:admin")
+    p = _require(principal, "broker:connect")
     from gateway.brokers.wizard import readonly_connect_wizard
     result = readonly_connect_wizard(body.get("broker", ""), body.get("config", {}))
     _audit.emit("broker_readonly_wizard", p.user_id, result)
@@ -646,6 +1068,85 @@ def _data_status() -> str:
     if db.exists():
         return "WAREHOUSE_PRESENT"
     return "BLOCKED_BY_DATA"
+
+
+def _data_freshness() -> dict[str, Any]:
+    from gateway.market_status import get_market_status_summary
+
+    return get_market_status_summary()
+
+
+@router.get("/api/v1/system/setup-checklist")
+def setup_checklist(principal: Optional[Principal] = Depends(get_principal_ops)) -> Dict[str, Any]:
+    """Onboarding checklist and artifact paths for the portal 配置中心."""
+    _require(principal, "market:read")
+    from gateway.brokers.connection_manager import CONFIG_PATH, load_broker_config
+    from gateway.env_loader import tushare_configured
+
+    summary = _data_freshness()
+    wh = summary.get("warehouse") or {}
+    live = summary.get("live") or {}
+    cfg = load_broker_config()
+    broker_saved = bool(cfg.active_broker and cfg.active_broker != "none")
+    ticket_dir = ROOT / "data" / "gateway" / "order_tickets"
+    tickets = list(ticket_dir.glob("*.json")) if ticket_dir.exists() else []
+    daily_dir = ROOT / "docs" / "ai" / "daily-trading" / "daily"
+    pdfs = sorted(daily_dir.glob("*_DAILY_QUANT_REPORT.pdf")) if daily_dir.exists() else []
+
+    steps = [
+        {
+            "id": "env",
+            "title": "配置 Tushare Token",
+            "done": tushare_configured(),
+            "hint": "复制 .env.example 为 .env 并填入 TUSHARE_TOKEN，然后重启 make app",
+            "action": "show-env",
+        },
+        {
+            "id": "data",
+            "title": "同步市场数据（日线 + 指数 + 实时）",
+            "done": bool(wh.get("daily_latest")) and not summary.get("needs_index_sync") and live.get("ok"),
+            "hint": summary.get("labels", {}).get("pill", "点击「同步全部数据」"),
+            "action": "market-sync-all",
+        },
+        {
+            "id": "broker",
+            "title": "配置券商连接（只读 / 导出）",
+            "done": broker_saved,
+            "hint": "在「券商」页选择 Eastmoney 或 QMT 并测试连接",
+            "action": "goto-brokers",
+        },
+        {
+            "id": "screener",
+            "title": "运行智能选股",
+            "done": bool(wh.get("daily_latest")),
+            "hint": "选股基于 EOD 因子；实时模式需 live 快照可用",
+            "action": "goto-screener",
+        },
+        {
+            "id": "ticket",
+            "title": "生成订单票据（人工确认）",
+            "done": len(tickets) > 0,
+            "hint": "Autopilot 生成票据 → 券商官方 App 手动确认 → 导入成交 CSV 对账",
+            "action": "goto-paper",
+        },
+    ]
+    complete = sum(1 for s in steps if s["done"])
+
+    return envelope_ok({
+        "score": {"complete": complete, "total": len(steps)},
+        "steps": steps,
+        "market_status": summary,
+        "artifacts": {
+            "env_example": str(ROOT / ".env.example"),
+            "env_file": str(ROOT / ".env"),
+            "warehouse": str(ROOT / "data" / "warehouse" / "quant.duckdb"),
+            "live_snapshot": str(ROOT / "data" / "gateway" / "live_snapshot.json"),
+            "order_tickets_dir": str(ticket_dir),
+            "broker_config": str(CONFIG_PATH),
+            "daily_report_pdf": str(pdfs[-1]) if pdfs else str(daily_dir / "2026-06-16_DAILY_QUANT_REPORT.pdf"),
+            "user_guide": str(ROOT / "docs" / "USER_GUIDE.md"),
+        },
+    })
 
 
 def _latest_daily_report() -> dict[str, Any]:
