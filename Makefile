@@ -5,7 +5,7 @@ UVICORN_APP := gateway.api.app:app
 GATEWAY_PORT := 8787
 GATEWAY_HOST := 127.0.0.1
 
-.PHONY: bootstrap install-editable doctor dev portal portal-stop portal-status \
+.PHONY: v6-test v6-e2e bootstrap install-editable doctor dev portal portal-stop portal-status \
         app app-stop app-status app-reset-demo \
         test test-core test-gateway test-quantos test-e2e \
         data-status backfill daily-report backtest \
@@ -172,3 +172,9 @@ final-test:
 
 fresh-ui-test:
 	$(PYTHON) scripts/run-fresh-browser-ui-e2e.py
+
+v6-test:
+	$(PYTHON) scripts/run-v6-contract-tests.py
+
+v6-e2e:
+	$(PYTHON) scripts/run-v6-fresh-browser-e2e.py

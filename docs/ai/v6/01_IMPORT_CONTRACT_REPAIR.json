@@ -1,0 +1,85 @@
+{
+  "passed": true,
+  "checks": [
+    {
+      "name": "IndexQuote.to_dict has symbol/name",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "MarketOverview.to_dict has breadth+indices",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "service satisfies MarketDataService protocol",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "overview not blocked (canonical data present)",
+      "passed": true,
+      "detail": "as_of=20260616"
+    },
+    {
+      "name": "overview has >=1 index",
+      "passed": true,
+      "detail": "n=6"
+    },
+    {
+      "name": "overview breadth has totals",
+      "passed": true,
+      "detail": "total=5513"
+    },
+    {
+      "name": "provider health includes canonical_warehouse SUCCESS",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "coverage includes daily_bars rows",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "legacy fetch_spot_snapshot importable (contract restored)",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "legacy adapter emits DeprecationWarning",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "legacy adapter returns overview dict (no duplicated logic)",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "BFF never imports private provider/fabric fns",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "app.py no longer imports fetch_spot_snapshot",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "job reaches terminal SUCCEEDED",
+      "passed": true,
+      "detail": "status=SUCCEEDED"
+    },
+    {
+      "name": "job has progress events",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "job percent == 100 on success",
+      "passed": true,
+      "detail": ""
+    }
+  ]
+}

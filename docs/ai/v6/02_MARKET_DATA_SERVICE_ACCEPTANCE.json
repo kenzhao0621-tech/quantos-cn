@@ -1,0 +1,166 @@
+{
+  "generated_at": "2026-06-17T01:38:11.434967+00:00",
+  "passed": true,
+  "as_of_date": "20260616",
+  "freshness": "END_OF_DAY",
+  "indices": [
+    {
+      "symbol": "000001.SH",
+      "name": "上证综指",
+      "close": 4091.89,
+      "change_pct": -0.11,
+      "volume": 61566829600.0,
+      "amount": 1369612989674.4,
+      "trade_date": "20260616"
+    },
+    {
+      "symbol": "000300.SH",
+      "name": "沪深300",
+      "close": 4884.23,
+      "change_pct": -0.15,
+      "volume": 28258474300.0,
+      "amount": 857202587478.1,
+      "trade_date": "20260616"
+    },
+    {
+      "symbol": "000852.SH",
+      "name": "中证1000",
+      "close": 8646.4,
+      "change_pct": 1.47,
+      "volume": 29802260700.0,
+      "amount": 683488867028.9,
+      "trade_date": "20260616"
+    },
+    {
+      "symbol": "000905.SH",
+      "name": "中证500",
+      "close": 8507.98,
+      "change_pct": 1.2,
+      "volume": 23149509400.0,
+      "amount": 637593605919.7,
+      "trade_date": "20260616"
+    },
+    {
+      "symbol": "399001.SZ",
+      "name": "深证成指",
+      "close": 15675.25,
+      "change_pct": 0.93,
+      "volume": 75482880215.0,
+      "amount": 1695082857789.13,
+      "trade_date": "20260616"
+    },
+    {
+      "symbol": "399006.SZ",
+      "name": "创业板指",
+      "close": 4102.94,
+      "change_pct": 1.72,
+      "volume": 23636209235.0,
+      "amount": 836387503042.47,
+      "trade_date": "20260616"
+    }
+  ],
+  "breadth": {
+    "advancers": 2730,
+    "decliners": 2677,
+    "unchanged": 106,
+    "total_symbols": 5513,
+    "limit_up": 188,
+    "limit_down": 9
+  },
+  "providers": [
+    {
+      "provider": "canonical_warehouse",
+      "status": "SUCCESS",
+      "datasets": [
+        "index_bars",
+        "daily_bars",
+        "disclosures",
+        "features"
+      ],
+      "last_ok": "2026-06-17T01:38:11.756365+00:00",
+      "detail": "本地规范化 DuckDB/Parquet 仓库"
+    },
+    {
+      "provider": "tushare",
+      "status": "NOT_CONFIGURED",
+      "datasets": [
+        "daily_bars",
+        "indices"
+      ],
+      "last_ok": null,
+      "detail": "未配置凭证 — 仅供日后授权后启用"
+    },
+    {
+      "provider": "akshare_sina",
+      "status": "NOT_CONFIGURED",
+      "datasets": [
+        "spot_quotes",
+        "indices"
+      ],
+      "last_ok": null,
+      "detail": "未配置凭证 — 仅供日后授权后启用"
+    },
+    {
+      "provider": "baostock",
+      "status": "NOT_CONFIGURED",
+      "datasets": [
+        "daily_bars"
+      ],
+      "last_ok": null,
+      "detail": "未配置凭证 — 仅供日后授权后启用"
+    },
+    {
+      "provider": "rqdata",
+      "status": "NOT_CONFIGURED",
+      "datasets": [
+        "live_spot"
+      ],
+      "last_ok": null,
+      "detail": "未配置凭证 — 仅供日后授权后启用"
+    },
+    {
+      "provider": "qmt_market_data",
+      "status": "NOT_CONFIGURED",
+      "datasets": [
+        "live_spot"
+      ],
+      "last_ok": null,
+      "detail": "未配置凭证 — 仅供日后授权后启用"
+    }
+  ],
+  "coverage": [
+    {
+      "dataset": "index_bars",
+      "row_count": 1992,
+      "last_trade_date": "20260616",
+      "last_updated": null,
+      "fresh": true,
+      "blocker": null
+    },
+    {
+      "dataset": "daily_bars",
+      "row_count": 657550,
+      "last_trade_date": "2026-06-16",
+      "last_updated": null,
+      "fresh": true,
+      "blocker": null
+    },
+    {
+      "dataset": "disclosures",
+      "row_count": 60,
+      "last_trade_date": null,
+      "last_updated": null,
+      "fresh": true,
+      "blocker": null
+    },
+    {
+      "dataset": "features",
+      "row_count": 200,
+      "last_trade_date": null,
+      "last_updated": null,
+      "fresh": true,
+      "blocker": null
+    }
+  ],
+  "boundary": "API/portal call MarketDataService only; no private provider imports"
+}

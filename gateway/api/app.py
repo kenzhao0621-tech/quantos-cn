@@ -133,24 +133,14 @@ def market_status(principal: Optional[Principal] = Depends(get_principal)) -> Di
     }, request_id=str(uuid.uuid4()))
 
 
-@app.get("/api/v1/market/providers")
-def market_providers(principal: Optional[Principal] = Depends(get_principal)) -> Dict[str, Any]:
-    _require(principal, "market:read")
-    return envelope_ok({
-        "providers": ["akshare_sina", "baostock", "tushare", "rqdata", "qmt"],
-        "primary_market": "CN_A_SHARE",
-    })
-
-
 @app.get("/api/v1/market/snapshot")
 def market_snapshot(principal: Optional[Principal] = Depends(get_principal)) -> Dict[str, Any]:
     _require(principal, "market:read")
-    try:
-        from quant.market_data_fabric import fetch_spot_snapshot
-        snap = fetch_spot_snapshot()
-        return envelope_ok(snap if isinstance(snap, dict) else {"raw": str(snap)})
-    except Exception as exc:
-        return envelope_ok({"status": "demo_fixture", "freshness": "END_OF_DAY", "error": str(exc)[:200]})
+    from quant.application.market_data_service import get_market_data_service
+    from quant.domain.market_models import DataMode
+
+    overview = get_market_data_service().get_market_overview(mode=DataMode.END_OF_DAY)
+    return envelope_ok(overview.to_dict(), provenance=overview.provenance)
 
 
 @app.get("/api/v1/market/indices")
@@ -368,6 +358,10 @@ app.include_router(quantos_router)
 from gateway.api import operations as ops_module
 ops_module.configure(state=_state, kill=_kill, risk=_risk, paper=_paper, shadow=_shadow, audit=_audit)
 app.include_router(ops_module.router)
+
+# V6 Backend-for-Frontend market + jobs routes (typed MarketDataService boundary)
+from gateway.api.bff_market import router as bff_market_router
+app.include_router(bff_market_router)
 
 # Portal static files
 PORTAL_DIR = ROOT / "apps" / "portal-web"

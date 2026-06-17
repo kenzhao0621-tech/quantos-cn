@@ -99,28 +99,42 @@
     ];
   }
 
-  function fromMarket(snap, indices, providers) {
-    const blocked = snap?.data?.status === "demo_fixture" || snap?.data?.error;
-    const idxRows = [];
-    const idxData = indices?.data?.indices || indices?.data || [];
-    (Array.isArray(idxData) ? idxData : []).slice(0, 12).forEach((row) => {
-      idxRows.push([
-        row.name || row.symbol || row.code || "—",
-        row.close ?? row.last ?? "—",
-        row.change_pct ?? row.pct_chg ?? "—",
-        row.updated_at || row.date || "—",
-      ]);
-    });
+  function fromMarket(overview, providers, coverage) {
+    const o = overview?.data || {};
+    const blocked = !!o.blocked;
+    const breadth = o.breadth || {};
+    const idxRows = (o.indices || []).slice(0, 12).map((row) => [
+      row.name || row.symbol || "—",
+      row.close ?? "—",
+      row.change_pct ?? "—",
+      row.trade_date || "—",
+    ]);
+    const provRows = (providers?.data?.providers || []).map((p) => [
+      p.provider || "—",
+      p.status || "—",
+      (p.datasets || []).join(", ") || "—",
+      p.detail || p.last_ok || "—",
+    ]);
+    const covRows = (coverage?.data?.coverage || []).map((c) => [
+      c.dataset || "—",
+      c.row_count ?? 0,
+      c.last_trade_date || "—",
+      c.fresh ? "新鲜" : (c.blocker || "—"),
+    ]);
+    const summary = blocked
+      ? o.blocker_reason || "数据不可用"
+      : `截至 ${o.as_of_date || "—"} · ${o.freshness || "—"} · 上涨 ${breadth.advancers ?? 0} / 下跌 ${breadth.decliners ?? 0} / 涨停 ${breadth.limit_up ?? 0}`;
     return {
       blocked,
-      blockedReason: blocked ? snap?.data?.error || "数据源不可用或为演示夹具" : "",
+      blockedReason: blocked ? (o.blocker_reason || "数据源不可用") : "",
+      blockerDataset: o.blocker_dataset || "",
+      asOf: o.as_of_date || "—",
+      freshness: o.freshness || "—",
+      breadth,
       indices: idxRows,
-      providers: (providers?.data?.providers || providers?.data || []).map((p) => [
-        p.name || p.id || "—",
-        p.status || p.health || "—",
-        p.last_ok || p.updated_at || "—",
-      ]),
-      snapshotSummary: snap?.data?.summary || snap?.data?.status || "—",
+      providers: provRows,
+      coverage: covRows,
+      snapshotSummary: summary,
     };
   }
 

@@ -215,3 +215,33 @@ class MarketDataFabric:
 
 def build_registry_v2() -> dict[str, Any]:
     return _build_registry_v2()
+
+
+def fetch_spot_snapshot(*, mode: str = "END_OF_DAY", run_id: str | None = None) -> dict[str, Any]:
+    """Deprecated compatibility adapter.
+
+    Historically callers imported ``fetch_spot_snapshot`` from this module, but it
+    was never defined here — that broken import contract is what produced the
+    ``cannot import name 'fetch_spot_snapshot'`` failure on the market page.
+
+    This adapter delegates to the canonical :class:`MarketDataService` instead of
+    reimplementing any business logic. It is retained only for backward
+    compatibility and will be removed once all callers use the service directly.
+    """
+    import warnings
+
+    warnings.warn(
+        "quant.market_data_fabric.fetch_spot_snapshot is deprecated; "
+        "use quant.application.market_data_service.get_market_data_service().get_market_overview()",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    from quant.application.market_data_service import get_market_data_service
+    from quant.domain.market_models import DataMode
+
+    try:
+        data_mode = DataMode(mode)
+    except ValueError:
+        data_mode = DataMode.END_OF_DAY
+    overview = get_market_data_service().get_market_overview(mode=data_mode, run_id=run_id)
+    return overview.to_dict()

@@ -1,0 +1,85 @@
+{
+  "generated_at": "2026-06-17T01:37:08.787022+00:00",
+  "overall_passed": true,
+  "checks": [
+    {
+      "name": "Slice1: login succeeds (app visible)",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Slice1: footer shows backend+frontend build",
+      "passed": true,
+      "detail": "Backend 11137e9 · Frontend 11137e9-index.html:17816 · PID 47676"
+    },
+    {
+      "name": "Slice1: NO build mismatch warning",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "Slice2: market NOT blocked (no BLOCKED_BY_DATA)",
+      "passed": true,
+      "detail": "市场概览：截至 20260616 · END_OF_DAY · 上涨 2730 / 下跌 2677 / 涨停 188"
+    },
+    {
+      "name": "Slice2: indices table has real rows",
+      "passed": true,
+      "detail": "rows=6"
+    },
+    {
+      "name": "Slice2: provider health rows present",
+      "passed": true,
+      "detail": "rows=6"
+    },
+    {
+      "name": "Slice2: data coverage rows present",
+      "passed": true,
+      "detail": "rows=4"
+    },
+    {
+      "name": "Slice2: zero raw JSON in primary views",
+      "passed": true,
+      "detail": "raw_blocks=0"
+    },
+    {
+      "name": "Slice3: async job reached terminal state",
+      "passed": true,
+      "detail": "state=SUCCEEDED"
+    },
+    {
+      "name": "Slice3: job progress bar populated",
+      "passed": true,
+      "detail": "100%"
+    },
+    {
+      "name": "Slice3: job emitted step events",
+      "passed": true,
+      "detail": "events=4"
+    },
+    {
+      "name": "Slice4: paper start changes mode RESEARCH->PAPER",
+      "passed": true,
+      "detail": "模式: 仅研究 -> 模式: 模拟交易"
+    },
+    {
+      "name": "Global: no JS console errors",
+      "passed": true,
+      "detail": "errors=[]"
+    },
+    {
+      "name": "Global: no API 404s",
+      "passed": true,
+      "detail": "404s=[]"
+    }
+  ],
+  "js_errors": [],
+  "api_404": [],
+  "har": "/Users/kenzhao/Projects/netlify-demo/docs/ai/v6/har/portal_v6_20260617T013656.har",
+  "screenshots": [
+    "/Users/kenzhao/Projects/netlify-demo/docs/ai/v6/screenshots/01_overview.png",
+    "/Users/kenzhao/Projects/netlify-demo/docs/ai/v6/screenshots/02_market.png",
+    "/Users/kenzhao/Projects/netlify-demo/docs/ai/v6/screenshots/03_job.png",
+    "/Users/kenzhao/Projects/netlify-demo/docs/ai/v6/screenshots/04_paper.png"
+  ]
+}

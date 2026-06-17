@@ -1,0 +1,31 @@
+{
+  "generated_at": "2026-06-17T01:38:11.434967+00:00",
+  "passed": true,
+  "endpoints": [
+    "POST /api/v1/jobs",
+    "GET /api/v1/jobs/{id}",
+    "GET /api/v1/jobs/{id}/events",
+    "POST /api/v1/jobs/{id}/cancel",
+    "POST /api/v1/jobs/{id}/retry"
+  ],
+  "states": [
+    "QUEUED",
+    "RUNNING",
+    "SUCCEEDED",
+    "FAILED",
+    "CANCELLED"
+  ],
+  "handlers": [
+    "market_refresh",
+    "daily_report",
+    "backtest"
+  ],
+  "ui_feedback": [
+    "queue state",
+    "percent",
+    "current step",
+    "step events",
+    "error reason",
+    "artifacts"
+  ]
+}

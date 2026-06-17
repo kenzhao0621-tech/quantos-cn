@@ -151,6 +151,42 @@
     container.appendChild(row);
   }
 
+  function renderJob(container, job) {
+    if (!container) return;
+    container.innerHTML = "";
+    if (!job) {
+      container.appendChild(renderEmpty("暂无任务", "尚未提交异步任务", "点击「更新数据」提交任务"));
+      return;
+    }
+    const toneMap = { SUCCEEDED: "ok", FAILED: "danger", CANCELLED: "warn", RUNNING: "info", QUEUED: "default" };
+    const wrap = el("div", "job-panel");
+    const head = el("div", "job-head");
+    head.appendChild(renderBadge(job.status, toneMap[job.status] || "default"));
+    head.appendChild(el("span", "job-id", `任务 ${job.job_id}`));
+    head.appendChild(el("span", "job-step", `步骤：${job.current_step || "—"}`));
+    wrap.appendChild(head);
+    const bar = el("div", "job-progress");
+    const fill = el("div", "job-progress-fill");
+    fill.style.width = `${job.percent || 0}%`;
+    fill.textContent = `${job.percent || 0}%`;
+    bar.appendChild(fill);
+    wrap.appendChild(bar);
+    if (job.error) wrap.appendChild(el("div", "job-error", `失败原因：${job.error}`));
+    if (job.artifacts?.length) {
+      const ul = el("ul", "job-artifacts");
+      job.artifacts.forEach((a) => ul.appendChild(el("li", "", a)));
+      wrap.appendChild(ul);
+    }
+    if (job.events?.length) {
+      const log = el("div", "job-events");
+      job.events.slice(-6).forEach((e) =>
+        log.appendChild(el("div", "job-event", `[${e.percent}%] ${e.step} — ${e.message}`))
+      );
+      wrap.appendChild(log);
+    }
+    container.appendChild(wrap);
+  }
+
   function setLoading(btn, loading, msg) {
     if (!btn) return;
     if (loading) {
@@ -189,6 +225,7 @@
     renderReportSummary,
     renderAgentPanel,
     renderActionLog,
+    renderJob,
     setLoading,
     countPrimaryRawJson,
   };

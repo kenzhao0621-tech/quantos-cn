@@ -69,6 +69,7 @@
     }, btn),
     "candidate-gate": (btn) => act("候选门", "/api/v1/research/candidate", { method: "POST" }, btn),
     "market-refresh": () => refreshMarket(),
+    "market-update-job": (btn) => runMarketUpdateJob(btn),
     "paper-refresh": () => refreshPaper(),
     "open-pdf": async () => {
       const st = await api.request("/api/v1/system/status");
@@ -139,20 +140,47 @@
   }
 
   async function refreshMarket() {
-    const [snap, idx, providers] = await Promise.all([
-      api.request("/api/v1/market/snapshot"),
-      api.request("/api/v1/market/indices"),
+    const [overview, providers, coverage] = await Promise.all([
+      api.request("/api/v1/market/overview"),
       api.request("/api/v1/market/providers"),
+      api.request("/api/v1/market/coverage"),
     ]);
-    const m = VM.fromMarket(snap, idx, providers);
+    const m = VM.fromMarket(overview, providers, coverage);
     const banner = $("market-summary");
     if (banner) {
       banner.innerHTML = m.blocked
-        ? `<div class="banner banner-warn">BLOCKED_BY_DATA — ${m.blockedReason}</div>`
-        : `<div class="banner banner-ok">市场快照：${m.snapshotSummary}</div>`;
+        ? `<div class="banner banner-warn">数据被阻断（${m.blockerDataset || "数据集"}）— ${m.blockedReason}</div>`
+        : `<div class="banner banner-ok">市场概览：${m.snapshotSummary}</div>`;
     }
-    UI.renderTable($("market-indices"), ["指数", "收盘", "涨跌幅%", "更新时间"], m.indices, "指数数据为空 — 请运行「更新数据」");
-    UI.renderTable($("market-providers"), ["Provider", "状态", "更新时间"], m.providers, "Provider 信息不可用");
+    UI.renderTable($("market-indices"), ["指数", "收盘", "涨跌幅%", "交易日"], m.indices, "指数数据为空 — 请运行「更新数据」");
+    UI.renderTable($("market-providers"), ["数据源", "状态", "数据集", "说明"], m.providers, "Provider 信息不可用");
+    if ($("market-coverage")) {
+      UI.renderTable($("market-coverage"), ["数据集", "行数", "最新交易日", "状态"], m.coverage, "暂无覆盖信息");
+    }
+  }
+
+  async function runMarketUpdateJob(btn) {
+    UI.setLoading(btn, true, "提交任务…");
+    try {
+      const res = await api.request("/api/v1/market/refresh", {
+        method: "POST",
+        body: JSON.stringify({ datasets: ["indices", "bars"], mode: "END_OF_DAY" }),
+      });
+      const jobId = res?.data?.job_id;
+      logAction("更新数据（任务）", res);
+      if (!jobId) return res;
+      for (let i = 0; i < 60; i += 1) {
+        const jr = await api.request(`/api/v1/jobs/${jobId}`);
+        const job = jr?.data;
+        UI.renderJob($("market-job"), job);
+        if (!job || ["SUCCEEDED", "FAILED", "CANCELLED"].includes(job.status)) break;
+        await new Promise((r) => setTimeout(r, 1000));
+      }
+      await refreshMarket();
+      return res;
+    } finally {
+      UI.setLoading(btn, false);
+    }
   }
 
   async function refreshPaper() {
