@@ -12,7 +12,9 @@ GATEWAY_HOST := 127.0.0.1
         paper-start paper-stop shadow-start shadow-stop status halt \
         gateway-test gateway-acceptance quantos-test quantos-acceptance \
         vnpy-doctor qlib-doctor research-baseline reconcile native-status \
-        vnpy-native-install-dry-run qlib-native-install-dry-run
+        vnpy-native-install-dry-run qlib-native-install-dry-run \
+        vnpy-native-start vnpy-native-stop qlib-native-baseline \
+        research-agents data-update risk-reset native-acceptance final-test
 
 bootstrap:
 	python3 -m venv .venv-china-quant || true
@@ -137,5 +139,33 @@ vnpy-native-install-dry-run:
 	$(PYTHON) -c "print({'dry_run': True, 'package': 'vnpy', 'executed': False})"
 
 qlib-native-install-dry-run:
-	@echo "Would run: pip install pyqlib (not executed — shim mode default)"
-	$(PYTHON) -c "print({'dry_run': True, 'package': 'pyqlib', 'executed': False})"
+	@echo "Would run: scripts/setup-native-venvs.sh (qlib only)"
+	$(PYTHON) -c "print({'dry_run': True, 'script': 'setup-native-venvs.sh'})"
+
+setup-native-venvs:
+	bash "$(ROOT)/scripts/setup-native-venvs.sh"
+
+vnpy-native-start:
+	$(PYTHON) -c "from gateway.native.bridge import run_native_script; import json; print(json.dumps(run_native_script('vnpy','vnpy_acceptance.py'), indent=2))"
+
+vnpy-native-stop:
+	$(PYTHON) -c "from services.vnpy_runtime.main import get_runtime; import json; print(json.dumps(get_runtime().stop(), indent=2))"
+
+qlib-native-baseline:
+	$(PYTHON) -c "from gateway.native.bridge import run_native_script; import json; print(json.dumps(run_native_script('qlib','qlib_acceptance.py', timeout=600), indent=2))"
+
+research-agents:
+	$(PYTHON) -c "from gateway.agents.cn_research.workflow import run_agent_research; import json; print(json.dumps(run_agent_research(as_of='2026-06-16').to_dict(), indent=2, ensure_ascii=False))"
+
+data-update:
+	$(PYTHON) -c "import subprocess,sys; r=subprocess.run([sys.executable,'-m','quant','update-indices']); sys.exit(r.returncode)"
+
+risk-reset:
+	$(PYTHON) -c "from gateway.risk.kill_switch import KillSwitch; ks=KillSwitch(); print(ks.manual_reset('make').to_dict())"
+
+native-acceptance: setup-native-venvs
+	$(ROOT)/.venv-vnpy-native/bin/python scripts/native/vnpy_acceptance.py
+	$(ROOT)/.venv-qlib-native/bin/python scripts/native/qlib_acceptance.py
+
+final-test:
+	$(PYTHON) scripts/run-final-acceptance.py

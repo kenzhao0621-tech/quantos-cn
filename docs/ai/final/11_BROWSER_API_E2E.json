@@ -1,0 +1,56 @@
+{
+  "api": "see app reports",
+  "browser": {
+    "generated_at": "2026-06-17T01:01:19.122236Z",
+    "cases": [
+      {
+        "case": "login",
+        "passed": true,
+        "screenshot": "/Users/kenzhao/Projects/netlify-demo/docs/ai/app/screenshots/01_login.png"
+      },
+      {
+        "case": "overview",
+        "passed": true,
+        "screenshot": "/Users/kenzhao/Projects/netlify-demo/docs/ai/app/screenshots/02_overview.png"
+      },
+      {
+        "case": "doctor",
+        "passed": true,
+        "screenshot": "/Users/kenzhao/Projects/netlify-demo/docs/ai/app/screenshots/03_doctor.png"
+      },
+      {
+        "case": "backtest",
+        "passed": true,
+        "screenshot": "/Users/kenzhao/Projects/netlify-demo/docs/ai/app/screenshots/04_backtest.png"
+      },
+      {
+        "case": "paper_start_stop",
+        "passed": true,
+        "screenshot": "/Users/kenzhao/Projects/netlify-demo/docs/ai/app/screenshots/05_paper.png"
+      },
+      {
+        "case": "shadow_start_stop",
+        "passed": true,
+        "screenshot": "/Users/kenzhao/Projects/netlify-demo/docs/ai/app/screenshots/06_shadow.png"
+      },
+      {
+        "case": "risk_halt_reset",
+        "passed": true,
+        "screenshot": "/Users/kenzhao/Projects/netlify-demo/docs/ai/app/screenshots/07_risk.png"
+      },
+      {
+        "case": "vnpy_start",
+        "passed": true,
+        "screenshot": "/Users/kenzhao/Projects/netlify-demo/docs/ai/app/screenshots/08_vnpy.png"
+      },
+      {
+        "case": "no_js_errors",
+        "passed": true,
+        "errors": []
+      }
+    ],
+    "js_errors": [],
+    "screenshot_dir": "/Users/kenzhao/Projects/netlify-demo/docs/ai/app/screenshots",
+    "overall_passed": true
+  }
+}

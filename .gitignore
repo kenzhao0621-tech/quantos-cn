@@ -13,6 +13,8 @@ node_modules/
 **/.venv/
 .venv-markitdown/
 .venv-china-quant/
+.venv-vnpy-native/
+.venv-qlib-native/
 docs/test-output/
 !docs/test-output/.gitkeep
 test-results/

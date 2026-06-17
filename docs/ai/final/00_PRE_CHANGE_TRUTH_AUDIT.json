@@ -1,0 +1,56 @@
+{
+  "generated_at": "2026-06-17T01:00:42.380898+00:00",
+  "pre_change_commit": "ef9c822",
+  "current_commit": "ef9c82240b109ead9ecb9536bf130943036ee63e",
+  "branch": "chore/cursor-operating-system",
+  "git_status_short": [
+    "M Makefile",
+    " M apps/portal-web/app.js",
+    " M apps/portal-web/index.html",
+    " M apps/portal-web/quantos.js",
+    " M apps/portal-web/styles.css",
+    " M docs/ai/app/04_API_FUNCTIONAL_ACCEPTANCE.json",
+    " M docs/ai/app/07_BROWSER_E2E_REPORT.json",
+    " M docs/ai/app/screenshots/01_login.png",
+    " M docs/ai/app/screenshots/02_overview.png",
+    " M docs/ai/app/screenshots/03_doctor.png",
+    " M docs/ai/app/screenshots/04_backtest.png",
+    " M docs/ai/app/screenshots/05_paper.png",
+    " M docs/ai/app/screenshots/06_shadow.png",
+    " M docs/ai/app/screenshots/07_risk.png",
+    " M docs/ai/app/screenshots/08_vnpy.png",
+    " M docs/ai/daily-trading/14_FINAL_MASTER_CAPABILITY_REPORT.json",
+    " M docs/ai/daily-trading/14_FINAL_MASTER_CAPABILITY_REPORT.md",
+    " M docs/ai/daily-trading/2026-06-12_BACKTEST_SUMMARY.md",
+    " M docs/ai/daily-trading/2026-06-12_DATA_FRESHNESS.md",
+    " M docs/ai/daily-trading/2026-06-12_INSTITUTIONAL_FLOW.md",
+    " M docs/ai/daily-trading/2026-06-12_POLICY_MACRO.md",
+    " M docs/ai/daily-trading/2026-06-12_PREMARKET.md",
+    " M docs/ai/daily-trading/2026-06-16_BACKTEST_SUMMARY.md",
+    " M docs/ai/daily-trading/2026-06-16_DATA_FRESHNESS.md",
+    " M docs/ai/daily-trading/2026-06-16_INSTITUTIONAL_FLOW.md",
+    " M docs/ai/daily-trading/2026-06-16_POLICY_MACRO.md",
+    " M docs/ai/daily-trading/2026-06-16_PREMARKET.md",
+    " M docs/ai/daily-trading/2026-06-16_RUN_META.json",
+    " M docs/ai/daily-trading/2026-06-16_SECTOR_RANKING.md",
+    " M docs/ai/daily-trading/FINAL_CAPABILITY_REPORT.json"
+  ],
+  "port_8787": {
+    "ok": true,
+    "code": 0,
+    "tail": "COMMAND   PID    USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME\nPython  32870 kenzhao   11u  IPv4 0x979626c1198a1db6      0t0  TCP localhost:msgsrvr (LISTEN)\n"
+  },
+  "health": {
+    "status": "ok",
+    "version": "2.0.0"
+  },
+  "ready": {
+    "status": "ready",
+    "mode": "HALTED",
+    "paper_trading_only": true,
+    "real_money_execution_disabled": true
+  },
+  "openapi_paths": 59,
+  "real_money_execution_disabled": true,
+  "max_execution_state": "AUTONOMOUS_PAPER_TRADING + AUTONOMOUS_SHADOW_LIVE"
+}

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import time
@@ -18,8 +19,13 @@ BASE = "http://127.0.0.1:8787"
 
 
 def _ensure_server() -> None:
+    for _ in range(10):
+        r = subprocess.run(["curl", "-sf", f"{BASE}/health"], capture_output=True)
+        if r.returncode == 0:
+            return
+        time.sleep(0.3)
     subprocess.run(["bash", str(ROOT / "scripts/start-portal.sh")], cwd=str(ROOT), check=False)
-    for _ in range(20):
+    for _ in range(30):
         r = subprocess.run(["curl", "-sf", f"{BASE}/health"], capture_output=True)
         if r.returncode == 0:
             return
@@ -32,10 +38,11 @@ def main() -> int:
     SHOT_DIR.mkdir(parents=True, exist_ok=True)
     cases: list[dict] = []
 
-    # Reset demo state via API when possible (avoid direct risk-control file deletion)
+    # Reset demo state via API when server is up
+    _ensure_server()
     try:
         import urllib.request
-        import json as _json
+
         req = urllib.request.Request(
             f"{BASE}/api/v1/risk/reset-confirm",
             data=b"{}",
@@ -46,14 +53,16 @@ def main() -> int:
     except Exception:
         pass
 
-    _ensure_server()
-
     try:
         from playwright.sync_api import sync_playwright
     except ImportError:
         subprocess.run([str(PY), "-m", "pip", "install", "playwright", "-q"], check=False)
-        subprocess.run([str(PY), "-m", "playwright", "install", "chromium"], check=False)
         from playwright.sync_api import sync_playwright
+
+    # Ensure Chromium is available (CI / fresh venv)
+    chk = subprocess.run([str(PY), "-m", "playwright", "install", "chromium"], capture_output=True)
+    if chk.returncode != 0:
+        print(chk.stderr.decode("utf-8", errors="replace")[-500:])
 
     js_errors: list[str] = []
 
@@ -152,7 +161,8 @@ def main() -> int:
         encoding="utf-8",
     )
     print(json.dumps(report, indent=2))
-    subprocess.run(["bash", str(ROOT / "scripts/stop-portal.sh")], cwd=str(ROOT))
+    if os.environ.get("QUANTOS_E2E_STOP_SERVER", "").lower() in {"1", "true", "yes"}:
+        subprocess.run(["bash", str(ROOT / "scripts/stop-portal.sh")], cwd=str(ROOT))
     return 0 if passed else 1
 
 

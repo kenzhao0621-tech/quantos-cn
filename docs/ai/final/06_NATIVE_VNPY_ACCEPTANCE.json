@@ -1,0 +1,44 @@
+{
+  "generated_at": "2026-06-17T01:00:52.976853+00:00",
+  "mode": "NATIVE",
+  "checks": [
+    {
+      "name": "import_vnpy",
+      "passed": true,
+      "version": "4.4.0"
+    },
+    {
+      "name": "native_event_engine",
+      "passed": true,
+      "class": "vnpy.event.engine.EventEngine"
+    },
+    {
+      "name": "native_main_engine",
+      "passed": true,
+      "class": "vnpy.trader.engine.MainEngine"
+    },
+    {
+      "name": "event_start",
+      "passed": true
+    },
+    {
+      "name": "tick_event",
+      "passed": true,
+      "received": [
+        "600000.SSE"
+      ]
+    },
+    {
+      "name": "paper_order_event",
+      "passed": true,
+      "note": "paper order event via native EventEngine — no live broker"
+    },
+    {
+      "name": "event_stop",
+      "passed": true
+    }
+  ],
+  "overall_passed": true,
+  "shim_used": false,
+  "trader_dir": "/Users/kenzhao/Projects/netlify-demo/data/vnpy_native/.vntrader"
+}

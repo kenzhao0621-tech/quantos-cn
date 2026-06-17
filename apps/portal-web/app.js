@@ -73,6 +73,18 @@
       const r = await api.request("/api/v1/research/reports");
       logAction("报告列表", r);
     },
+    "agents-run": () => act("多智能体研究", "/api/v1/research/agents/run", {
+      method: "POST",
+      body: JSON.stringify({ as_of: "2026-06-16" }),
+    }),
+    "native-vnpy-accept": () => act("vn.py 原生验收", "/api/v1/native/vnpy/acceptance", { method: "POST" }),
+    "native-qlib-accept": () => act("Qlib 原生验收", "/api/v1/native/qlib/acceptance", { method: "POST" }),
+    "data-coverage": () => act("数据覆盖检查", "/api/v1/market/indices"),
+    reconcile: () => act("对账", "/api/v1/quantos/reconcile", { method: "POST" }),
+    "broker-readonly": () => act("只读连接向导", "/api/v1/brokers/readonly-connect", {
+      method: "POST",
+      body: JSON.stringify({ broker: "ReadOnlyGateway", config: { readonly: true } }),
+    }),
   };
 
   document.querySelectorAll("[data-action]").forEach((btn) => {
@@ -147,9 +159,10 @@
   async function refreshNative() {
     const nat = await api.request("/api/v1/native/status");
     if (nat.ok) {
-      const vn = nat.data.vnpy.mode;
-      const ql = nat.data.qlib.mode;
+      const vn = nat.data.vnpy?.mode || "SHIM";
+      const ql = nat.data.qlib?.mode || "SHIM";
       setPill("native-pill", `vn.py:${vn} Qlib:${ql}`);
+      if ($("native-body")) $("native-body").textContent = JSON.stringify(nat.data, null, 2);
       $("vnpy-mode-tag").textContent = vn;
       $("qlib-mode-tag").textContent = ql;
     }
@@ -170,6 +183,19 @@
       refreshPaper();
       if (shadow.ok) {
         $("shadow-status").textContent = JSON.stringify(shadow.data, null, 2);
+      }
+      const nat = await api.request("/api/v1/native/status");
+      if (nat.ok) {
+        $("native-body").textContent = JSON.stringify(nat.data, null, 2);
+        const vnMode = nat.data.vnpy?.mode || "SHIM";
+        const qlMode = nat.data.qlib?.mode || "SHIM";
+        setPill("native-pill", `vn.py:${vnMode} Qlib:${qlMode}`);
+        $("vnpy-mode-tag").textContent = vnMode;
+        $("qlib-mode-tag").textContent = qlMode;
+      }
+      const agents = await api.request("/api/v1/brokers/wizard");
+      if (agents.ok) {
+        $("gateway-list").textContent = JSON.stringify(agents.data, null, 2);
       }
       const list = $("report-list");
       list.innerHTML = "";

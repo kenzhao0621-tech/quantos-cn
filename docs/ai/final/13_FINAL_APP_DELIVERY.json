@@ -1,0 +1,40 @@
+{
+  "generated_at": "2026-06-17T01:00:42.380898+00:00",
+  "pre_change": "ef9c822",
+  "post_change": "ef9c82240b109ead9ecb9536bf130943036ee63e",
+  "results": [
+    {
+      "case": "oss_reports",
+      "ok": true,
+      "code": 0,
+      "tail": "OSS reports ok\n"
+    },
+    {
+      "case": "encoding_roundtrip",
+      "passed": true
+    },
+    {
+      "case": "api_e2e",
+      "passed": true
+    },
+    {
+      "case": "native_vnpy",
+      "passed": true
+    },
+    {
+      "case": "native_qlib",
+      "passed": true
+    },
+    {
+      "case": "agent_research",
+      "passed": true
+    },
+    {
+      "case": "browser_e2e",
+      "passed": true
+    }
+  ],
+  "overall_passed": true,
+  "real_money_disabled": true,
+  "max_state": "AUTONOMOUS_PAPER_TRADING + AUTONOMOUS_SHADOW_LIVE"
+}

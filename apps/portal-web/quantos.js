@@ -55,6 +55,13 @@
       method: "POST",
       body: JSON.stringify({ as_of: "2026-06-16" }),
     }));
+  document.getElementById("btn-vnpy-start-native")?.addEventListener("click", () =>
+    qact("vnpy start", "/api/v1/quantos/vnpy/start", { method: "POST" }));
+  document.getElementById("btn-qlib-baseline-native")?.addEventListener("click", () =>
+    qact("qlib baseline", "/api/v1/quantos/qlib/baseline", {
+      method: "POST",
+      body: JSON.stringify({ as_of: "2026-06-16" }),
+    }));
 
   if (api.apiKey) {
     refreshQuantOS();

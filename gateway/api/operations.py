@@ -340,19 +340,91 @@ def get_research_run_report(run_id: str, principal: Optional[Principal] = Depend
 @router.get("/api/v1/native/status")
 def native_status(principal: Optional[Principal] = Depends(get_principal_ops)) -> Dict[str, Any]:
     _require(principal, "market:read")
+    from gateway.native.bridge import native_qlib_status, native_vnpy_status
     from services.vnpy_runtime.main import get_runtime
     from integrations.qlib.provider import CNMarketProvider
-    vn = get_runtime().doctor()
-    ql = CNMarketProvider().health()
+    vn_iso = native_vnpy_status()
+    ql_iso = native_qlib_status()
+    vn_main = get_runtime().doctor()
+    ql_main = CNMarketProvider().health()
     return envelope_ok({
         "vnpy": {
-            "mode": "NATIVE" if vn.get("native_available") else "SHIM",
-            "detail": vn,
+            "isolated_venv": vn_iso,
+            "main_runtime": vn_main,
+            "mode": vn_iso.get("mode", "SHIM"),
+            "state": vn_iso.get("state", "NOT_INSTALLED"),
         },
         "qlib": {
-            "mode": "NATIVE" if ql.get("native_qlib") else "SHIM",
-            "detail": ql,
+            "isolated_venv": ql_iso,
+            "main_provider": ql_main,
+            "mode": ql_iso.get("mode", "SHIM"),
+            "state": ql_iso.get("state", "NOT_INSTALLED"),
         },
+        "real_execution_mode": "MANUAL_CONFIRM_ONLY",
+    })
+
+
+@router.post("/api/v1/native/vnpy/acceptance")
+def native_vnpy_acceptance(principal: Optional[Principal] = Depends(get_principal_ops)) -> Dict[str, Any]:
+    p = _require(principal, "research:run")
+    from gateway.native.bridge import run_native_script
+    result = run_native_script("vnpy", "vnpy_acceptance.py")
+    _audit.emit("native_vnpy_acceptance", p.user_id, result)
+    report_path = str(ROOT / "docs" / "ai" / "final" / "06_NATIVE_VNPY_ACCEPTANCE.json")
+    return envelope_ok({**result, "artifact_path": report_path})
+
+
+@router.post("/api/v1/native/qlib/acceptance")
+def native_qlib_acceptance(principal: Optional[Principal] = Depends(get_principal_ops)) -> Dict[str, Any]:
+    p = _require(principal, "research:run")
+    from gateway.native.bridge import run_native_script
+    result = run_native_script("qlib", "qlib_acceptance.py", timeout=600)
+    _audit.emit("native_qlib_acceptance", p.user_id, result)
+    report_path = str(ROOT / "docs" / "ai" / "final" / "07_NATIVE_QLIB_ACCEPTANCE.json")
+    return envelope_ok({**result, "artifact_path": report_path})
+
+
+@router.post("/api/v1/research/agents/run")
+def research_agents_run(body: dict, principal: Optional[Principal] = Depends(get_principal_ops)) -> Dict[str, Any]:
+    p = _require(principal, "research:run")
+    from gateway.agents.cn_research.workflow import run_agent_research
+    as_of = body.get("as_of", "2026-06-16")
+    result = run_agent_research(as_of=as_of, run_id=body.get("run_id", ""))
+    _audit.emit("agent_research_run", p.user_id, {"run_id": result.run_id})
+    artifact = str(ROOT / "data" / "gateway" / "agent_runs" / f"{result.run_id}.json")
+    return envelope_ok(result.to_dict(), run_id=result.run_id, artifact_path=artifact)
+
+
+@router.get("/api/v1/brokers/wizard")
+def brokers_wizard(principal: Optional[Principal] = Depends(get_principal_ops)) -> Dict[str, Any]:
+    _require(principal, "market:read")
+    from gateway.brokers.wizard import broker_wizard_state
+    return envelope_ok(broker_wizard_state())
+
+
+@router.post("/api/v1/brokers/readonly-connect")
+def brokers_readonly_connect(body: dict, principal: Optional[Principal] = Depends(get_principal_ops)) -> Dict[str, Any]:
+    p = _require(principal, "portal:admin")
+    from gateway.brokers.wizard import readonly_connect_wizard
+    result = readonly_connect_wizard(body.get("broker", ""), body.get("config", {}))
+    _audit.emit("broker_readonly_wizard", p.user_id, result)
+    return envelope_ok(result)
+
+
+@router.get("/api/v1/version")
+def app_version() -> Dict[str, Any]:
+    import gateway
+    import subprocess
+    commit = "unknown"
+    try:
+        commit = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=str(ROOT), text=True).strip()[:12]
+    except Exception:
+        pass
+    return envelope_ok({
+        "gateway_version": gateway.__version__,
+        "commit": commit,
+        "product": "QuantOS CN",
+        "real_money_disabled": True,
     })
 
 

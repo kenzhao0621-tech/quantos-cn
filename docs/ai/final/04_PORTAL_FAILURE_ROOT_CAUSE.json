@@ -1,0 +1,9 @@
+{
+  "generated_at": "2026-06-17T01:00:42.380898+00:00",
+  "root_causes_fixed": [
+    "FRONTEND_EVENT_NOT_BOUND — native page buttons wired in quantos.js",
+    "STALE_STATIC_ASSET — portal uses /portal/assets/* with action-registry.js",
+    "API_ROUTE_MISSING — broker readonly-connect exposed"
+  ],
+  "browser_e2e": true
+}

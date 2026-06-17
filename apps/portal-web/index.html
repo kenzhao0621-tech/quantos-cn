@@ -45,6 +45,8 @@
     <button class="tab" data-page="market">市场中心</button>
     <button class="tab" data-page="reports">量化日报</button>
     <button class="tab" data-page="models">模型实验室</button>
+    <button class="tab" data-page="agents">多智能体研究室</button>
+    <button class="tab" data-page="native">原生引擎</button>
     <button class="tab" data-page="paper">模拟交易</button>
     <button class="tab" data-page="shadow">影子实盘</button>
     <button class="tab" data-page="risk">风险中心</button>
@@ -123,6 +125,28 @@
     </section>
   </main>
 
+  <main class="layout hidden" id="page-agents">
+    <section class="panel full">
+      <h2>多智能体研究室</h2>
+      <p class="warn">研究/建议用途 · 不可直接下单 · Bull/Bear 双通道保留</p>
+      <div id="agents-body" class="mono block">—</div>
+      <button data-action="agents-run" type="button">运行多智能体研究</button>
+    </section>
+  </main>
+
+  <main class="layout hidden" id="page-native">
+    <section class="panel full">
+      <h2>原生引擎 · vn.py / Qlib</h2>
+      <div id="native-body" class="mono block">—</div>
+      <div class="actions wrap">
+        <button data-action="native-vnpy-accept" type="button">vn.py 原生验收</button>
+        <button data-action="native-qlib-accept" type="button">Qlib 原生验收</button>
+        <button id="btn-vnpy-start-native" type="button">启动 vn.py Runtime</button>
+        <button id="btn-qlib-baseline-native" type="button">运行 Qlib 基线</button>
+      </div>
+    </section>
+  </main>
+
   <main class="layout hidden" id="page-paper">
     <section class="panel full">
       <h2>模拟交易 · Paper</h2>
@@ -167,6 +191,9 @@
     <section class="panel full">
       <h2>券商 Gateway 注册表</h2>
       <div id="gateway-list" class="mono block">—</div>
+      <div class="actions wrap">
+        <button data-action="broker-readonly" type="button">只读连接向导</button>
+      </div>
       <p class="warn">真实执行模式: MANUAL_CONFIRM_ONLY · Real Execution: DISABLED</p>
     </section>
   </main>
@@ -175,6 +202,7 @@
     <span>PAPER_TRADING_ONLY · 真实资金交易已禁用 · QuantOS CN V4</span>
   </footer>
   <script src="/portal/assets/api-client.js"></script>
+  <script src="/portal/assets/action-registry.js"></script>
   <script src="/portal/assets/app.js"></script>
   <script src="/portal/assets/quantos.js"></script>
 </body>

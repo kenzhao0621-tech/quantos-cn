@@ -1,0 +1,52 @@
+{
+  "real_execution_mode": "MANUAL_CONFIRM_ONLY",
+  "real_money_execution_disabled": true,
+  "live_execution": "LIVE_DISABLED",
+  "gateways": {
+    "PaperGateway": {
+      "status": "SIMULATION_READY",
+      "real_orders": false
+    },
+    "ShadowGateway": {
+      "status": "SIMULATION_READY",
+      "real_orders": false,
+      "zero_real_orders_sent": true
+    },
+    "ManualConfirmGateway": {
+      "status": "LIVE_REVIEW_REQUIRED",
+      "real_orders": false
+    },
+    "ReadOnlyGateway": {
+      "status": "NOT_CONFIGURED",
+      "real_orders": false
+    },
+    "XTPGateway": {
+      "status": "NOT_CONFIGURED",
+      "real_orders": false
+    },
+    "QMTGateway": {
+      "status": "NOT_CONFIGURED",
+      "real_orders": false
+    },
+    "PTradeGateway": {
+      "status": "NOT_CONFIGURED",
+      "real_orders": false
+    },
+    "TORAGateway": {
+      "status": "NOT_CONFIGURED",
+      "real_orders": false
+    }
+  },
+  "user_checklist": [
+    "确认券商支持官方 API（XTP/TORA/QMT/PTrade）",
+    "申请只读账户权限（余额/持仓/委托/成交）",
+    "安装券商客户端或 MiniQMT",
+    "配置行情权限（Level-1/Level-2）",
+    "申请仿真账户（如有）",
+    "在 config/brokers.yaml 填写 endpoint 与 account_id（勿提交密钥到 git）",
+    "运行 make broker-readonly-test 验证只读连接",
+    "经人工审核后方可进入 LIMITED_LIVE_REVIEW_REQUIRED"
+  ],
+  "note": "真实券商未连接无法通过纯代码修复 — 需用户授权与 API  entitlement",
+  "generated_at": "2026-06-17T01:00:42.380898+00:00"
+}
