@@ -8,6 +8,7 @@
   let lastScreenerVm = null;
   let cachedNative = null;
   let cachedQuantos = null;
+  let cachedBrokerEcosystem = null;
   const liveSeries = {};
 
   function $(id) {
@@ -204,36 +205,17 @@
     return res;
   }
 
-  function refreshHelpPage() {
-    const el = $("help-content");
-    if (!el) return;
-    el.innerHTML = `
-      <section class="help-block">
-        <h3>你是谁？</h3>
-        <p>本工具面向<strong>刚接触 A 股的新投资者</strong>，用简单语言解释选股逻辑，并支持<strong>模拟练习</strong>和<strong>券商辅助填单</strong>。</p>
-      </section>
-      <section class="help-block">
-        <h3>推荐流程</h3>
-        <ol>
-          <li>新手入门 → 更新数据</li>
-          <li>智能选股 → 设 5000 元资金 → 运行选股</li>
-          <li>模拟练习 → 先观察 3–5 天</li>
-          <li>券商助手 → 登录东方财富/华泰等 → 选股页点「实盘辅助」</li>
-          <li>在券商官方 App <strong>亲自点击确认</strong> 买入/卖出</li>
-        </ol>
-      </section>
-      <section class="help-block warn-block">
-        <h3>免责说明（必读）</h3>
-        <ul>
-          <li>本软件<strong>不构成投资建议</strong>，不承诺收益。</li>
-          <li><strong>不会</strong>自动真实下单、<strong>不会</strong>保存交易密码。</li>
-          <li>模型可能失效；T+1、涨跌停、停牌可能导致无法成交。</li>
-          <li>每日会记录选股并对照后续走势以改进算法，这不等于未来盈利保证。</li>
-        </ul>
-        <p>完整文档：<code>docs/USER_GUIDE.md</code></p>
-      </section>
-    `;
+  function refreshHelpPage(section) {
+    const active = section || document.querySelector(".help-nav-btn.active")?.dataset.helpSection || "start";
+    document.querySelectorAll(".help-nav-btn").forEach((b) => {
+      b.classList.toggle("active", b.dataset.helpSection === active);
+    });
+    UI.renderHelpGuide($("help-content"), active);
   }
+
+  document.querySelectorAll(".help-nav-btn").forEach((btn) => {
+    btn.addEventListener("click", () => refreshHelpPage(btn.dataset.helpSection));
+  });
 
   async function refreshSetupCenter() {
     const res = await api.request("/api/v1/system/setup-checklist");
@@ -687,8 +669,24 @@
     return $("broker-profile")?.value || "eastmoney_manual";
   }
 
+  function openBrokerLoginWindow(urlOrPath) {
+    if (!urlOrPath) return false;
+    const target = urlOrPath.startsWith("http")
+      ? urlOrPath
+      : `${api.base}${urlOrPath}`;
+    window.open(target, "_blank", "noopener,noreferrer");
+    return true;
+  }
+
+  function brokerLoginUrlFromCache(brokerId) {
+    const b = (cachedBrokerEcosystem?.brokers || []).find((x) => x.broker_id === brokerId);
+    if (!b?.urls) return "";
+    return b.urls.trade_login || b.urls.trade_login_alt || b.urls.portal || "";
+  }
+
   async function loadBrokerEcosystem() {
     const res = await api.request("/api/v1/brokers/ecosystem");
+    if (res.ok) cachedBrokerEcosystem = res.data;
     const sel = $("broker-profile");
     if (!sel || !res.ok) return;
     const cfg = await api.request("/api/v1/brokers/config");
@@ -706,22 +704,35 @@
         method: "PUT",
         body: JSON.stringify({ active_broker: sel.value, readonly: false }),
       });
+      UI.renderBrokerOfficialLinks($("broker-official-links"), sel.value, cachedBrokerEcosystem);
       await refreshBrokerPanel();
     };
+    UI.renderBrokerOfficialLinks($("broker-official-links"), active, cachedBrokerEcosystem);
   }
 
   async function brokerConnect(btn) {
     UI.setLoading(btn, true, "连接中…");
     try {
       const bid = selectedBrokerId();
+      const direct = brokerLoginUrlFromCache(bid);
+      if (direct) openBrokerLoginWindow(direct);
       const res = await api.request("/api/v1/brokers/connect-flow", {
         method: "POST",
-        body: JSON.stringify({ broker_id: bid, open_login: true, sync_watchlist: true }),
+        body: JSON.stringify({
+          broker_id: bid,
+          open_login: true,
+          assist_login: false,
+          sync_watchlist: false,
+        }),
       });
       const d = res.data || {};
-      if (d.client_url) window.open(d.client_url, "_blank", "noopener,noreferrer");
+      if (d.login_redirect_path) openBrokerLoginWindow(d.login_redirect_path);
+      else if (d.client_url && !direct) openBrokerLoginWindow(d.client_url);
       logAction("券商连接", res);
-      UI.toast(res.ok ? "券商已连接" : "连接失败", window.QuantOSFriendlyError?.(res) || d.message || "", res.ok ? "ok" : "fail");
+      const hint = res.ok
+        ? (d.message || "已在浏览器打开官方登录页")
+        : (window.QuantOSFriendlyError?.(res) || d.message || "");
+      UI.toast(res.ok ? "券商已连接" : "连接失败", hint, res.ok ? "ok" : "fail");
       await refreshBrokerPanel();
       return res;
     } finally {
@@ -733,12 +744,15 @@
     UI.setLoading(btn, true, "等待登录…");
     try {
       const bid = selectedBrokerId();
+      const direct = brokerLoginUrlFromCache(bid);
+      if (direct) openBrokerLoginWindow(direct);
       const res = await api.request("/api/v1/brokers/login-assist", {
         method: "POST",
-        body: JSON.stringify({ broker_id: bid, wait_seconds: 180, force: false }),
+        body: JSON.stringify({ broker_id: bid, wait_seconds: 120, force: false }),
       });
       const d = res.data || {};
-      if (d.url && d.mode === "manual_browser_only") window.open(d.url, "_blank");
+      if (d.url && d.mode === "manual_browser_only") openBrokerLoginWindow(d.url);
+      logAction("保存登录会话", res);
       UI.toast(
         d.logged_in_detected ? "登录成功" : "请完成浏览器登录",
         d.logged_in_detected ? "会话已保存，可预填订单" : (window.QuantOSFriendlyError?.(res) || d.message || "在弹出窗口完成登录"),
@@ -827,7 +841,7 @@
           browser_auto_submit: !!$("gate-browser-auto")?.checked,
         }),
       });
-      UI.toast(res.ok ? "门控已保存" : "保存失败", res.data?.unattended_auto_enabled ? "无人值守已启用" : "草稿/人工确认模式", res.ok ? "ok" : "fail");
+      UI.toast(res.ok ? "门控已保存" : "保存失败", res.ok ? (res.data?.unattended_auto_enabled ? "无人值守已启用" : "人工确认模式") : (window.QuantOSFriendlyError?.(res) || res.error?.message || ""), res.ok ? "ok" : "fail");
       await refreshBrokerPanel();
       return res;
     } finally {

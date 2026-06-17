@@ -78,6 +78,30 @@ class TestBrokerPermissions(unittest.TestCase):
         self.assertTrue(body["ok"])
         self.assertTrue(len(body["data"].get("paths", [])) >= 1)
 
+    def test_investor_live_gates_user_risk(self) -> None:
+        client = self._client()
+        res = client.put(
+            "/api/v1/live-trading/gates",
+            headers={"X-API-Key": INVESTOR_KEY},
+            json={"user_confirmed_risk": True, "real_money_enabled": False},
+        )
+        self.assertEqual(res.status_code, 200, res.text)
+        self.assertTrue(res.json()["ok"])
+
+    def test_login_redirect_token(self) -> None:
+        client = self._client()
+        res = client.post(
+            "/api/v1/brokers/connect-flow",
+            headers={"X-API-Key": INVESTOR_KEY},
+            json={"broker_id": "huatai_zhangle", "open_login": True, "assist_login": False},
+        )
+        self.assertEqual(res.status_code, 200, res.text)
+        token = res.json()["data"].get("login_redirect_token")
+        self.assertTrue(token)
+        r2 = client.get(f"/api/v1/brokers/login-redirect/{token}", follow_redirects=False)
+        self.assertEqual(r2.status_code, 302)
+        self.assertIn("zhangle.com", r2.headers.get("location", ""))
+
     def test_investor_paper_start(self) -> None:
         client = self._client()
         res = client.post("/api/v1/paper/start", headers={"X-API-Key": INVESTOR_KEY}, json={})

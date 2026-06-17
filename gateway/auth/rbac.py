@@ -56,6 +56,16 @@ class Principal:
         return permission in PERMISSIONS.get(self.role, set())
 
 
+# Dev portal keys (must match apps/portal-web/api-client.js when config omits service_accounts)
+_DEV_API_KEYS: dict[str, Role] = {
+    "dev-investor-key": Role.INVESTOR,
+    "dev-researcher-key": Role.RESEARCHER,
+    "dev-service-risk-key": Role.SERVICE_RISK,
+    "svc-quant-pipeline": Role.SERVICE_RESEARCH,
+    "svc-portal-read": Role.VIEWER,
+}
+
+
 def authenticate(api_key: str, demo_key: str, service_accounts: list[dict[str, str]]) -> Optional[Principal]:
     if api_key == demo_key:
         return Principal(user_id="demo-admin", role=Role.ADMIN, project_id="netlify-demo-china-ashare")
@@ -70,6 +80,12 @@ def authenticate(api_key: str, demo_key: str, service_accounts: list[dict[str, s
                 user_id=sa["id"], role=role,
                 project_id="netlify-demo-china-ashare", is_service_account=True,
             )
+    dev_role = _DEV_API_KEYS.get(api_key)
+    if dev_role:
+        return Principal(
+            user_id=api_key, role=dev_role,
+            project_id="netlify-demo-china-ashare", is_service_account=False,
+        )
     return None
 
 

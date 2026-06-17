@@ -84,8 +84,17 @@
   </main>
 
   <main class="layout hidden" id="page-help">
-    <section class="panel full">
-      <h2>使用指南与免责说明</h2>
+    <section class="panel full help-panel">
+      <div class="help-hero">
+        <h2>使用指南</h2>
+        <p class="help-focus">今天只做一件事：<strong>先模拟，再辅助实盘</strong></p>
+      </div>
+      <nav class="help-nav" aria-label="指南章节">
+        <button type="button" class="help-nav-btn active" data-help-section="start">① 三步上手</button>
+        <button type="button" class="help-nav-btn" data-help-section="broker">② 券商登录</button>
+        <button type="button" class="help-nav-btn" data-help-section="legal">③ 免责必读</button>
+        <button type="button" class="help-nav-btn" data-help-section="advanced">④ 进阶</button>
+      </nav>
       <div id="help-content" class="help-content"></div>
     </section>
   </main>
@@ -336,10 +345,12 @@
           </label>
           <button data-action="broker-connect" type="button" class="primary">连接并打开登录页</button>
         </div>
+        <div id="broker-official-links" class="broker-official-links sub-panel"></div>
+        <p class="muted broker-tip">若页面显示 403：请点下方<strong>备用官方链接</strong>，或下载券商 App 登录（自动化窗口会被部分券商拦截）。</p>
         <div class="broker-step">
           <span class="step-num">2</span>
-          <button data-action="broker-login" type="button">登录一次（浏览器）</button>
-          <span class="muted">登录成功后系统自动记住，下次可预填订单</span>
+          <button data-action="broker-login" type="button">保存登录会话（可选）</button>
+          <span class="muted">仅在需要「预填订单」时使用；用本机浏览器登录</span>
         </div>
         <div class="broker-step">
           <span class="step-num">3</span>

@@ -70,7 +70,7 @@ def launch_cn_broker(
         quantity=quantity,
         limit_price=limit_price,
     )
-    url = urls.get(target) or urls.get("trade_login") or urls.get("portal", "")
+    url = urls.get(target) or urls.get("trade_login") or urls.get("trade_login_alt") or urls.get("portal", "")
     if not url:
         return {"ok": False, "error": "NO_URL", "broker_id": broker_id}
     opened = False

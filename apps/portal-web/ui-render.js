@@ -607,6 +607,81 @@
     }
   }
 
+  function renderBrokerOfficialLinks(container, brokerId, ecosystem) {
+    if (!container) return;
+    container.innerHTML = "";
+    const b = (ecosystem?.brokers || []).find((x) => x.broker_id === brokerId);
+    if (!b) return;
+    const urls = b.urls || {};
+    const links = [
+      { label: "主登录页", url: urls.trade_login },
+      { label: "备用登录", url: urls.trade_login_alt },
+      { label: "官网首页", url: urls.portal },
+      { label: "下载 App", url: urls.software },
+    ].filter((l) => l.url);
+    if (!links.length) return;
+    container.appendChild(el("h3", "", `${b.label} · 官方入口`));
+    const row = el("div", "broker-link-row");
+    links.forEach((l) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "broker-link-btn";
+      btn.dataset.brokerUrl = l.url;
+      btn.textContent = l.label;
+      row.appendChild(btn);
+    });
+    container.appendChild(row);
+    if (b.order_hint) container.appendChild(el("p", "muted", b.order_hint));
+  }
+
+  function renderHelpGuide(container, section) {
+    if (!container) return;
+    const sections = {
+      start: {
+        title: "三步上手（新投资者）",
+        html: `
+          <ol class="help-steps">
+            <li><strong>更新数据</strong> — 新手入门 → ① 更新数据</li>
+            <li><strong>智能选股</strong> — 设 5000 元 → 运行选股 → 先看模拟结果</li>
+            <li><strong>券商辅助</strong> — 连接券商 → 选股页点「实盘」→ 在券商 App 亲自确认</li>
+          </ol>
+          <p class="help-callout">核心原则：系统只<strong>预填</strong>，不自动扣款。</p>`,
+      },
+      broker: {
+        title: "券商登录说明",
+        html: `
+          <ul class="help-list">
+            <li>点「连接并打开登录页」会在<strong>你的浏览器</strong>打开官方网址（不是软件内嵌页）。</li>
+            <li>若显示 <strong>403</strong>：换用下方<strong>备用官方链接</strong>，或下载华泰/同花顺/东方财富 App 登录。</li>
+            <li>「保存登录会话」为可选高级功能；新手可跳过，直接在 App 下单。</li>
+            <li>支持：东方财富、华泰涨乐、同花顺入口、国君君弘、招商、中信、广发等。</li>
+          </ul>`,
+      },
+      legal: {
+        title: "免责说明（必读）",
+        html: `
+          <ul class="help-list warn-list">
+            <li>不构成投资建议，不承诺收益。</li>
+            <li>不自动真实下单；不保存交易密码。</li>
+            <li>T+1、涨跌停、停牌可能导致无法成交。</li>
+            <li>模型会失效；每日学习用于改进算法，不等于盈利保证。</li>
+          </ul>
+          <p class="muted">完整版：<code>docs/USER_GUIDE.md</code></p>`,
+      },
+      advanced: {
+        title: "进阶（有经验用户）",
+        html: `
+          <ul class="help-list">
+            <li><strong>高级·总览</strong> — 系统体检、日报、影子实盘</li>
+            <li><strong>高级·数据</strong> — 全市场同步、实时行情</li>
+            <li><strong>门控</strong> — 真实资金通道默认关闭；无人值守需管理员</li>
+          </ul>`,
+      },
+    };
+    const s = sections[section] || sections.start;
+    container.innerHTML = `<section class="help-section-focus"><h3>${s.title}</h3>${s.html}</section>`;
+  }
+
   global.QuantOSUI = {
     renderCardGrid,
     renderTable,
@@ -625,6 +700,8 @@
     renderWatchlist,
     renderExecutionPaths,
     renderBeginnerGuide,
+    renderHelpGuide,
+    renderBrokerOfficialLinks,
     renderAutopilot,
     renderModelValidation,
     renderGatewayReadiness,

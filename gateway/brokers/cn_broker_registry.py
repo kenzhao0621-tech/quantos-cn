@@ -30,7 +30,8 @@ CN_BROKER_ECOSYSTEM: dict[str, dict[str, Any]] = {
         "ecosystem": ["涨乐财富通 App", "涨乐财富通 PC", "华泰网厅", "PTrade 量化"],
         "urls": {
             "portal": "https://www.htsc.com.cn/",
-            "trade_login": "https://service.htsc.com.cn/service/login.jsp",
+            "trade_login": "https://m.zhangle.com/",
+            "trade_login_alt": "https://www.htsc.com.cn/portal/main/home/index.html",
             "software": "https://www.htsc.com.cn/browser/mobile/mobileSecurities/SoftwareDownload.jsp",
             "quant_api": "https://www.htsc.com.cn/",
             "open_account": "https://www.htsc.com.cn/",
@@ -47,7 +48,8 @@ CN_BROKER_ECOSYSTEM: dict[str, dict[str, Any]] = {
         "ecosystem": ["同花顺 App", "iFinD", "接入多家券商交易"],
         "urls": {
             "portal": "https://www.10jqka.com.cn/",
-            "trade_login": "https://eq.10jqka.com.cn/",
+            "trade_login": "https://www.10jqka.com.cn/",
+            "trade_login_alt": "https://eq.10jqka.com.cn/",
             "software": "https://www.10jqka.com.cn/download/",
             "quant_api": "https://www.10jqka.com.cn/",
             "open_account": "https://www.10jqka.com.cn/",

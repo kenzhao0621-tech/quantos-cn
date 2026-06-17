@@ -157,8 +157,20 @@ button.danger { background: var(--danger); }
 .broker-wizard { display: grid; gap: 1rem; margin: 1rem 0; }
 .broker-step { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; padding: 0.75rem; border-radius: 8px; background: rgba(255,255,255,0.03); }
 .broker-step .step-num { display: inline-flex; width: 1.6rem; height: 1.6rem; align-items: center; justify-content: center; border-radius: 50%; background: var(--accent, #4a9); color: #111; font-weight: 700; }
-.help-block { margin-bottom: 1.2rem; }
-.warn-block { border-left: 3px solid #e6a23c; padding-left: 1rem; }
+.help-hero { margin-bottom: 1rem; }
+.help-focus { font-size: 1.1rem; margin: 0.5rem 0 0; }
+.help-nav { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1.25rem; }
+.help-nav-btn { padding: 0.5rem 0.85rem; border-radius: 999px; border: 1px solid var(--border, #444); background: transparent; cursor: pointer; }
+.help-nav-btn.active { background: var(--accent, #4a9); color: #111; border-color: transparent; font-weight: 600; }
+.help-section-focus h3 { margin-top: 0; }
+.help-steps { line-height: 1.8; padding-left: 1.2rem; }
+.help-callout { padding: 0.75rem 1rem; border-left: 3px solid var(--accent, #4a9); background: rgba(255,255,255,0.04); }
+.help-list { line-height: 1.75; }
+.warn-list { border-left: 3px solid #e6a23c; padding-left: 1rem; }
+.broker-official-links { margin: 0.75rem 0; }
+.broker-link-row { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0.5rem 0; }
+.broker-link-btn { padding: 0.45rem 0.8rem; border-radius: 6px; }
+.broker-tip { margin: 0.5rem 0 1rem; }
 .collapsed-log { font-size: 0.85rem; max-height: 6rem; overflow: auto; }
 .tab-advanced { opacity: 0.75; font-size: 0.9em; }
 .mini-btn { margin-left: 0.25rem; padding: 0.1rem 0.35rem; font-size: 0.75rem; cursor: pointer; border: 1px solid var(--border); border-radius: 4px; background: var(--panel); color: var(--accent); }

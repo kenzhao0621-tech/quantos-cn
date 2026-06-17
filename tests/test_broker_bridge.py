@@ -38,7 +38,7 @@ class TestCnBrokerRegistry(unittest.TestCase):
     def test_huatai_urls(self):
         from gateway.brokers.broker_launcher import build_broker_urls
         urls = build_broker_urls("huatai_zhangle", symbol="600000.SH")
-        self.assertIn("service.htsc.com.cn", urls["trade_login"])
+        self.assertIn("m.zhangle.com", urls["trade_login"])
         self.assertIn("quote", urls)
 
     @patch("gateway.brokers.broker_launcher.webbrowser.open", return_value=True)

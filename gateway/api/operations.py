@@ -143,6 +143,7 @@ class BrokerConfigBody(BaseModel):
 class ConnectFlowBody(BaseModel):
     broker_id: str = ""
     open_login: bool = True
+    assist_login: bool = False
     sync_watchlist: bool = True
     wait_seconds: int = 120
 
@@ -717,6 +718,7 @@ def brokers_connect_flow(
         broker_id=body.broker_id or None,
         user_id=p.user_id,
         open_login=body.open_login,
+        assist_login=body.assist_login,
         sync_watchlist=body.sync_watchlist,
         wait_seconds=body.wait_seconds,
     )
@@ -725,6 +727,27 @@ def brokers_connect_flow(
         "ready": result.get("ready_for_trade"),
     })
     return envelope_ok(result)
+
+
+@router.get("/api/v1/brokers/login-redirect/{token}")
+def brokers_login_redirect(token: str):
+    """302 to official broker login — no API key needed in new tab (short-lived token)."""
+    from fastapi.responses import HTMLResponse, RedirectResponse
+
+    from gateway.brokers.login_redirect import consume_login_redirect
+
+    url = consume_login_redirect(token)
+    if not url:
+        return HTMLResponse(
+            content=(
+                "<!DOCTYPE html><html lang='zh-CN'><body style='font-family:sans-serif;padding:2rem'>"
+                "<h1>登录链接已过期</h1><p>请回到 QuantOS 门户，重新点击「连接并打开登录页」。</p>"
+                "<p>若券商页面显示 403，请改用门户列出的<strong>备用官方链接</strong>，"
+                "或下载券商 App 登录。</p></body></html>"
+            ),
+            status_code=410,
+        )
+    return RedirectResponse(url, status_code=302)
 
 
 @router.post("/api/v1/brokers/login-assist")
@@ -820,10 +843,32 @@ def live_gates_put(
     body: LiveGatesBody,
     principal: Optional[Principal] = Depends(get_principal_ops),
 ) -> Dict[str, Any]:
-    p = _require(principal, "portal:admin")
-    from gateway.live_trading.gates import save_gates
+    from gateway.auth.rbac import Role, require_permission
+    from gateway.live_trading.gates import load_gates, save_gates
 
-    gates = save_gates(body.model_dump())
+    ok, msg = require_permission(principal, "broker:assist")
+    if not ok:
+        ok, msg = require_permission(principal, "portal:admin")
+    if not ok:
+        raise HTTPException(status_code=401 if msg == "unauthenticated" else 403, detail=msg)
+    p = principal  # type: ignore[assignment]
+
+    payload = body.model_dump()
+    is_admin = p.has_permission("portal:admin")
+    if not is_admin:
+        current = load_gates()
+        payload["unattended_auto_enabled"] = current.unattended_auto_enabled
+        payload["browser_auto_submit"] = current.browser_auto_submit
+        payload["legal_review_passed"] = current.legal_review_passed
+        if body.unattended_auto_enabled or body.browser_auto_submit:
+            return envelope_err(
+                "GATES_ADMIN_ONLY",
+                "无人值守/自动提交需管理员开启",
+                user_action="新手请保持人工在券商 App 确认下单",
+                retryable=False,
+            )
+
+    gates = save_gates(payload)
     _audit.emit("live_gates_update", p.user_id, gates.to_dict())
     return envelope_ok(gates.to_dict())
 

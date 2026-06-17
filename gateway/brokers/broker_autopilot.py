@@ -25,10 +25,11 @@ def run_connect_flow(
     broker_id: str | None = None,
     user_id: str = "default",
     open_login: bool = True,
+    assist_login: bool = False,
     sync_watchlist: bool = True,
     wait_seconds: int = 120,
 ) -> dict[str, Any]:
-    """Save broker → open official login → sync favorites → return live status."""
+    """Save broker → return official login URL (user browser). Playwright only if assist_login=True."""
     cfg = load_broker_config()
     bid = broker_id or cfg.active_broker
     if bid not in CN_BROKER_ECOSYSTEM:
@@ -61,16 +62,22 @@ def run_connect_flow(
         })
         return result
 
-    # Always return URL for client-side open (reliable on Mac)
+    # Return URL for the user's own browser (avoids Playwright 403 from broker WAF)
     launch = launch_cn_broker(bid, target="trade_login")
     result["launch"] = launch
     result["client_url"] = launch.get("url") or login_url
+    from gateway.brokers.login_redirect import issue_login_redirect
+
+    result["login_redirect_token"] = issue_login_redirect(result["client_url"])
+    result["login_redirect_path"] = f"/api/v1/brokers/login-redirect/{result['login_redirect_token']}"
 
     session_before = session_status(bid)
     login_result: dict[str, Any] = {"skipped": True}
-    if open_login:
+    if assist_login:
         login_result = run_login_assist(bid, wait_seconds=wait_seconds)
         steps.append(login_result.get("message", "请在弹出浏览器完成登录"))
+    elif open_login:
+        steps.append(f"已在你的浏览器打开 {label} 官方登录页（请用本机 Chrome/Safari 登录，勿在自动化窗口操作）")
     elif session_before.get("saved"):
         steps.append("已检测到保存的登录会话，跳过重复登录")
         login_result = {"ok": True, "mode": "session_reuse", "message": "使用已保存会话"}

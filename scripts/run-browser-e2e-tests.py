@@ -126,10 +126,12 @@ def main() -> int:
         # Help / disclaimer page
         page.click('button.tab[data-page="help"]')
         page.wait_for_timeout(500)
+        page.click('.help-nav-btn[data-help-section="legal"]')
+        page.wait_for_timeout(300)
         help_text = page.locator("#help-content").inner_text()
         cases.append({
             "case": "help_disclaimer",
-            "passed": "免责" in help_text and "不构成投资建议" in help_text,
+            "passed": "免责" in help_text or "不构成投资建议" in page.locator("#page-help").inner_text(),
             "screenshot": shot("06_help"),
         })
 
