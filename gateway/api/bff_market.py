@@ -7,6 +7,8 @@ to the typed MarketDataService and the Job system. No private provider functions
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException
@@ -16,11 +18,14 @@ from gateway.api.envelope import envelope_err, envelope_ok
 from gateway.auth.rbac import Principal, authenticate, require_permission
 from gateway.config import GatewayConfig
 from gateway.jobs.manager import get_job_manager
+from quant.application.live_market_service import fetch_live_snapshot, intraday_slots
 from quant.application.market_data_service import get_market_data_service
 from quant.domain.market_models import DataMode
 
 router = APIRouter(tags=["bff-market"])
 _cfg = GatewayConfig.load()
+ROOT = Path(__file__).resolve().parents[2]
+LIVE_STATE = ROOT / "data" / "gateway" / "live_snapshot.json"
 
 
 async def _principal(
@@ -36,6 +41,10 @@ def _require(principal: Optional[Principal], permission: str) -> Principal:
     if not ok:
         raise HTTPException(status_code=401 if msg == "unauthenticated" else 403, detail=msg)
     return principal  # type: ignore[return-value]
+
+
+def _split_csv(value: str) -> list[str]:
+    return [x.strip() for x in (value or "").replace("，", ",").split(",") if x.strip()]
 
 
 class RefreshBody(BaseModel):
@@ -84,21 +93,128 @@ def market_coverage(principal: Optional[Principal] = Depends(_principal)) -> Dic
     return envelope_ok({"coverage": [c.to_dict() for c in cov]})
 
 
+@router.get("/api/v1/market/intraday-plan")
+def market_intraday_plan(principal: Optional[Principal] = Depends(_principal)) -> Dict[str, Any]:
+    _require(principal, "market:read")
+    state = {}
+    if LIVE_STATE.exists():
+        state = json.loads(LIVE_STATE.read_text(encoding="utf-8"))
+    return envelope_ok({
+        "timezone": "Asia/Shanghai",
+        "slots": intraday_slots(),
+        "last_refresh": state.get("retrieved_at"),
+        "last_success": state.get("success"),
+        "last_provider": state.get("provider"),
+    })
+
+
+@router.get("/api/v1/market/intraday-schedule")
+def market_intraday_schedule(principal: Optional[Principal] = Depends(_principal)) -> Dict[str, Any]:
+    _require(principal, "market:read")
+    from quant.intraday_update_scheduler import intraday_schedule_status
+
+    return envelope_ok(intraday_schedule_status())
+
+
+@router.post("/api/v1/market/intraday-schedule")
+def market_intraday_schedule_create(
+    dry_run: bool = True,
+    principal: Optional[Principal] = Depends(_principal),
+) -> Dict[str, Any]:
+    _require(principal, "research:run")
+    from quant.intraday_update_scheduler import schedule_intraday_refresh
+
+    return envelope_ok(schedule_intraday_refresh(dry_run=dry_run))
+
+
+@router.get("/api/v1/market/live-snapshot")
+def market_live_snapshot(
+    require_live: bool = True,
+    principal: Optional[Principal] = Depends(_principal),
+) -> Dict[str, Any]:
+    _require(principal, "market:read")
+    return envelope_ok(fetch_live_snapshot(require_live=require_live))
+
+
+@router.post("/api/v1/market/live-refresh")
+def market_live_refresh(principal: Optional[Principal] = Depends(_principal)) -> Dict[str, Any]:
+    _require(principal, "research:run")
+    snap = fetch_live_snapshot(require_live=True)
+    LIVE_STATE.parent.mkdir(parents=True, exist_ok=True)
+    LIVE_STATE.write_text(json.dumps(snap, ensure_ascii=False, indent=2), encoding="utf-8")
+    return envelope_ok(snap)
+
+
 @router.get("/api/v1/screener/run")
 def screener_run(
     preset: str = "balanced",
     top_n: int = 25,
     min_amount_cny: float = 5e7,
+    as_of_date: Optional[str] = None,
+    mode: str = "eod",
+    preferred_sectors: str = "",
+    excluded_sectors: str = "",
+    principal: Optional[Principal] = Depends(_principal),
+) -> Dict[str, Any]:
+    _require(principal, "market:read")
+    from gateway.preferences import load_preferences
+    from quant.application.screener_service import get_screener_service
+
+    prefs = load_preferences()
+    pref_sectors = _split_csv(preferred_sectors) or prefs.preferred_sectors
+    excl_sectors = _split_csv(excluded_sectors) or prefs.excluded_sectors
+    top_n = max(5, min(int(top_n), 100))
+    result = get_screener_service().screen(
+        preset=preset or prefs.strategy_preset,
+        top_n=top_n,
+        min_amount_cny=float(min_amount_cny or prefs.min_amount_cny),
+        as_of_date=as_of_date,
+        mode=mode,
+        preferred_sectors=pref_sectors,
+        excluded_sectors=excl_sectors,
+    )
+    return envelope_ok(result.to_dict(), provenance={"source": "canonical_duckdb", "engine": "multi_factor_screener"})
+
+
+@router.get("/api/v1/screener/proof")
+def screener_proof(
+    preset: str = "balanced",
+    top_n: int = 25,
     principal: Optional[Principal] = Depends(_principal),
 ) -> Dict[str, Any]:
     _require(principal, "market:read")
     from quant.application.screener_service import get_screener_service
 
-    top_n = max(5, min(int(top_n), 100))
-    result = get_screener_service().screen(
-        preset=preset, top_n=top_n, min_amount_cny=float(min_amount_cny)
+    result = get_screener_service().prove_next_day(preset=preset, top_n=max(5, min(int(top_n), 100)))
+    return envelope_ok(result, provenance={"source": "canonical_duckdb", "engine": "t_plus_1_proof"})
+
+
+@router.get("/api/v1/screener/dossier/{symbol}")
+def screener_dossier(
+    symbol: str,
+    preset: str = "balanced",
+    as_of_date: Optional[str] = None,
+    mode: str = "eod",
+    preferred_sectors: str = "",
+    excluded_sectors: str = "",
+    principal: Optional[Principal] = Depends(_principal),
+) -> Dict[str, Any]:
+    _require(principal, "market:read")
+    from gateway.preferences import load_preferences
+    from quant.application.screener_service import get_screener_service
+
+    prefs = load_preferences()
+    return envelope_ok(
+        get_screener_service().dossier(
+            symbol=symbol,
+            preset=preset or prefs.strategy_preset,
+            as_of_date=as_of_date,
+            mode=mode,
+            preferred_sectors=_split_csv(preferred_sectors) or prefs.preferred_sectors,
+            excluded_sectors=_split_csv(excluded_sectors) or prefs.excluded_sectors,
+        ),
+        provenance={"source": "canonical_duckdb", "engine": "candidate_dossier"},
     )
-    return envelope_ok(result.to_dict(), provenance={"source": "canonical_duckdb", "engine": "multi_factor_screener"})
 
 
 # --------------------------------------------------------------------------

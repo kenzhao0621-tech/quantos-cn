@@ -16,6 +16,8 @@ from pydantic import BaseModel, Field
 from gateway.api.envelope import envelope_err, envelope_ok
 from gateway.auth.rbac import Principal, Role, authenticate
 from gateway.config import ROOT, GatewayConfig, load_runtime_state, save_runtime_mode
+from gateway.preferences import apply_preferences_to_risk, load_preferences, save_preferences
+from gateway.risk.engine import OrderIntent
 from gateway.state_machine import TradingMode
 
 router = APIRouter(tags=["operations"])
@@ -40,6 +42,10 @@ def configure(**deps: Any) -> None:
     _paper = deps["paper"]
     _shadow = deps["shadow"]
     _audit = deps["audit"]
+    apply_preferences_to_risk(_risk)
+    pref = load_preferences()
+    if not _paper.orders and not _paper.positions:
+        _paper.cash_cny = pref.capital_cny
 
 
 async def get_principal_ops(
@@ -85,6 +91,42 @@ class BacktestBody(BaseModel):
 
 class MarketUpdateBody(BaseModel):
     targets: list[str] = Field(default_factory=lambda: ["indices", "bars"])
+
+
+class PaperFromScreenerBody(BaseModel):
+    preset: str = "balanced"
+    top_n: int = 5
+    max_positions: int = 2
+    capital_fraction: float = 0.45
+
+
+class UserPreferencesBody(BaseModel):
+    capital_cny: float = 100000.0
+    max_loss_pct: float = 0.08
+    max_positions: int = 5
+    max_single_position_pct: float = 0.18
+    cash_buffer_pct: float = 0.20
+    min_amount_cny: float = 100000000.0
+    strategy_preset: str = "balanced"
+    horizon: str = "3-10 sessions"
+    preferred_sectors: list[str] = Field(default_factory=list)
+    excluded_sectors: list[str] = Field(default_factory=list)
+
+
+class AutopilotTicketBody(BaseModel):
+    preset: str = "balanced"
+    top_n: int = 25
+    mode: str = "live"
+
+
+class ModelValidationBody(BaseModel):
+    preset: str = "balanced"
+    lookback_days: int = 45
+    top_n: int = 10
+    max_per_sector: int = 2
+    cost_bps: float = 8.0
+    slippage_bps: float = 12.0
+    min_amount_cny: float = 100000000.0
 
 
 def _load_runs() -> dict[str, Any]:
@@ -141,6 +183,7 @@ def system_version() -> Dict[str, Any]:
 @router.get("/api/v1/system/status")
 def system_status_v2(principal: Optional[Principal] = Depends(get_principal_ops)) -> Dict[str, Any]:
     _require(principal, "market:read")
+    apply_preferences_to_risk(_risk)
     snap = _risk.snapshot()
     runtime = load_runtime_state()
     from services.vnpy_runtime.main import get_runtime
@@ -165,7 +208,28 @@ def system_status_v2(principal: Optional[Principal] = Depends(get_principal_ops)
         "qlib": CNMarketProvider().health(),
         "latest_daily_report": _latest_daily_report(),
         "latest_candidate": _latest_candidate(),
+        "user_preferences": load_preferences().to_dict(),
     })
+
+
+@router.get("/api/v1/user/preferences")
+def get_user_preferences(principal: Optional[Principal] = Depends(get_principal_ops)) -> Dict[str, Any]:
+    _require(principal, "market:read")
+    return envelope_ok(load_preferences().to_dict())
+
+
+@router.put("/api/v1/user/preferences")
+def put_user_preferences(
+    body: UserPreferencesBody,
+    principal: Optional[Principal] = Depends(get_principal_ops),
+) -> Dict[str, Any]:
+    p = _require(principal, "research:run")
+    pref = save_preferences(body.dict())
+    apply_preferences_to_risk(_risk, pref)
+    if not _paper.orders and not _paper.positions:
+        _paper.cash_cny = pref.capital_cny
+    _audit.emit("user_preferences_update", p.user_id, pref.to_dict())
+    return envelope_ok(pref.to_dict())
 
 
 @router.post("/api/v1/system/doctor")
@@ -254,6 +318,86 @@ def paper_stop(principal: Optional[Principal] = Depends(get_principal_ops)) -> D
     save_runtime_mode("RESEARCH_ONLY")
     _audit.emit("paper_stop", p.user_id, {})
     return envelope_ok({"mode": _state.mode.value, "status": "PAPER_STOPPED"})
+
+
+@router.post("/api/v1/paper/from-screener")
+def paper_from_screener(
+    body: PaperFromScreenerBody,
+    principal: Optional[Principal] = Depends(get_principal_ops),
+) -> Dict[str, Any]:
+    p = _require(principal, "paper:trade")
+    if _state.mode != TradingMode.PAPER_TRADING:
+        return envelope_err("PAPER_NOT_STARTED", "请先点击「启动 Paper」，再从选股生成模拟组合")
+    from quant.application.screener_service import get_screener_service
+
+    pref = load_preferences()
+    preset = body.preset or pref.strategy_preset
+    # Pull a wider list: with smaller paper capital and A-share 100-share board
+    # lots, the top ranked momentum names may be too expensive to buy one lot.
+    # Paper portfolio creation must be deterministic and should not block on an
+    # external realtime quote provider. Use the latest validated EOD factor set;
+    # live prices are still used in the order-ticket workflow.
+    screen = get_screener_service().screen(
+        preset=preset,
+        top_n=max(50, min(body.top_n * 4, 100)),
+        min_amount_cny=pref.min_amount_cny,
+        mode="eod",
+        preferred_sectors=pref.preferred_sectors,
+        excluded_sectors=pref.excluded_sectors,
+    )
+    if screen.blocked:
+        return envelope_err("SCREENER_BLOCKED", screen.blocker_reason)
+    if not screen.candidates:
+        return envelope_err("NO_CANDIDATES", "当前没有可加入 Paper 的候选")
+
+    snap = _risk.snapshot()
+    deployable = snap.equity_cny * max(0.05, min(body.capital_fraction, 0.6))
+    target_positions = max(1, min(body.max_positions or pref.max_positions, pref.max_positions, 10))
+    risk = _risk.config.risk
+    per_name = min(deployable / target_positions, snap.equity_cny * risk.maximum_single_name_risk_pct)
+    run_id = str(uuid.uuid4())[:8]
+    orders: list[dict[str, Any]] = []
+    blockers: list[str] = []
+    for c in screen.candidates:
+        if len(orders) >= target_positions:
+            break
+        raw_qty = int(per_name / max(c.last_close, 0.01))
+        qty = (raw_qty // 100) * 100
+        if qty < 100:
+            blockers.append(f"{c.symbol}: 资金不足买入一手")
+            continue
+        intent = OrderIntent(
+            client_order_id=str(uuid.uuid4()),
+            run_id=run_id,
+            strategy_id=f"screener:{body.preset}",
+            model_id="multi_factor_screener_v1",
+            symbol=c.symbol,
+            side="BUY",
+            quantity=qty,
+            limit_price=round(c.last_close, 2),
+            notional_cny=round(qty * c.last_close, 2),
+        )
+        order = _paper.submit(intent, data_fresh=True, market_price=c.last_close)
+        od = order.to_dict()
+        if od.get("state") == "FILLED":
+            orders.append(od)
+        else:
+            blockers.append(f"{c.symbol}: {od.get('reject_reason') or od.get('state')}")
+
+    _audit.emit("paper_from_screener", p.user_id, {
+        "run_id": run_id,
+        "preset": body.preset,
+        "orders": len(orders),
+        "blockers": blockers,
+    })
+    return envelope_ok({
+        "run_id": run_id,
+        "mode": _state.mode.value,
+        "as_of_date": screen.as_of_date,
+        "orders": orders,
+        "blockers": blockers,
+        "note": "仅模拟交易；未连接真实券商，零真实订单。",
+    }, run_id=run_id)
 
 
 @router.post("/api/v1/shadow/start")
@@ -409,6 +553,60 @@ def brokers_wizard(principal: Optional[Principal] = Depends(get_principal_ops)) 
     return envelope_ok(broker_wizard_state())
 
 
+@router.get("/api/v1/autopilot/readiness")
+def autopilot_readiness(principal: Optional[Principal] = Depends(get_principal_ops)) -> Dict[str, Any]:
+    _require(principal, "market:read")
+    from gateway.autopilot import readiness_snapshot
+
+    return envelope_ok(readiness_snapshot())
+
+
+@router.get("/api/v1/gateway/readiness")
+def gateway_readiness(principal: Optional[Principal] = Depends(get_principal_ops)) -> Dict[str, Any]:
+    _require(principal, "market:read")
+    from gateway.production_readiness import gateway_readiness_report
+
+    return envelope_ok(gateway_readiness_report())
+
+
+@router.post("/api/v1/autopilot/order-ticket")
+def autopilot_order_ticket(
+    body: AutopilotTicketBody,
+    principal: Optional[Principal] = Depends(get_principal_ops),
+) -> Dict[str, Any]:
+    p = _require(principal, "research:run")
+    from gateway.autopilot import generate_order_ticket
+
+    ticket = generate_order_ticket(preset=body.preset, top_n=body.top_n, mode=body.mode)
+    _audit.emit("autopilot_order_ticket", p.user_id, {
+        "ticket_id": ticket.get("ticket_id"),
+        "status": ticket.get("status"),
+        "lines": len(ticket.get("lines", [])),
+    })
+    return envelope_ok(ticket, run_id=ticket.get("ticket_id"))
+
+
+@router.post("/api/v1/models/validate")
+def models_validate(
+    body: ModelValidationBody,
+    principal: Optional[Principal] = Depends(get_principal_ops),
+) -> Dict[str, Any]:
+    _require(principal, "research:run")
+    from quant.application.model_validation_service import ValidationConfig, get_model_validation_service
+
+    cfg = ValidationConfig(
+        preset=body.preset,
+        lookback_days=max(10, min(body.lookback_days, 90)),
+        top_n=max(3, min(body.top_n, 30)),
+        max_per_sector=max(1, min(body.max_per_sector, 5)),
+        cost_bps=max(0, min(body.cost_bps, 100)),
+        slippage_bps=max(0, min(body.slippage_bps, 200)),
+        min_amount_cny=max(0, body.min_amount_cny),
+    )
+    result = get_model_validation_service().validate(cfg).to_dict()
+    return envelope_ok(result)
+
+
 @router.post("/api/v1/brokers/readonly-connect")
 def brokers_readonly_connect(body: dict, principal: Optional[Principal] = Depends(get_principal_ops)) -> Dict[str, Any]:
     p = _require(principal, "portal:admin")
@@ -451,10 +649,30 @@ def _data_status() -> str:
 
 
 def _latest_daily_report() -> dict[str, Any]:
-    pdf = ROOT / "docs" / "ai" / "daily-trading" / "daily" / "2026-06-16_DAILY_QUANT_REPORT.pdf"
-    md = ROOT / "docs" / "ai" / "daily-trading" / "daily" / "2026-06-16_DAILY_QUANT_REPORT.md"
+    daily = ROOT / "docs" / "ai" / "daily-trading" / "daily"
+    pdfs = sorted(daily.glob("*_DAILY_QUANT_REPORT.pdf")) if daily.exists() else []
+    pdf = pdfs[-1] if pdfs else daily / "2026-06-16_DAILY_QUANT_REPORT.pdf"
+    md = pdf.with_suffix(".md")
+    js = pdf.with_suffix(".json")
     if pdf.exists():
-        return {"path_pdf": str(pdf), "path_md": str(md) if md.exists() else "", "status": "AVAILABLE"}
+        desktop_dir = ""
+        desktop_files: dict[str, str] = {}
+        if js.exists():
+            try:
+                data = json.loads(js.read_text(encoding="utf-8"))
+                delivery = data.get("desktop_delivery") or {}
+                desktop_dir = delivery.get("desktop_dir", "")
+                desktop_files = delivery.get("delivered", {})
+            except Exception:
+                pass
+        return {
+            "path_pdf": str(pdf),
+            "path_md": str(md) if md.exists() else "",
+            "path_json": str(js) if js.exists() else "",
+            "desktop_dir": desktop_dir,
+            "desktop_files": desktop_files,
+            "status": "AVAILABLE",
+        }
     return {"status": "NOT_GENERATED"}
 
 
@@ -482,7 +700,7 @@ def run_daily_report_async(user_id: str) -> str:
             "status": "succeeded" if r.returncode == 0 else "failed",
             "exit_code": r.returncode,
             "tail": (r.stdout + r.stderr)[-2000:],
-            "artifact_pdf": str(ROOT / "docs" / "ai" / "daily-trading" / "daily" / "2026-06-16_DAILY_QUANT_REPORT.pdf"),
+            "latest_daily_report": _latest_daily_report(),
         })
         _audit.emit("daily_report_complete", user_id, {"run_id": run_id, "ok": r.returncode == 0})
 

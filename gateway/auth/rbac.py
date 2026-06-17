@@ -19,12 +19,12 @@ PERMISSIONS: dict[Role, set[str]] = {
     Role.ADMIN: {
         "agents:invoke", "tasks:create", "tasks:read", "market:read",
         "research:run", "research:read", "risk:read", "risk:halt",
-        "risk:reset_request", "risk:reset_confirm", "paper:read", "audit:read", "obs:read",
+        "risk:reset_request", "risk:reset_confirm", "paper:read", "paper:trade", "audit:read", "obs:read",
         "mode:promote", "portal:admin",
     },
     Role.RESEARCHER: {
         "agents:invoke", "tasks:create", "tasks:read", "market:read",
-        "research:run", "research:read", "risk:read", "paper:read",
+        "research:run", "research:read", "risk:read", "paper:read", "paper:trade",
         "audit:read", "obs:read",
     },
     Role.VIEWER: {
@@ -32,7 +32,7 @@ PERMISSIONS: dict[Role, set[str]] = {
     },
     Role.SERVICE_RESEARCH: {
         "agents:invoke", "tasks:create", "tasks:read", "market:read",
-        "research:run", "research:read", "paper:read",
+        "research:run", "research:read", "paper:read", "paper:trade",
     },
     Role.SERVICE_RISK: {
         "risk:read", "risk:halt", "risk:reset_request", "risk:reset_confirm",

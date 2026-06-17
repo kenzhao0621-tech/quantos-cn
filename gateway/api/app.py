@@ -217,9 +217,14 @@ def research_daily_run(principal: Optional[Principal] = Depends(get_principal)) 
     from gateway.api.operations import run_daily_report_async
     run_id = run_daily_report_async(p.user_id)
     _audit.emit("daily_run", p.user_id, {"run_id": run_id})
-    pdf_path = str(ROOT / "docs" / "ai" / "daily-trading" / "daily" / "2026-06-16_DAILY_QUANT_REPORT.pdf")
     return envelope_ok(
-        {"run_id": run_id, "status": "RUNNING", "mode": _state.mode.value, "artifact_path": pdf_path},
+        {
+            "run_id": run_id,
+            "status": "RUNNING",
+            "mode": _state.mode.value,
+            "message": "日报后台生成中；完成后会导出到桌面 China_A_Share_Daily_Reports 目录。",
+            "desktop_root": str(Path("/Users/kenzhao/Desktop/China_A_Share_Daily_Reports")),
+        },
         run_id=run_id,
     )
 
@@ -239,10 +244,19 @@ def research_backtest(body: BacktestBody, principal: Optional[Principal] = Depen
 @app.post("/api/v1/research/candidate")
 def research_candidate(principal: Optional[Principal] = Depends(get_principal)) -> Dict[str, Any]:
     _require(principal, "research:run")
+    from quant.application.screener_service import get_screener_service
+
+    screen = get_screener_service().screen(preset="balanced", top_n=10)
+    if screen.blocked:
+        return envelope_err("SCREENER_BLOCKED", screen.blocker_reason)
+    ranked = [
+        (c.symbol, max(0.0, min(100.0, 50.0 + c.score * 8.0)))
+        for c in screen.candidates
+    ]
     proposal = construct_portfolio(
         run_id=str(uuid.uuid4())[:8],
-        as_of_date="2026-06-16",
-        ranked_symbols=[("600000.SH", 72.0), ("000001.SZ", 68.0)],
+        as_of_date=screen.as_of_date or "",
+        ranked_symbols=ranked,
     )
     return envelope_ok(proposal.to_dict())
 

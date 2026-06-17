@@ -5,8 +5,10 @@
   const UI = window.QuantOSUI;
 
   let lastAgentRun = null;
+  let lastScreenerVm = null;
   let cachedNative = null;
   let cachedQuantos = null;
+  const liveSeries = {};
 
   function $(id) {
     return document.getElementById(id);
@@ -75,8 +77,16 @@
     }, btn),
     "candidate-gate": (btn) => act("候选门", "/api/v1/research/candidate", { method: "POST" }, btn),
     "market-refresh": () => refreshMarket(),
+    "market-live-refresh": (btn) => refreshLiveMarket(btn),
     "market-update-job": (btn) => runMarketUpdateJob(btn),
     "screener-run": (btn) => runScreener(btn),
+    "screener-proof": (btn) => runScreenerProof(btn),
+    "screener-dossier-top": (btn) => runTopDossier(btn),
+    "paper-from-screener": (btn) => paperFromScreener(btn),
+    "save-preferences": (btn) => savePreferences(btn),
+    "autopilot-readiness": (btn) => autopilotReadiness(btn),
+    "autopilot-ticket": (btn) => autopilotTicket(btn),
+    "model-validate": (btn) => modelValidate(btn),
     "paper-refresh": () => refreshPaper(),
     "open-pdf": async () => {
       const st = await api.request("/api/v1/system/status");
@@ -113,6 +123,19 @@
         await refresh();
       }
     });
+  });
+
+  document.addEventListener("click", async (ev) => {
+    const btn = ev.target?.closest?.("[data-dossier-symbol]");
+    if (btn) {
+      await runDossier(btn.dataset.dossierSymbol, btn);
+      return;
+    }
+    const broker = ev.target?.closest?.("[data-broker-url]");
+    if (broker) {
+      const ok = confirm("将打开券商/厂商官方页面。请勿在本软件内输入交易密码；真实交易必须由你本人在官方平台确认。继续？");
+      if (ok) window.open(broker.dataset.brokerUrl, "_blank", "noopener,noreferrer");
+    }
   });
 
   document.querySelectorAll(".tab").forEach((tab) => {
@@ -167,24 +190,120 @@
     if ($("market-coverage")) {
       UI.renderTable($("market-coverage"), ["数据集", "行数", "最新交易日", "状态"], m.coverage, "暂无覆盖信息");
     }
+    refreshLivePlan();
+  }
+
+  async function refreshLivePlan() {
+    const plan = await api.request("/api/v1/market/intraday-plan");
+    const p = plan.data || {};
+    const rows = (p.slots || []).map((s) => [s.label, s.time, s.due_today ? "今日已到点" : "待到点", s.purpose]);
+    UI.renderTable($("market-live-plan"), ["窗口", "时间", "状态", "用途"], rows, "暂无刷新计划");
+  }
+
+  async function refreshLiveMarket(btn) {
+    UI.setLoading(btn, true, "刷新中…");
+    try {
+      const res = await api.request("/api/v1/market/live-refresh", { method: "POST" });
+      const d = res.data || {};
+      const box = $("market-live");
+      if (box) {
+        if (d.blocked) {
+          box.innerHTML = `<div class="banner banner-warn">实时行情不可证明：${d.reason || "provider blocked"}</div>`;
+        } else {
+          box.innerHTML =
+            `<div class="banner banner-ok">实时行情：${d.provider} · ${d.row_count} 行 · ${d.freshness} · ${d.retrieved_at}</div>`;
+          UI.renderTable(
+            box.appendChild(document.createElement("div")),
+            ["代码", "名称", "最新价", "涨跌幅%", "成交额"],
+            (d.top_up || []).slice(0, 8).map((r) => [r.code, r.name, r.price, r.change_pct, r.amount]),
+            "暂无实时涨幅榜",
+          );
+        }
+      }
+      UI.toast(d.blocked ? "实时行情不可用" : "实时行情已更新", d.blocked ? (d.reason || "provider blocked") : `${d.row_count} 行`, d.blocked ? "fail" : "ok");
+      return res;
+    } finally {
+      UI.setLoading(btn, false);
+    }
+  }
+
+  async function refreshOverviewLive() {
+    const res = await api.request("/api/v1/market/live-snapshot?require_live=false");
+    const d = res.data || {};
+    if (d.top_up?.length) {
+      d.top_up.slice(0, 12).forEach((r) => {
+        const key = r.code || r.symbol;
+        if (!key || r.price == null) return;
+        liveSeries[key] = (liveSeries[key] || []).concat([Number(r.price)]).slice(-24);
+      });
+    }
+    UI.renderLiveRadar($("overview-live"), d, liveSeries);
+  }
+
+  async function loadPreferences() {
+    const res = await api.request("/api/v1/user/preferences");
+    const p = res.data || {};
+    if ($("pref-capital")) $("pref-capital").value = Math.round(p.capital_cny || 100000);
+    if ($("pref-loss")) $("pref-loss").value = Math.round((p.max_loss_pct || 0.08) * 1000) / 10;
+    if ($("pref-positions")) $("pref-positions").value = p.max_positions || 5;
+    if ($("pref-single")) $("pref-single").value = Math.round((p.max_single_position_pct || 0.18) * 100);
+    if ($("pref-sectors")) $("pref-sectors").value = (p.preferred_sectors || []).join(",");
+    if ($("pref-exclude-sectors")) $("pref-exclude-sectors").value = (p.excluded_sectors || []).join(",");
+    if ($("screener-preset") && p.strategy_preset) $("screener-preset").value = p.strategy_preset;
+    if ($("screener-minamt") && p.min_amount_cny) $("screener-minamt").value = String(p.min_amount_cny);
+  }
+
+  async function savePreferences(btn) {
+    UI.setLoading(btn, true, "保存中…");
+    try {
+      const body = {
+        capital_cny: Number($("pref-capital")?.value || 100000),
+        max_loss_pct: Number($("pref-loss")?.value || 8) / 100,
+        max_positions: Number($("pref-positions")?.value || 5),
+        max_single_position_pct: Number($("pref-single")?.value || 18) / 100,
+        cash_buffer_pct: 0.2,
+        min_amount_cny: Number($("screener-minamt")?.value || 100000000),
+        strategy_preset: $("screener-preset")?.value || "balanced",
+        preferred_sectors: splitCsv($("pref-sectors")?.value || ""),
+        excluded_sectors: splitCsv($("pref-exclude-sectors")?.value || ""),
+      };
+      const res = await api.request("/api/v1/user/preferences", { method: "PUT", body: JSON.stringify(body) });
+      logAction("保存用户偏好", res);
+      return res;
+    } finally {
+      UI.setLoading(btn, false);
+    }
   }
 
   async function runScreener(btn) {
     UI.setLoading(btn, true, "计算中…");
     try {
       const preset = $("screener-preset")?.value || "balanced";
+      const mode = $("screener-mode")?.value || "live";
       const topN = $("screener-topn")?.value || "25";
-      const minAmt = $("screener-minamt")?.value || "50000000";
+      const minAmt = $("screener-minamt")?.value || "100000000";
+      const sectors = encodeURIComponent($("pref-sectors")?.value || "");
+      const excluded = encodeURIComponent($("pref-exclude-sectors")?.value || "");
       const res = await api.request(
-        `/api/v1/screener/run?preset=${preset}&top_n=${topN}&min_amount_cny=${minAmt}`,
+        `/api/v1/screener/run?preset=${preset}&top_n=${topN}&min_amount_cny=${minAmt}&mode=${mode}&preferred_sectors=${sectors}&excluded_sectors=${excluded}`,
+        { timeoutMs: 90000 },
       );
+      if (!res.ok) {
+        UI.renderScreener($("screener-table"), { blocked: true, blockerReason: res.error?.message || "选股请求失败", rows: [] });
+        UI.toast("选股失败", res.error?.message || "请稍后重试", "fail");
+        return res;
+      }
       const vm = VM.fromScreener(res);
+      lastScreenerVm = vm;
       UI.renderScreener($("screener-table"), vm);
       const meta = $("screener-meta");
       if (meta) {
         meta.innerHTML = vm.blocked
           ? ""
-          : `<span class="metric-chip">截至 <b>${vm.asOfDate}</b></span>` +
+          : `<span class="metric-chip">历史因子 <b>${vm.factorAsOfDate}</b></span>` +
+            (vm.liveRetrievedAt ? `<span class="metric-chip">实时行情 <b>${vm.liveRetrievedAt}</b></span>` : "") +
+            (vm.liveProvider ? `<span class="metric-chip">实时源 <b>${vm.liveProvider}</b></span>` : "") +
+            `<span class="metric-chip">模式 <b>${vm.mode}</b></span>` +
             `<span class="metric-chip">策略 <b>${vm.preset}</b></span>` +
             `<span class="metric-chip">候选池 <b>${vm.universeSize}</b> 只</span>` +
             `<span class="metric-chip">入选 <b>${vm.rows.length}</b> 只</span>`;
@@ -194,6 +313,139 @@
         res.ok && !vm.blocked ? `从 ${vm.universeSize} 只中选出 ${vm.rows.length} 只` : (vm.blockerReason || "请先更新数据"),
         res.ok && !vm.blocked ? "ok" : "fail",
       );
+      return res;
+    } finally {
+      UI.setLoading(btn, false);
+    }
+  }
+
+  function splitCsv(value) {
+    return String(value || "").replaceAll("，", ",").split(",").map((x) => x.trim()).filter(Boolean);
+  }
+
+  async function runScreenerProof(btn) {
+    UI.setLoading(btn, true, "验证中…");
+    try {
+      const preset = $("screener-preset")?.value || "balanced";
+      const topN = $("screener-topn")?.value || "25";
+      const res = await api.request(`/api/v1/screener/proof?preset=${preset}&top_n=${topN}`);
+      UI.renderProof($("screener-proof"), res);
+      const d = res.data || {};
+      UI.toast(
+        d.verdict === "PASS" ? "昨日选股验证通过" : "昨日选股需要复盘",
+        d.blocked ? (d.blocker_reason || "无法验证") : `平均收益 ${d.avg_return}% / 市场中位数 ${d.benchmark_median}%`,
+        d.verdict === "PASS" ? "ok" : "fail",
+      );
+      return res;
+    } finally {
+      UI.setLoading(btn, false);
+    }
+  }
+
+  async function runTopDossier(btn) {
+    UI.setLoading(btn, true, "解释中…");
+    try {
+      if (!lastScreenerVm?.rows?.length) {
+        await runScreener(document.querySelector('[data-action="screener-run"]'));
+      }
+      const top = lastScreenerVm?.rows?.[0];
+      if (!top?.symbol) {
+        UI.toast("暂无候选", "请先运行选股", "fail");
+        return { ok: false };
+      }
+      return runDossier(top.symbol, btn);
+    } finally {
+      UI.setLoading(btn, false);
+    }
+  }
+
+  async function runDossier(symbol, btn) {
+    UI.setLoading(btn, true, "解释中…");
+    try {
+      const preset = $("screener-preset")?.value || "balanced";
+      const mode = $("screener-mode")?.value || "live";
+      const sectors = encodeURIComponent($("pref-sectors")?.value || "");
+      const excluded = encodeURIComponent($("pref-exclude-sectors")?.value || "");
+      const res = await api.request(`/api/v1/screener/dossier/${encodeURIComponent(symbol)}?preset=${preset}&mode=${mode}&preferred_sectors=${sectors}&excluded_sectors=${excluded}`);
+      UI.renderDossier($("screener-dossier"), res);
+      UI.toast("个股报告已生成", symbol, "ok");
+      return res;
+    } finally {
+      UI.setLoading(btn, false);
+    }
+  }
+
+  async function paperFromScreener(btn) {
+    UI.setLoading(btn, true, "生成组合…");
+    try {
+      const preset = $("screener-preset")?.value || "balanced";
+      const topN = $("screener-topn")?.value || "25";
+      const maxPositions = Number($("pref-positions")?.value || 5);
+      const res = await api.request("/api/v1/paper/from-screener", {
+        method: "POST",
+        body: JSON.stringify({ preset, top_n: Number(topN), max_positions: maxPositions, capital_fraction: 0.8 }),
+      });
+      logAction("选股加入 Paper", res);
+      if (res.ok) {
+        UI.toast("已加入 Paper 模拟组合", `生成 ${res.data?.orders?.length || 0} 张模拟订单`, "ok");
+      } else if (res.error?.code === "PAPER_NOT_STARTED") {
+        UI.toast("请先启动 Paper", "点击「启动 Paper」后再加入模拟组合", "fail");
+      }
+      await refreshPaper();
+      return res;
+    } finally {
+      UI.setLoading(btn, false);
+    }
+  }
+
+  async function autopilotReadiness(btn) {
+    UI.setLoading(btn, true, "检查中…");
+    try {
+      const res = await api.request("/api/v1/autopilot/readiness");
+      UI.renderAutopilot($("autopilot-panel"), res);
+      UI.toast("Autopilot 准入检查完成", res.data?.ready_for_order_ticket ? "可生成订单票据" : "仍有阻塞项", res.data?.ready_for_order_ticket ? "ok" : "fail");
+      return res;
+    } finally {
+      UI.setLoading(btn, false);
+    }
+  }
+
+  async function autopilotTicket(btn) {
+    UI.setLoading(btn, true, "生成票据…");
+    try {
+      const preset = $("screener-preset")?.value || "balanced";
+      const mode = $("screener-mode")?.value || "live";
+      const topN = Number($("screener-topn")?.value || 25);
+      const res = await api.request("/api/v1/autopilot/order-ticket", {
+        method: "POST",
+        body: JSON.stringify({ preset, top_n: topN, mode }),
+      });
+      UI.renderAutopilot($("autopilot-panel"), res);
+      logAction("生成订单票据", res);
+      return res;
+    } finally {
+      UI.setLoading(btn, false);
+    }
+  }
+
+  async function modelValidate(btn) {
+    UI.setLoading(btn, true, "验收中…");
+    try {
+      const body = {
+        preset: $("screener-preset")?.value || "balanced",
+        lookback_days: Number($("validation-days")?.value || 45),
+        top_n: Number($("validation-topn")?.value || 10),
+        max_per_sector: 2,
+        cost_bps: Number($("validation-cost")?.value || 8),
+        slippage_bps: Number($("validation-slippage")?.value || 12),
+        min_amount_cny: Number($("screener-minamt")?.value || 100000000),
+      };
+      const res = await api.request("/api/v1/models/validate", {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
+      UI.renderModelValidation($("model-validation"), res);
+      UI.toast("模型验收完成", res.data?.verdict || "完成", res.data?.verdict === "READY_FOR_EXTENDED_PAPER" ? "ok" : "fail");
       return res;
     } finally {
       UI.setLoading(btn, false);
@@ -232,10 +484,10 @@
     ]);
     const p = VM.fromPaper(pnl, pos, orders);
     UI.renderKeyValues($("paper-pnl"), [
-      ["已实现盈亏", p.summary.realized],
-      ["浮动盈亏", p.summary.unrealized],
-      ["合计", p.summary.total],
-      ["费用", p.summary.fees],
+      ["现金", p.summary.cash],
+      ["权益", p.summary.equity],
+      ["模拟盈亏", p.summary.realized],
+      ["持仓数", p.summary.openPositions],
     ]);
     UI.renderTable($("paper-positions"), ["代码", "数量", "T+1可卖", "成本", "市值"], p.positions, "暂无持仓");
     UI.renderTable($("paper-orders"), ["订单号", "代码", "方向", "状态", "成交量"], p.orders, "暂无订单");
@@ -281,6 +533,8 @@
   function refreshBrokers(broker) {
     const b = VM.fromBrokers(broker?.data);
     UI.renderTable($("gateway-list"), ["Gateway", "状态", "真实下单"], b.rows, "券商 Gateway 未配置");
+    UI.renderBrokerLinks($("broker-links"), broker?.data?.portal_links || []);
+    api.request("/api/v1/gateway/readiness").then((r) => UI.renderGatewayReadiness($("gateway-readiness"), r));
     const cl = $("broker-checklist");
     if (cl) {
       cl.innerHTML = "";
@@ -357,6 +611,7 @@
       refreshShadow(shadow, events);
       refreshModels(quantosStatus?.data?.model_registry);
       refreshPaper();
+      await loadPreferences();
       await refreshMarket();
 
       UI.renderReportSummary($("report-detail"), VM.fromSystemStatus(st?.data)?.latestReport);
@@ -380,10 +635,15 @@
 
   async function showApp() {
     $("login-overlay").classList.add("hidden");
+    if (!localStorage.getItem("quantos_legal_ack")) {
+      $("legal-overlay")?.classList.remove("hidden");
+    }
     setPill("role-pill", `角色: ${api.role}`);
     await refreshFooterVersion();
     await refresh();
+    await refreshOverviewLive();
     setInterval(refresh, 30000);
+    setInterval(refreshOverviewLive, 15000);
   }
 
   $("btn-login")?.addEventListener("click", async () => {
@@ -396,6 +656,11 @@
       $("login-error").textContent = e.message;
       $("login-error").classList.remove("hidden");
     }
+  });
+
+  $("btn-legal-accept")?.addEventListener("click", () => {
+    localStorage.setItem("quantos_legal_ack", "1");
+    $("legal-overlay")?.classList.add("hidden");
   });
 
   $("btn-logout")?.addEventListener("click", () => {

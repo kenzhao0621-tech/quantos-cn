@@ -64,13 +64,13 @@
     if (!container) return;
     container.innerHTML = "";
     if (!blockers?.length) {
-      container.appendChild(el("p", "muted", "无阻塞项"));
+      container.appendChild(el("p", "muted", "系统检查正常"));
       return;
     }
     const ul = el("ul", "blocker-list");
     blockers.forEach((b) => {
       const li = el("li", "blocker-item");
-      li.appendChild(renderBadge("阻塞", "warn"));
+      li.appendChild(renderBadge("需要处理", "warn"));
       li.appendChild(document.createTextNode(" " + (b.message || b.code || String(b))));
       ul.appendChild(li);
     });
@@ -99,6 +99,8 @@
       ["日期", report.date || "—"],
       ["标题", report.title || "量化日报"],
       ["PDF", report.pathPdf ? "已生成" : "未生成"],
+      ["Markdown", report.pathMd ? "已生成" : "未生成"],
+      ["桌面目录", report.desktopDir || "生成后自动写入 ~/Desktop/China_A_Share_Daily_Reports"],
     ]);
   }
 
@@ -214,7 +216,7 @@
     const maxScore = Math.max(...vm.rows.map((r) => r.score)) || 1;
     const table = el("table", "data-table");
     table.innerHTML =
-      "<thead><tr><th>#</th><th>代码</th><th>最新价</th><th>今日%</th><th>20日%</th><th>60日%</th><th>趋势%</th><th>波动</th><th>成交额(亿)</th><th>评分</th><th>走势</th></tr></thead>";
+      "<thead><tr><th>#</th><th>代码</th><th>板块</th><th>价格</th><th>实时%</th><th>20日%</th><th>60日%</th><th>趋势%</th><th>波动</th><th>成交额(亿)</th><th>评分</th><th>走势</th></tr></thead>";
     const tb = el("tbody");
     vm.rows.forEach((r) => {
       const tr = el("tr");
@@ -222,9 +224,10 @@
       const up = (r.ret_20 || 0) >= 0;
       tr.innerHTML =
         `<td>${r.rank}</td>` +
-        `<td><b>${r.symbol}</b></td>` +
-        `<td class="num">${r.last_close}</td>` +
-        `<td class="${r.last_pct >= 0 ? "up" : "down"}">${r.last_pct >= 0 ? "+" : ""}${r.last_pct}</td>` +
+        `<td><button type="button" class="symbol-link" data-dossier-symbol="${r.symbol}">${r.symbol}</button></td>` +
+        `<td>${r.sector || "—"}</td>` +
+        `<td class="num">${r.live_price || r.last_close}</td>` +
+        `<td class="${(r.live_pct ?? r.last_pct) >= 0 ? "up" : "down"}">${(r.live_pct ?? r.last_pct) >= 0 ? "+" : ""}${r.live_pct ?? r.last_pct}</td>` +
         `<td class="${r.ret_20 >= 0 ? "up" : "down"}">${r.ret_20 >= 0 ? "+" : ""}${r.ret_20}</td>` +
         `<td class="${r.ret_60 >= 0 ? "up" : "down"}">${r.ret_60 >= 0 ? "+" : ""}${r.ret_60}</td>` +
         `<td class="${r.trend >= 0 ? "up" : "down"}">${r.trend >= 0 ? "+" : ""}${r.trend}</td>` +
@@ -236,6 +239,205 @@
     });
     table.appendChild(tb);
     container.appendChild(table);
+  }
+
+  function renderLiveRadar(container, data, series) {
+    if (!container) return;
+    container.innerHTML = "";
+    const d = data || {};
+    if (!d.success) {
+      container.appendChild(renderEmpty("实时行情不可用", d.reason || "等待刷新", "点击市场中心的「刷新实时行情」"));
+      return;
+    }
+    const banner = el(
+      "div",
+      "banner banner-ok",
+      `实时行情：${d.provider} · ${d.row_count} 行 · ${d.freshness} · ${d.retrieved_at}${d.cache_hit ? " · 缓存" : ""}`,
+    );
+    container.appendChild(banner);
+    const cards = el("div", "live-ticker-grid");
+    (d.top_up || []).slice(0, 6).forEach((r) => {
+      const key = r.code || r.symbol;
+      const vals = series?.[key] || [r.price].filter(Boolean);
+      const card = el("div", "live-ticker-card");
+      card.innerHTML =
+        `<div class="live-symbol">${r.code || "—"} ${r.name || ""}</div>` +
+        `<div class="live-price">${r.price ?? "—"}</div>` +
+        `<div class="${Number(r.change_pct || 0) >= 0 ? "up" : "down"}">${Number(r.change_pct || 0) >= 0 ? "+" : ""}${r.change_pct ?? 0}%</div>` +
+        sparklineSvg(vals, Number(r.change_pct || 0) >= 0);
+      cards.appendChild(card);
+    });
+    container.appendChild(cards);
+  }
+
+  function renderBrokerLinks(container, links) {
+    if (!container) return;
+    container.innerHTML = "";
+    if (!links?.length) {
+      container.appendChild(renderEmpty("暂无官方路径", "券商链接尚未配置", ""));
+      return;
+    }
+    const grid = el("div", "broker-link-grid");
+    links.forEach((l) => {
+      const card = el("div", "broker-link-card");
+      card.innerHTML =
+        `<h3>${l.name}</h3>` +
+        `<p class="muted">${l.type || ""}</p>` +
+        `<p>${l.note || ""}</p>` +
+        `<button type="button" data-broker-url="${l.url}">打开官方平台</button>`;
+      grid.appendChild(card);
+    });
+    container.appendChild(grid);
+  }
+
+  function renderAutopilot(container, data) {
+    if (!container) return;
+    container.innerHTML = "";
+    const d = data?.data || data || {};
+    if (d.checks) {
+      const banner = el("div", d.ready_for_order_ticket ? "banner banner-ok" : "banner banner-warn",
+        d.ready_for_order_ticket ? "准入检查通过：可生成订单票据" : "准入检查未通过");
+      container.appendChild(banner);
+      renderTable(
+        container.appendChild(el("div", "")),
+        ["检查项", "结果", "说明"],
+        d.checks.map((c) => [c.name, c.passed ? "通过" : "未通过", c.detail || ""]),
+        "暂无检查项",
+      );
+      return;
+    }
+    if (d.ticket_id) {
+      container.appendChild(el("div", d.lines?.length ? "banner banner-ok" : "banner banner-warn",
+        `订单票据 ${d.ticket_id} · ${d.status} · ${d.legal_boundary}`));
+      const rows = (d.lines || []).map((x) => [
+        x.symbol,
+        x.side,
+        x.quantity,
+        x.reference_price,
+        x.notional_cny,
+        x.sector || "—",
+        x.score,
+      ]);
+      renderTable(container.appendChild(el("div", "")), ["代码", "方向", "数量", "参考价", "金额", "板块", "评分"], rows, "暂无可执行票据行");
+      if (d.blockers?.length) {
+        const ul = el("ul", "checklist");
+        d.blockers.slice(0, 8).forEach((b) => ul.appendChild(el("li", "", b)));
+        container.appendChild(ul);
+      }
+      renderBrokerLinks(container.appendChild(el("div", "")), d.broker_handoff || []);
+    }
+  }
+
+  function renderModelValidation(container, data) {
+    if (!container) return;
+    container.innerHTML = "";
+    const d = data?.data || data || {};
+    if (!d.verdict) {
+      container.appendChild(renderEmpty("暂无验收结果", "点击「运行生产验收」", ""));
+      return;
+    }
+    container.appendChild(el("div", d.verdict === "READY_FOR_EXTENDED_PAPER" ? "banner banner-ok" : "banner banner-warn", `结论：${d.verdict}`));
+    renderKeyValues(container.appendChild(el("div", "")), [
+      ["样本交易日", d.sample?.validation_days ?? "—"],
+      ["样本外天数", d.sample?.out_of_sample_days ?? "—"],
+      ["样本外日均净收益", `${d.out_of_sample?.avg_daily_net_return ?? "—"}%`],
+      ["样本外跑赢率", `${d.out_of_sample?.avg_outperform_rate ?? "—"}%`],
+      ["滚动最大单日亏损", `${d.rolling?.max_daily_loss ?? "—"}%`],
+      ["Top30 稳定度", `${d.factor_stability?.top30_overlap_avg ?? "—"}%`],
+      ["涨停不可执行", d.execution?.limit_blocked_total ?? "—"],
+      ["Paper/Shadow 样本", `${d.paper_shadow?.paper_records ?? 0}/${d.paper_shadow?.shadow_records ?? 0}`],
+    ]);
+    if (d.actions?.length) {
+      const ul = el("ul", "checklist");
+      d.actions.forEach((a) => ul.appendChild(el("li", "", a)));
+      container.appendChild(ul);
+    }
+  }
+
+  function renderGatewayReadiness(container, data) {
+    if (!container) return;
+    container.innerHTML = "";
+    const d = data?.data || data || {};
+    if (!d.checks) {
+      container.appendChild(renderEmpty("暂无 Gateway 生产就绪报告", "等待检查", ""));
+      return;
+    }
+    container.appendChild(el("div", d.passed ? "banner banner-ok" : "banner banner-warn", `Gateway 生产就绪度：${d.score}% · ${d.production_label}`));
+    renderTable(
+      container.appendChild(el("div", "")),
+      ["模块", "状态", "说明"],
+      d.checks.map((c) => [c.name, c.passed ? "通过" : "待完善", c.detail]),
+      "暂无检查项",
+    );
+  }
+
+  function renderProof(container, proof) {
+    if (!container) return;
+    container.innerHTML = "";
+    const d = proof?.data || proof || {};
+    if (!d || d.blocked) {
+      container.appendChild(renderEmpty("暂无验证", d.blocker_reason || "需要至少两个交易日数据", "先更新数据，再点击「验证昨日选股」"));
+      return;
+    }
+    const banner = el("div", d.verdict === "PASS" ? "banner banner-ok" : "banner banner-warn");
+    banner.innerHTML =
+      `T+1 验证：${d.signal_date} 选股 → ${d.proof_date} 收盘。` +
+      `平均收益 <b>${d.avg_return}%</b>，市场中位数 <b>${d.benchmark_median}%</b>，` +
+      `正收益率 <b>${d.hit_rate}%</b>，跑赢率 <b>${d.win_rate_vs_median}%</b>。` +
+      `结论：<b>${d.verdict}</b>`;
+    container.appendChild(banner);
+    if (d.what_to_adjust?.length) {
+      const notes = el("ul", "checklist");
+      d.what_to_adjust.forEach((n) => notes.appendChild(el("li", "", n)));
+      container.appendChild(notes);
+    }
+    const rows = (d.proofs || []).slice(0, 10).map((p) => [
+      p.rank,
+      p.symbol,
+      p.next_day_return >= 0 ? `+${p.next_day_return}%` : `${p.next_day_return}%`,
+      p.outperformance >= 0 ? `+${p.outperformance}%` : `${p.outperformance}%`,
+      p.passed ? "达标" : "复盘",
+      p.diagnosis,
+    ]);
+    renderTable(container.appendChild(el("div", "")), ["#", "代码", "T+1收益", "跑赢中位数", "结果", "归因"], rows, "暂无验证明细");
+  }
+
+  function renderDossier(container, dossier) {
+    if (!container) return;
+    container.innerHTML = "";
+    const d = dossier?.data || dossier || {};
+    if (!d.symbol) {
+      container.appendChild(renderEmpty("暂无个股解释", "先运行选股并选择候选", ""));
+      return;
+    }
+    const box = el("div", "dossier-card");
+    box.appendChild(el("h3", "", `${d.symbol} · 候选解释`));
+    box.appendChild(el("p", "", d.plain_language || "暂无解释"));
+    if (d.candidate?.reasons?.length) {
+      const ul = el("ul", "checklist");
+      d.candidate.reasons.forEach((r) => ul.appendChild(el("li", "", r)));
+      box.appendChild(ul);
+    }
+    if (d.institutional_report?.factors?.length) {
+      box.appendChild(el("h3", "", `机构因子报告 · ${d.institutional_report.weighted_score} / 100`));
+      const rows = d.institutional_report.factors.map((f) => [
+        f.name,
+        `${Math.round(f.weight * 100)}%`,
+        Math.round(f.score * 100),
+        f.evidence,
+      ]);
+      const sub = el("div", "");
+      box.appendChild(sub);
+      renderTable(sub, ["因子", "权重", "评分", "证据"], rows, "暂无因子报告");
+      if (d.institutional_report.methodology) {
+        box.appendChild(el("p", "muted", d.institutional_report.methodology));
+      }
+    }
+    if (d.risk_notes?.length) {
+      const risk = el("div", "banner banner-warn", "风险边界：" + d.risk_notes.join("；"));
+      box.appendChild(risk);
+    }
+    container.appendChild(box);
   }
 
   function toast(title, message, tone) {
@@ -301,6 +503,13 @@
     renderActionLog,
     renderJob,
     renderScreener,
+    renderLiveRadar,
+    renderBrokerLinks,
+    renderAutopilot,
+    renderModelValidation,
+    renderGatewayReadiness,
+    renderProof,
+    renderDossier,
     toast,
     setLoading,
     countPrimaryRawJson,

@@ -195,4 +195,4 @@ def generate_daily_report(
 def write_daily_report(report: DailyQuantReport) -> dict[str, str]:
     from quant.report_renderer import render_all_formats
     paths = render_all_formats(report.to_dict())
-    return {k: v for k, v in paths.items() if isinstance(v, str)}
+    return paths

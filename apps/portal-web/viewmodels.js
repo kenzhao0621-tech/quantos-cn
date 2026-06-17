@@ -72,6 +72,8 @@
             date: data.latest_daily_report.date || data.latest_daily_report.as_of,
             title: data.latest_daily_report.title || "量化日报",
             pathPdf: data.latest_daily_report.path_pdf,
+            pathMd: data.latest_daily_report.path_md,
+            desktopDir: data.latest_daily_report.desktop_dir,
           }
         : null,
       latestCandidate: data.latest_candidate
@@ -105,7 +107,13 @@
       blocked: !!d.blocked,
       blockerReason: d.blocker_reason || "",
       asOfDate: d.as_of_date || "—",
+      factorAsOfDate: d.factor_as_of_date || d.as_of_date || "—",
+      liveRetrievedAt: d.live_retrieved_at || "",
+      liveFreshness: d.live_freshness || "",
+      liveProvider: d.live_provider || "",
       preset: d.preset || "—",
+      mode: d.mode || "eod",
+      liveStatus: d.live_status || {},
       universeSize: d.universe_size || 0,
       rows: (d.candidates || []).map((c) => ({
         rank: c.rank,
@@ -119,6 +127,10 @@
         avg_amount: c.avg_amount,
         score: c.score,
         spark: c.spark || [],
+        sector: c.sector || "",
+        live_price: c.live_price,
+        live_pct: c.live_pct,
+        live_amount: c.live_amount,
       })),
     };
   }
@@ -166,23 +178,23 @@
     const p = pnl?.data || {};
     return {
       summary: {
-        realized: fmtCny(p.realized_pnl ?? p.realized),
-        unrealized: fmtCny(p.unrealized_pnl ?? p.unrealized),
-        total: fmtCny(p.total_pnl ?? p.total),
-        fees: fmtCny(p.fees),
+        cash: fmtCny(p.cash_cny),
+        equity: fmtCny(p.equity_cny),
+        realized: fmtCny(p.realized_pnl_cny ?? p.realized_pnl ?? p.realized),
+        openPositions: p.open_positions ?? 0,
       },
       positions: (positions?.data?.positions || positions?.data || []).map((row) => [
         row.symbol || "—",
         row.quantity ?? row.qty ?? 0,
-        row.available ?? row.sellable ?? "—",
-        fmtCny(row.avg_price ?? row.cost),
+        row.available_qty ?? row.available ?? row.sellable ?? "—",
+        fmtCny(row.avg_cost ?? row.avg_price ?? row.cost),
         fmtCny(row.market_value),
       ]),
       orders: (orders?.data?.orders || orders?.data || []).slice(0, 20).map((row) => [
-        row.order_id || row.id || "—",
+        row.client_order_id || row.order_id || row.id || "—",
         row.symbol || "—",
         row.side || "—",
-        row.status || "—",
+        row.state || row.status || "—",
         row.filled_qty ?? row.filled ?? 0,
       ]),
       empty: !(positions?.data?.positions?.length || positions?.data?.length),

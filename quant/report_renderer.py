@@ -24,8 +24,16 @@ def render_html(report: dict[str, Any]) -> str:
     d = report.get("data_cutoff") or report.get("target_trading_date") or datetime.now().strftime("%Y-%m-%d")
     decision = report.get("decision", "NO_TRADE")
     candidate = report.get("candidate") or {}
+    sections = report.get("sections") or {}
+    data_audit = sections.get("data_audit") or {}
+    market_state = sections.get("market_state") or {}
+    screening = sections.get("screening") or {}
+    sectors = sections.get("sectors") or {}
+    fundamentals = sections.get("fundamentals") or {}
     disc = (report.get("sections") or {}).get("disclosures") or {}
     disc_state = disc.get("disclosure_readiness", {}).get("state", "")
+    top_watch = screening.get("top10_watch") or []
+    evidence = market_state.get("evidence") or []
     rows = [
         f"<!DOCTYPE html><html lang='zh-CN'><head><meta charset='UTF-8'>",
         "<title>China A-share Daily Quant Report</title>",
@@ -45,9 +53,15 @@ def render_html(report: dict[str, Any]) -> str:
         f"<p class='meta'>报告日期: {d} | Run ID: {report.get('run_id','')} | 数据截止: {report.get('data_cutoff','')}</p>",
         f"<p class='meta'>Provider: {report.get('provider','')} | Freshness: {report.get('freshness','')}</p>",
         f"<div class='decision {'blocked' if 'BLOCKED' in decision else ''}'>决策: {decision}</div>",
-        f"<h2>市场状态</h2><p>Regime: {report.get('regime','')} ({report.get('regime_confidence','')})</p>",
-        f"<h2>数据审计</h2><p>Spot rows: {report.get('spot_row_count',0)}</p>",
-        f"<h2>公告审查</h2><p>State: {disc_state} | Rows: {disc.get('total_rows',0)} | Verified zero: {disc.get('verified_zero_results',False)}</p>",
+        f"<h2>市场状态</h2><p>Regime: {report.get('regime','')} ({report.get('regime_confidence','')}) | Score: {report.get('regime_score','')}</p>",
+        f"<p>上涨: {market_state.get('advance','—')} | 下跌: {market_state.get('decline','—')}</p>",
+        "<ul>" + "".join(f"<li>{x}</li>" for x in evidence[:8]) + "</ul>",
+        f"<h2>数据审计</h2><p>Provider: {report.get('provider','')} | Freshness: {report.get('freshness','')} | Spot rows: {report.get('spot_row_count',0)}</p>",
+        f"<p>Quality gate: {data_audit.get('quality_gate','—')} | Historical: {data_audit.get('historical',{})}</p>",
+        f"<h2>候选池与筛选</h2><p>Initial universe: {screening.get('initial_universe','—')}</p>",
+        "<p>Top watch: " + ", ".join(str(x) for x in top_watch[:10]) + "</p>",
+        f"<h2>行业/基本面/公告覆盖</h2><p>Sectors: {sectors.get('status','—')} ({sectors.get('total_rows','—')} rows) | Fundamentals: {fundamentals.get('status','—')}</p>",
+        f"<p>Disclosure state: {disc_state} | Rows: {disc.get('total_rows',0)} | Verified zero: {disc.get('verified_zero_results',False)}</p>",
     ]
     if candidate:
         rows += [
@@ -55,7 +69,7 @@ def render_html(report: dict[str, Any]) -> str:
             f"<tr><td>{candidate.get('code','')}</td><td>{candidate.get('name','')}</td>"
             f"<td>{candidate.get('total_score','')}</td><td>{candidate.get('preferred_entry_zone','')}</td>"
             f"<td>{candidate.get('paper_stop','')}</td><td>{candidate.get('target_1','')}</td></tr></table>",
-            "<p>T+1 规则适用。纸面交易模式。</p>",
+            "<p>T+1 规则适用。必须等待入场触发，不追高，不满仓。</p>",
         ]
     else:
         rows.append("<h2>NO_TRADE / 阻塞原因</h2><ul>")
@@ -63,7 +77,9 @@ def render_html(report: dict[str, Any]) -> str:
             rows.append(f"<li>{r}</li>")
         rows.append("</ul>")
     rows += [
-        "<h2>风险与限制</h2><p>本报告不构成投资建议。真实资金交易已禁用。</p>",
+        "<h2>次交易日行动清单</h2>",
+        "<ol><li>开盘前检查实时数据 freshness 与涨跌停状态。</li><li>仅在候选仍满足板块/流动性/趋势条件时进入 Paper/Shadow。</li><li>若高开回落或跌破入场区，取消计划。</li><li>收盘后做 T+1 验证并记录失败原因。</li></ol>",
+        "<h2>风险与限制</h2><p>本报告不构成投资建议。真实资金交易必须由用户本人在官方券商平台确认。</p>",
         f"<div class='watermark'>{WATERMARK}</div>",
         "</body></html>",
     ]
@@ -203,11 +219,55 @@ def render_all_formats(report_dict: dict[str, Any], *, base_name: Optional[str] 
     hp.write_text(html, encoding="utf-8")
 
     md_lines = [
-        f"# Daily Quant Report — {d}",
+        f"# 中国A股量化交易日报 — {d}",
         "",
         f"**Decision:** `{report_dict.get('decision')}`",
         f"**Run ID:** `{report_dict.get('run_id')}`",
+        f"**Provider:** `{report_dict.get('provider')}`",
+        f"**Freshness:** `{report_dict.get('freshness')}`",
+        f"**Rows:** `{report_dict.get('spot_row_count')}`",
         "",
+        "## 市场状态",
+        f"- Regime: `{report_dict.get('regime')}`",
+        f"- Confidence: `{report_dict.get('regime_confidence')}`",
+        f"- Score: `{report_dict.get('regime_score')}`",
+        "",
+    ]
+    sections = report_dict.get("sections") or {}
+    market_state = sections.get("market_state") or {}
+    for ev in (market_state.get("evidence") or [])[:8]:
+        md_lines.append(f"- {ev}")
+    candidate = report_dict.get("candidate") or {}
+    if candidate:
+        md_lines += [
+            "",
+            "## 候选标的",
+            f"- 代码: `{candidate.get('code')}`",
+            f"- 名称: `{candidate.get('name')}`",
+            f"- 得分: `{candidate.get('total_score')}`",
+            f"- 入场区: `{candidate.get('preferred_entry_zone')}`",
+            f"- 止损: `{candidate.get('paper_stop')}`",
+            f"- 目标: `{candidate.get('target_1')}` / `{candidate.get('target_2')}`",
+            f"- 取消条件: {', '.join(candidate.get('cancel_conditions') or [])}",
+        ]
+    else:
+        md_lines += ["", "## 不交易/阻塞原因"]
+        md_lines += [f"- {x}" for x in report_dict.get("no_trade_reasons", [])]
+    screening = sections.get("screening") or {}
+    md_lines += [
+        "",
+        "## 候选池与数据审计",
+        f"- 初始样本: `{screening.get('initial_universe', '—')}`",
+        f"- Top watch: `{', '.join(str(x) for x in (screening.get('top10_watch') or [])[:10])}`",
+        "",
+        "## 次交易日行动清单",
+        "1. 开盘前检查实时数据 freshness 与涨跌停状态。",
+        "2. 仅在候选仍满足板块/流动性/趋势条件时进入 Paper/Shadow。",
+        "3. 若高开回落或跌破入场区，取消计划。",
+        "4. 收盘后做 T+1 验证并记录失败原因。",
+        "",
+        "## 风险声明",
+        "本报告不构成投资建议。真实资金交易必须由用户本人在官方券商平台确认。",
     ]
     mp.write_text("\n".join(md_lines), encoding="utf-8")
 
@@ -228,6 +288,8 @@ def render_all_formats(report_dict: dict[str, Any], *, base_name: Optional[str] 
             report_json=jp, report_md=mp, report_html=hp, report_pdf=pp,
             action_pdf=asp if action_pdf_ok else None,
         )
+        report_dict["desktop_delivery"] = delivery
+        jp.write_text(json.dumps(report_dict, ensure_ascii=False, indent=2), encoding="utf-8")
 
     return {
         "json": str(jp), "md": str(mp), "html": str(hp), "pdf": str(pp) if pdf_ok else "",

@@ -50,6 +50,9 @@
     async request(path, options = {}) {
       const request_id = crypto.randomUUID();
       const trace_id = crypto.randomUUID();
+      const timeoutMs = options.timeoutMs || 90000;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
       const headers = {
         "Content-Type": "application/json",
         "X-Request-Id": request_id,
@@ -61,17 +64,20 @@
       }
       let res;
       try {
-        res = await fetch(`${this.base}${path}`, { ...options, headers });
+        const { timeoutMs: _timeout, ...fetchOptions } = options;
+        res = await fetch(`${this.base}${path}`, { ...fetchOptions, headers, signal: controller.signal });
       } catch (err) {
         return {
           ok: false,
-          status: "network_error",
+          status: err.name === "AbortError" ? "timeout" : "network_error",
           request_id,
           trace_id,
-          error: { code: "NETWORK", message: err.message },
-          errors: [{ code: "NETWORK", message: err.message }],
+          error: { code: err.name === "AbortError" ? "TIMEOUT" : "NETWORK", message: err.name === "AbortError" ? `请求超时（${timeoutMs}ms）` : err.message },
+          errors: [{ code: err.name === "AbortError" ? "TIMEOUT" : "NETWORK", message: err.message }],
           data: null,
         };
+      } finally {
+        clearTimeout(timer);
       }
       let json;
       try {

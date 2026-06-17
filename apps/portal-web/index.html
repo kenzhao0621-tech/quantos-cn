@@ -9,6 +9,19 @@
   <link rel="stylesheet" href="/portal/assets/quantos.css?v=__BUILD_ID__" />
 </head>
 <body data-portal-build="__BUILD_ID__">
+  <div id="legal-overlay" class="login-overlay hidden">
+    <div class="login-card legal-card">
+      <h1>风险与法律确认</h1>
+      <p class="muted">QuantOS CN 是研究、分析、模拟交易与人工确认辅助工具，不承诺收益，不构成投资建议。</p>
+      <ul class="checklist">
+        <li>真实证券交易必须由用户本人在合法券商官方平台完成或人工确认。</li>
+        <li>软件不会绕过券商风控、不会保存交易密码、不会自动真实下单。</li>
+        <li>量化模型可能失效，用户需自行承担投资风险。</li>
+      </ul>
+      <button id="btn-legal-accept" type="button">我理解并同意</button>
+    </div>
+  </div>
+
   <div id="login-overlay" class="login-overlay">
     <div class="login-card">
       <h1>QuantOS CN 登录</h1>
@@ -45,10 +58,10 @@
     <button class="tab active" data-page="overview" type="button">总览</button>
     <button class="tab" data-page="market" type="button">市场中心</button>
     <button class="tab" data-page="screener" type="button">智能选股</button>
-    <button class="tab" data-page="reports" type="button">量化日报</button>
-    <button class="tab" data-page="models" type="button">模型实验室</button>
-    <button class="tab" data-page="agents" type="button">多智能体研究室</button>
-    <button class="tab" data-page="native" type="button">原生引擎</button>
+    <button class="tab" data-page="reports" type="button">报告历史</button>
+    <button class="tab" data-page="models" type="button">模型实验室·建设中</button>
+    <button class="tab" data-page="agents" type="button">研究室·实验</button>
+    <button class="tab" data-page="native" type="button">引擎状态</button>
     <button class="tab" data-page="paper" type="button">模拟交易</button>
     <button class="tab" data-page="shadow" type="button">影子实盘</button>
     <button class="tab" data-page="risk" type="button">风险中心</button>
@@ -64,6 +77,8 @@
     <section class="panel full">
       <h2>系统总览</h2>
       <div id="overview-cards" class="primary-view" data-primary-view="overview"></div>
+      <h3>实时市场雷达</h3>
+      <div id="overview-live" class="sub-panel"></div>
       <div id="overview-blockers" class="blockers-panel"></div>
       <div id="overview-report" class="sub-panel"></div>
       <div class="actions wrap">
@@ -99,6 +114,10 @@
     <section class="panel full">
       <h2>市场中心</h2>
       <div id="market-summary" class="market-banner"></div>
+      <h3>实时/近实时行情</h3>
+      <div id="market-live" class="sub-panel"></div>
+      <div id="market-live-plan" class="sub-panel"></div>
+      <button data-action="market-live-refresh" type="button">刷新实时行情</button>
       <h3>主要指数</h3>
       <div id="market-indices" class="primary-view" data-primary-view="market"></div>
       <h3>数据 Provider</h3>
@@ -116,7 +135,25 @@
     <section class="panel full">
       <h2>智能选股 · 多因子排名</h2>
       <p class="muted">基于规范化日线（动量 + 趋势 + 流动性，波动率惩罚）。仅研究用途，不直接下单。</p>
+      <div class="dossier-card">
+        <h3>用户资金与风险偏好</h3>
+        <div class="screener-controls">
+          <label>可用资金(元)<input id="pref-capital" type="number" min="1000" step="1000" value="100000" /></label>
+          <label>最大亏损%<input id="pref-loss" type="number" min="0.1" max="50" step="0.1" value="8" /></label>
+          <label>最大持仓数<input id="pref-positions" type="number" min="1" max="30" step="1" value="5" /></label>
+          <label>单票上限%<input id="pref-single" type="number" min="1" max="80" step="1" value="18" /></label>
+          <label>偏好板块<input id="pref-sectors" type="text" placeholder="如：银行,半导体" /></label>
+          <label>排除板块<input id="pref-exclude-sectors" type="text" placeholder="如：房地产,ST" /></label>
+          <button data-action="save-preferences" type="button">保存偏好</button>
+        </div>
+      </div>
       <div class="screener-controls">
+        <label>选股模式
+          <select id="screener-mode">
+            <option value="live" selected>实时智能</option>
+            <option value="eod">收盘数据</option>
+          </select>
+        </label>
         <label>策略
           <select id="screener-preset">
             <option value="balanced">均衡</option>
@@ -141,9 +178,23 @@
           </select>
         </label>
         <button data-action="screener-run" type="button">运行选股</button>
+        <button data-action="screener-proof" type="button">验证昨日选股</button>
+        <button data-action="screener-dossier-top" type="button">解释第一名</button>
+        <button data-action="paper-from-screener" type="button">加入 Paper 模拟组合</button>
       </div>
       <div id="screener-meta" class="metric-row"></div>
+      <div id="screener-proof" class="sub-panel"></div>
+      <div id="screener-dossier" class="sub-panel"></div>
       <div id="screener-table" class="primary-view" data-primary-view="screener"></div>
+      <div class="dossier-card">
+        <h3>Safe Autopilot · 订单票据</h3>
+        <p class="muted">自动分析和生成订单草稿；真实交易仍需用户在券商官方平台确认。</p>
+        <div class="actions wrap">
+          <button data-action="autopilot-readiness" type="button">检查准入</button>
+          <button data-action="autopilot-ticket" type="button">生成订单票据</button>
+        </div>
+        <div id="autopilot-panel" class="sub-panel"></div>
+      </div>
     </section>
   </main>
 
@@ -164,6 +215,18 @@
     <section class="panel full">
       <h2>模型实验室</h2>
       <div id="model-registry" class="primary-view" data-primary-view="models"></div>
+      <div class="dossier-card">
+        <h3>生产前模型验收</h3>
+        <p class="muted">样本外、滚动验证、行业中性、交易成本、滑点、涨跌停可执行性、Paper/Shadow 样本。</p>
+        <div class="screener-controls">
+          <label>验证天数<input id="validation-days" type="number" min="10" max="90" value="45" /></label>
+          <label>Top N<input id="validation-topn" type="number" min="3" max="30" value="10" /></label>
+          <label>成本bps<input id="validation-cost" type="number" min="0" max="100" value="8" /></label>
+          <label>滑点bps<input id="validation-slippage" type="number" min="0" max="200" value="12" /></label>
+          <button data-action="model-validate" type="button">运行生产验收</button>
+        </div>
+        <div id="model-validation" class="sub-panel"></div>
+      </div>
       <div class="actions wrap">
         <button id="btn-qlib-baseline-models" type="button">运行基线</button>
         <button data-action="backtest" type="button">运行回测</button>
@@ -240,7 +303,10 @@
   <main class="layout hidden" id="page-brokers">
     <section class="panel full">
       <h2>券商 Gateway 能力矩阵</h2>
+      <p class="warn">仅提供官方平台/软件下载/仿真/只读路径。真实交易由用户本人在券商官方页面操作；本软件不自动真实下单。</p>
+      <div id="gateway-readiness" class="sub-panel"></div>
       <div id="gateway-list" class="primary-view" data-primary-view="brokers"></div>
+      <div id="broker-links" class="sub-panel"></div>
       <div id="broker-checklist" class="sub-panel"></div>
       <div class="actions wrap">
         <button data-action="broker-readonly" type="button">只读连接向导</button>
