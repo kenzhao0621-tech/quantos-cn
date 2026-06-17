@@ -163,7 +163,7 @@ class ScreenerService:
         live_map: dict[str, dict[str, Any]] = {}
         live_status: dict[str, Any] = {"mode": mode, "used": False}
         if mode.lower() in ("live", "realtime", "intraday"):
-            live_map, live_status = _load_or_fetch_live_map()
+            live_map, live_status = _load_or_fetch_live_map(fast_only=True)
 
         con = duckdb.connect(str(self.warehouse), read_only=True)
         if as_of_date:
@@ -617,7 +617,8 @@ def _live_symbol(row: dict[str, Any]) -> str:
     return f"{code}.{exchange}"
 
 
-def _load_or_fetch_live_map() -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
+def _load_or_fetch_live_map(*, fast_only: bool = False) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
+    """Load cached live quotes only. Never block screener HTTP on network fetches."""
     import json
     import time
 
@@ -633,29 +634,30 @@ def _load_or_fetch_live_map() -> tuple[dict[str, dict[str, Any]], dict[str, Any]
     live_path = ROOT / "data" / "gateway" / "live_snapshot.json"
     rows: list[dict[str, Any]] = []
     if live_path.exists():
-        data = json.loads(live_path.read_text(encoding="utf-8"))
-        # The persisted scheduler snapshot stores metadata only; portal live API
-        # stores top lists. If full rows are absent, fetch fresh below.
-        rows = data.get("rows", []) or []
-        status.update({
-            "source": "persisted",
-            "retrieved_at": data.get("retrieved_at"),
-            "provider": data.get("provider"),
-            "row_count": data.get("row_count"),
-        })
-    if not rows:
+        try:
+            data = json.loads(live_path.read_text(encoding="utf-8"))
+            rows = data.get("rows", []) or []
+            status.update({
+                "source": "persisted",
+                "retrieved_at": data.get("retrieved_at"),
+                "provider": data.get("provider"),
+                "row_count": data.get("row_count") or len(rows),
+                "success": data.get("success"),
+            })
+        except Exception as exc:
+            status.update({"error": str(exc)[:120]})
+
+    if not rows and not fast_only:
         try:
             from quant.application.live_market_service import fetch_live_snapshot
 
             snap = fetch_live_snapshot(require_live=False)
             rows = snap.get("rows", []) or []
-            # fetch_live_snapshot intentionally returns top lists, not full rows.
-            # For live scoring we need the full fabric payload, so fall through to
-            # direct application helper if rows are missing.
             status.update(snap)
         except Exception as exc:
             status.update({"error": str(exc)[:160]})
-    if not rows:
+
+    if not rows and not fast_only:
         try:
             from quant.market_data_fabric import MarketDataFabric
 
@@ -676,6 +678,14 @@ def _load_or_fetch_live_map() -> tuple[dict[str, dict[str, Any]], dict[str, Any]
                 status.update({"blocked": True, "reason": fetched.selection_reason})
         except Exception as exc:
             status.update({"blocked": True, "error": str(exc)[:160]})
+
+    if not rows:
+        status.update({
+            "used": False,
+            "fallback": "eod_factors_only",
+            "hint": "实时行情未就绪：请用「收盘数据」模式（约 1 秒），或在「高级·数据」先刷新实时行情。",
+        })
+
     live_map = {_live_symbol(row): row for row in rows if row.get("code")}
     status["used"] = bool(live_map)
     status["row_count"] = len(live_map) or status.get("row_count", 0)

@@ -23,7 +23,7 @@ ASSIST_LOG = ROOT / "data" / "gateway" / "broker_assist.jsonl"
 BROKER_LOGIN_URLS = {
     "eastmoney_manual": "https://jywg.eastmoneysec.com/",
     "huatai_zhangle": "https://m.zhangle.com/",
-    "flush_tonghuashun": "https://www.10jqka.com.cn/",
+    "flush_tonghuashun": "https://upass.10jqka.com.cn/login",
     "gtja_junhong": "https://dl.app.gtja.com/public/m/index.html",
     "cms_zhaoshang": "https://www.newone.com.cn/main/onlinebusiness/tradingsoftware/index.html",
     "citic_xintou": "https://www.citics.com/newsite/online/index.html",

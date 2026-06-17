@@ -613,14 +613,23 @@
     const b = (ecosystem?.brokers || []).find((x) => x.broker_id === brokerId);
     if (!b) return;
     const urls = b.urls || {};
+    if (b.login_type === "app_via_ths" && b.external_steps?.length) {
+      const box = el("div", "broker-app-guide");
+      box.appendChild(el("h3", "", `${b.label} · App 登录指引`));
+      box.appendChild(el("p", "warn", "同花顺没有统一网页交易页，须用 App 绑定你的券商账户后下单。"));
+      const ol = el("ol", "help-steps");
+      b.external_steps.forEach((step) => ol.appendChild(el("li", "", step)));
+      box.appendChild(ol);
+      container.appendChild(box);
+    } else {
+      container.appendChild(el("h3", "", `${b.label} · 官方入口`));
+    }
     const links = [
       { label: "主登录页", url: urls.trade_login },
-      { label: "备用登录", url: urls.trade_login_alt },
+      { label: "备用/下载", url: urls.trade_login_alt || urls.software },
       { label: "官网首页", url: urls.portal },
       { label: "下载 App", url: urls.software },
     ].filter((l) => l.url);
-    if (!links.length) return;
-    container.appendChild(el("h3", "", `${b.label} · 官方入口`));
     const row = el("div", "broker-link-row");
     links.forEach((l) => {
       const btn = document.createElement("button");
@@ -651,10 +660,10 @@
         title: "券商登录说明",
         html: `
           <ul class="help-list">
-            <li>点「连接并打开登录页」会在<strong>你的浏览器</strong>打开官方网址（不是软件内嵌页）。</li>
-            <li>若显示 <strong>403</strong>：换用下方<strong>备用官方链接</strong>，或下载华泰/同花顺/东方财富 App 登录。</li>
-            <li>「保存登录会话」为可选高级功能；新手可跳过，直接在 App 下单。</li>
-            <li>支持：东方财富、华泰涨乐、同花顺入口、国君君弘、招商、中信、广发等。</li>
+            <li><strong>东方财富 / 华泰</strong>：点「连接」在浏览器打开官方登录页。</li>
+            <li><strong>同花顺</strong>：无统一网页交易，请下载 App → 绑定券商账户 → 在 App 内下单。</li>
+            <li>若显示 <strong>403</strong>：换备用链接或直接用券商/同花顺 App。</li>
+            <li>系统只预填订单，<strong>你必须在官方 App 亲自确认</strong>。</li>
           </ul>`,
       },
       legal: {

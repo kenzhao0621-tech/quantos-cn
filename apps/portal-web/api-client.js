@@ -22,6 +22,9 @@
     if (res.httpStatus === 401) {
       return "未登录或会话过期，请重新登录";
     }
+    if (res.status === "timeout" || res.error?.code === "TIMEOUT") {
+      return "请求超时：智能选股请改用「收盘数据」模式，或先在高级·数据刷新行情";
+    }
     return res.error?.message || res.error?.code || "请求失败";
   }
 
@@ -67,6 +70,7 @@
       const timeoutMs = options.timeoutMs || (
         path.includes("/market/sync-all") ? 240000
         : path.includes("/autopilot/order-ticket") ? 45000
+        : path.includes("/screener/run") ? 30000
         : 90000
       );
       const controller = new AbortController();

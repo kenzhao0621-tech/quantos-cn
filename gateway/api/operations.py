@@ -674,6 +674,8 @@ def brokers_ecosystem(principal: Optional[Principal] = Depends(get_principal_ops
             "ecosystem": spec.get("ecosystem", []),
             "urls": spec.get("urls", {}),
             "browser_capable": bid in BROWSER_BROKER_IDS,
+            "login_type": spec.get("login_type", "web"),
+            "external_steps": spec.get("external_steps", []),
             "order_hint": spec.get("order_hint", ""),
             "watchlist_hint": spec.get("watchlist_hint", ""),
             "notes": spec.get("notes", ""),

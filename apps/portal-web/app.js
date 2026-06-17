@@ -179,9 +179,7 @@
       document.querySelectorAll("main.layout").forEach((m) => m.classList.add("hidden"));
       const el = $(`page-${tab.dataset.page}`);
       if (el) el.classList.remove("hidden");
-      if (tab.dataset.page === "screener" && !$("screener-table")?.children.length) {
-        runScreener($("screener-meta") ? document.querySelector('[data-action="screener-run"]') : null);
-      }
+      /* 不再自动跑选股，避免一进页面就超时 */
     });
   });
 
@@ -411,18 +409,21 @@
     UI.setLoading(btn, true, "计算中…");
     try {
       const preset = $("screener-preset")?.value || "balanced";
-      const mode = $("screener-mode")?.value || "live";
+      const mode = $("screener-mode")?.value || "eod";
       const topN = $("screener-topn")?.value || "25";
-      const minAmt = $("screener-minamt")?.value || "100000000";
+      const minAmt = $("screener-minamt")?.value || "50000000";
+      const capital = Number($("pref-capital")?.value || 5000);
       const sectors = encodeURIComponent($("pref-sectors")?.value || "");
       const excluded = encodeURIComponent($("pref-exclude-sectors")?.value || "");
       const res = await api.request(
         `/api/v1/screener/run?preset=${preset}&top_n=${topN}&min_amount_cny=${minAmt}&mode=${mode}&preferred_sectors=${sectors}&excluded_sectors=${excluded}`,
-        { timeoutMs: 90000 },
+        { timeoutMs: mode === "live" ? 45000 : 20000 },
       );
       if (!res.ok) {
-        UI.renderScreener($("screener-table"), { blocked: true, blockerReason: res.error?.message || "选股请求失败", rows: [] });
-        UI.toast("选股失败", res.error?.message || "请稍后重试", "fail");
+        const hint = window.QuantOSFriendlyError?.(res) || res.error?.message || "选股请求失败";
+        UI.renderScreener($("screener-table"), { blocked: true, blockerReason: hint, rows: [] });
+        UI.toast("选股失败", hint, "fail");
+        logAction("智能选股", res);
         return res;
       }
       const vm = VM.fromScreener(res);
@@ -430,19 +431,19 @@
       UI.renderScreener($("screener-table"), vm);
       const meta = $("screener-meta");
       if (meta) {
+        const liveNote = vm.liveStatus?.hint || (vm.mode === "live" && !vm.liveStatus?.used ? "（未接入实时行情，已用收盘因子）" : "");
         meta.innerHTML = vm.blocked
           ? ""
           : `<span class="metric-chip">截止 <b>${vm.dataCutoff}</b></span>` +
             `<span class="metric-chip">模型 <b>${vm.modelVersion}</b></span>` +
             `<span class="metric-chip">验证 <b>${vm.validationStatus}</b></span>` +
-            `<span class="metric-chip">历史因子 <b>${vm.factorAsOfDate}</b></span>` +
-            (vm.liveRetrievedAt ? `<span class="metric-chip">实时行情 <b>${vm.liveRetrievedAt}</b></span>` : "") +
-            (vm.liveProvider ? `<span class="metric-chip">实时源 <b>${vm.liveProvider}</b></span>` : "") +
-            `<span class="metric-chip">模式 <b>${vm.mode}</b></span>` +
-            `<span class="metric-chip">策略 <b>${vm.preset}</b></span>` +
+            `<span class="metric-chip">模式 <b>${vm.mode === "eod" ? "收盘·快速" : "实时"}</b></span>` +
+            `<span class="metric-chip">资金参考 <b>¥${capital}</b></span>` +
             `<span class="metric-chip">候选池 <b>${vm.universeSize}</b> 只</span>` +
-            `<span class="metric-chip">入选 <b>${vm.rows.length}</b> 只</span>`;
+            `<span class="metric-chip">入选 <b>${vm.rows.length}</b> 只</span>` +
+            (liveNote ? `<span class="metric-chip warn">${liveNote}</span>` : "");
       }
+      logAction("智能选股", res);
       UI.toast(
         res.ok && !vm.blocked ? "选股完成" : "选股失败",
         res.ok && !vm.blocked ? `从 ${vm.universeSize} 只中选出 ${vm.rows.length} 只` : (vm.blockerReason || "请先更新数据"),

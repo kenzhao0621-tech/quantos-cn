@@ -170,7 +170,8 @@ button.danger { background: var(--danger); }
 .broker-official-links { margin: 0.75rem 0; }
 .broker-link-row { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0.5rem 0; }
 .broker-link-btn { padding: 0.45rem 0.8rem; border-radius: 6px; }
-.broker-tip { margin: 0.5rem 0 1rem; }
+.broker-app-guide { margin-bottom: 0.75rem; padding: 0.75rem; border-radius: 8px; background: rgba(230,162,60,0.08); }
+.metric-chip.warn { color: #e6a23c; }
 .collapsed-log { font-size: 0.85rem; max-height: 6rem; overflow: auto; }
 .tab-advanced { opacity: 0.75; font-size: 0.9em; }
 .mini-btn { margin-left: 0.25rem; padding: 0.1rem 0.35rem; font-size: 0.75rem; cursor: pointer; border: 1px solid var(--border); border-radius: 4px; background: var(--panel); color: var(--accent); }
