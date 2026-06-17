@@ -213,27 +213,31 @@
       container.appendChild(renderEmpty("无结果", "当前条件下没有候选股", "尝试降低成交额门槛"));
       return;
     }
-    const maxScore = Math.max(...vm.rows.map((r) => r.score)) || 1;
+    const maxScore = Math.max(...vm.rows.map((r) => r.final_score ?? r.score)) || 1;
     const table = el("table", "data-table");
     table.innerHTML =
-      "<thead><tr><th>#</th><th>代码</th><th>板块</th><th>价格</th><th>实时%</th><th>20日%</th><th>60日%</th><th>趋势%</th><th>波动</th><th>成交额(亿)</th><th>评分</th><th>走势</th></tr></thead>";
+      "<thead><tr><th>#</th><th>代码</th><th>板块</th><th>价格</th><th>收益区间%</th><th>下行%</th><th>崩盘</th><th>可买</th><th>5000元</th><th>综合分</th><th>资格</th><th>走势</th></tr></thead>";
     const tb = el("tbody");
     vm.rows.forEach((r) => {
       const tr = el("tr");
-      const barW = Math.max(6, Math.round((r.score / maxScore) * 60));
+      const barW = Math.max(6, Math.round(((r.final_score ?? r.score) / maxScore) * 60));
       const up = (r.ret_20 || 0) >= 0;
+      const elig = r.eligibility || "—";
+      const eligCls = elig === "PAPER_ELIGIBLE" ? "up" : (elig === "BLOCKED" ? "down" : "");
+      const retRange = `${r.expected_return_lo_pct ?? "—"}~${r.expected_return_hi_pct ?? "—"}`;
+      const afford = r.affordable_lots ? `${r.affordable_lots}手/${r.suggested_qty || 0}股` : "—";
       tr.innerHTML =
         `<td>${r.rank}</td>` +
-        `<td><button type="button" class="symbol-link" data-dossier-symbol="${r.symbol}">${r.symbol}</button></td>` +
+        `<td><button type="button" class="symbol-link" data-dossier-symbol="${r.symbol}" title="${(r.reasons_not_to_trade || []).join("；")}">${r.symbol}</button></td>` +
         `<td>${r.sector || "—"}</td>` +
         `<td class="num">${r.live_price || r.last_close}</td>` +
-        `<td class="${(r.live_pct ?? r.last_pct) >= 0 ? "up" : "down"}">${(r.live_pct ?? r.last_pct) >= 0 ? "+" : ""}${r.live_pct ?? r.last_pct}</td>` +
-        `<td class="${r.ret_20 >= 0 ? "up" : "down"}">${r.ret_20 >= 0 ? "+" : ""}${r.ret_20}</td>` +
-        `<td class="${r.ret_60 >= 0 ? "up" : "down"}">${r.ret_60 >= 0 ? "+" : ""}${r.ret_60}</td>` +
-        `<td class="${r.trend >= 0 ? "up" : "down"}">${r.trend >= 0 ? "+" : ""}${r.trend}</td>` +
-        `<td class="num">${r.vol_20}</td>` +
-        `<td class="num">${(r.avg_amount / 1e8).toFixed(2)}</td>` +
-        `<td><span class="score-bar" style="width:${barW}px"></span> ${r.score.toFixed(2)}</td>` +
+        `<td class="num">${retRange}</td>` +
+        `<td class="num">${r.downside_risk_pct ?? "—"}</td>` +
+        `<td class="num">${r.crash_risk ?? "—"}</td>` +
+        `<td>${r.valid_for_purchase ? "是" : "否"}</td>` +
+        `<td class="num">${afford}</td>` +
+        `<td><span class="score-bar" style="width:${barW}px"></span> ${(r.final_score ?? r.score).toFixed(2)}</td>` +
+        `<td class="${eligCls}">${elig}</td>` +
         `<td>${sparklineSvg(r.spark, up)}</td>`;
       tb.appendChild(tr);
     });

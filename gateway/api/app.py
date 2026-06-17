@@ -100,10 +100,14 @@ class HaltBody(BaseModel):
 
 
 class BacktestBody(BaseModel):
-    as_of_date: str
+    as_of_date: str = ""
     run_id: str = ""
     bars: list[dict[str, Any]] = Field(default_factory=list)
     signals: list[dict[str, Any]] = Field(default_factory=list)
+    preset: str = "balanced"
+    lookback_days: int = 60
+    top_n: int = 5
+    engine: str = "screener_portfolio"
 
 
 @app.get("/health")
@@ -222,7 +226,7 @@ def research_daily_run(principal: Optional[Principal] = Depends(get_principal)) 
             "run_id": run_id,
             "status": "RUNNING",
             "mode": _state.mode.value,
-            "message": "日报后台生成中；完成后会导出到桌面 China_A_Share_Daily_Reports 目录。",
+            "message": "????????????????? China_A_Share_Daily_Reports ???",
             "desktop_root": str(Path("/Users/kenzhao/Desktop/China_A_Share_Daily_Reports")),
         },
         run_id=run_id,
@@ -232,6 +236,15 @@ def research_daily_run(principal: Optional[Principal] = Depends(get_principal)) 
 @app.post("/api/v1/research/backtest")
 def research_backtest(body: BacktestBody, principal: Optional[Principal] = Depends(get_principal)) -> Dict[str, Any]:
     _require(principal, "research:run")
+    if body.engine == "screener_portfolio" or (not body.bars and not body.signals):
+        from gateway.backtest.screener_backtest import run_screener_portfolio_backtest
+
+        result = run_screener_portfolio_backtest(
+            preset=body.preset,
+            lookback_days=body.lookback_days,
+            top_n=body.top_n,
+        )
+        return envelope_ok(result)
     result = run_event_backtest(
         run_id=body.run_id or str(uuid.uuid4())[:8],
         as_of_date=body.as_of_date,

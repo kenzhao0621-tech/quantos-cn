@@ -87,21 +87,45 @@ class ScreenResult:
     live_status: dict[str, Any] = field(default_factory=dict)
     blocked: bool = False
     blocker_reason: str = ""
+    diversity_notes: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
+        from quant.scoring.enrichment import enrich_candidate
+        from quant.portfolio.allocator import allocate_top_k
+
+        validation_status = _cached_validation_status()
+        regime = _cached_regime_label()
+        enriched = [
+            enrich_candidate(
+                c.to_dict(),
+                rank=c.rank,
+                preset=self.preset,
+                as_of_date=self.as_of_date or "",
+                validation_status=validation_status,
+                regime=regime,
+            )
+            for c in self.candidates
+        ]
+        allocation = allocate_top_k(enriched, capital_cny=5000.0)
         return {
             "as_of_date": self.as_of_date,
             "factor_as_of_date": self.as_of_date,
+            "data_cutoff": self.as_of_date,
             "live_retrieved_at": self.live_status.get("retrieved_at"),
             "live_freshness": self.live_status.get("freshness"),
             "live_provider": self.live_status.get("provider"),
             "preset": self.preset,
             "mode": self.mode,
+            "model_version": "screener_v2_multi_target_2026-06-17",
+            "forecast_horizon": "T+1_close_to_close",
             "universe_size": self.universe_size,
-            "candidates": [c.to_dict() for c in self.candidates],
+            "candidates": enriched,
+            "portfolio_allocation_5000": allocation,
             "live_status": self.live_status,
             "blocked": self.blocked,
             "blocker_reason": self.blocker_reason,
+            "validation_status": validation_status.get("verdict", "NOT_RUN"),
+            "diversity_notes": self.diversity_notes,
         }
 
 
@@ -283,7 +307,11 @@ class ScreenerService:
                 r["score"] = base_score + sector_bonus + quality_score + disclosure_penalty
 
         raw.sort(key=lambda r: r["score"], reverse=True)
-        top = raw[: max(1, top_n)]
+        from quant.screener.diversity import apply_diversity_constraints
+
+        top, diversity_notes = apply_diversity_constraints(raw, top_n=max(1, top_n))
+        if not top:
+            top = raw[: max(1, top_n)]
 
         # sparkline (last ~30 closes) for the shortlist only
         spark_map: dict[str, list[float]] = {}
@@ -330,7 +358,10 @@ class ScreenerService:
             )
             for i, r in enumerate(top)
         ]
-        return ScreenResult(as_of_str, preset, universe, candidates, mode=mode, live_status=live_status)
+        return ScreenResult(
+            as_of_str, preset, universe, candidates, mode=mode, live_status=live_status,
+            diversity_notes=diversity_notes,
+        )
 
     def dossier(
         self,
@@ -881,6 +912,26 @@ def _adjustment_notes(proofs: list[dict[str, Any]], benchmark_median: float) -> 
 
 
 _service: Optional[ScreenerService] = None
+
+
+def _cached_validation_status() -> dict[str, Any]:
+    path = ROOT / "artifacts" / "model_validation.json"
+    if path.exists():
+        try:
+            import json
+            return json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    return {"verdict": "NOT_RUN", "purged_kfold_passed": None}
+
+
+def _cached_regime_label() -> dict[str, Any]:
+    try:
+        from tools.china_quant.regime_v2 import classify_regime_v2
+        r = classify_regime_v2()
+        return {"label": r.get("regime", "UNKNOWN"), "score": r.get("score")}
+    except Exception:
+        return {"label": "UNKNOWN"}
 
 
 def get_screener_service() -> ScreenerService:

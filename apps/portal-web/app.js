@@ -300,7 +300,10 @@
       if (meta) {
         meta.innerHTML = vm.blocked
           ? ""
-          : `<span class="metric-chip">历史因子 <b>${vm.factorAsOfDate}</b></span>` +
+          : `<span class="metric-chip">截止 <b>${vm.dataCutoff}</b></span>` +
+            `<span class="metric-chip">模型 <b>${vm.modelVersion}</b></span>` +
+            `<span class="metric-chip">验证 <b>${vm.validationStatus}</b></span>` +
+            `<span class="metric-chip">历史因子 <b>${vm.factorAsOfDate}</b></span>` +
             (vm.liveRetrievedAt ? `<span class="metric-chip">实时行情 <b>${vm.liveRetrievedAt}</b></span>` : "") +
             (vm.liveProvider ? `<span class="metric-chip">实时源 <b>${vm.liveProvider}</b></span>` : "") +
             `<span class="metric-chip">模式 <b>${vm.mode}</b></span>` +

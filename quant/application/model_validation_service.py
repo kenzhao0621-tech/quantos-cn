@@ -184,11 +184,14 @@ class ModelValidationService:
             "latest_data_date": dates[-1],
         }
         paper_shadow = _paper_shadow_stats()
-        verdict, actions = _verdict(out, rolling, stability, execution, paper_shadow)
-        return ValidationResult(
+        purged = _run_purged_kfold_validation(dates, daily_results, cfg)
+        walk_forward = _run_walk_forward_validation(dates, daily_results)
+        dsr_pbo = _dsr_pbo_metrics(all_net)
+        verdict, actions = _verdict(out, rolling, stability, execution, paper_shadow, purged)
+        result = ValidationResult(
             config=cfg.__dict__,
             sample=sample,
-            out_of_sample=out,
+            out_of_sample={**out, **purged, **walk_forward, **dsr_pbo},
             rolling=rolling,
             factor_stability=stability,
             execution=execution,
@@ -196,6 +199,8 @@ class ModelValidationService:
             verdict=verdict,
             actions=actions,
         )
+        _persist_validation(result, purged)
+        return result
 
 
 def _sector_neutral_pick(candidates: list[Any], top_n: int, max_per_sector: int) -> list[Any]:
@@ -296,10 +301,87 @@ def _count_jsonl(path: Path) -> dict[str, Any]:
     return {"count": len(rows), "recent": rows[-5:]}
 
 
-def _verdict(out: dict[str, Any], rolling: dict[str, Any], stability: dict[str, Any], execution: dict[str, Any], paper: dict[str, Any]) -> tuple[str, list[str]]:
+def _run_purged_kfold_validation(dates: list[str], daily_results: list[dict], cfg: ValidationConfig) -> dict[str, Any]:
+    from quant.validation.purged_kfold import evaluate_screener_purged_kfold, purged_kfold_splits
+
+    splits = purged_kfold_splits(dates, n_splits=5, train_size=40, test_size=5, purge_days=5, embargo_days=2)
+    fold_returns: list[float] = []
+    fold_hits: list[float] = []
+    date_to_ret = {d["signal_date"]: d["avg_net_return"] for d in daily_results}
+    for sp in splits:
+        test_dates = [d for d in dates if sp["test_start"] <= d <= sp["test_end"]]
+        rets = [date_to_ret[d] for d in test_dates if d in date_to_ret]
+        if rets:
+            fold_returns.append(statistics.fmean(rets))
+            fold_hits.append(sum(1 for x in rets if x > 0) / len(rets))
+    result = evaluate_screener_purged_kfold(fold_returns=fold_returns, fold_hit_rates=fold_hits)
+    result["splits"] = len(splits)
+    result["purged_kfold_passed"] = result.get("passed", False)
+    return result
+
+
+def _run_walk_forward_validation(dates: list[str], daily_results: list[dict]) -> dict[str, Any]:
+    from quant.validation.overfitting import walk_forward_splits
+
+    signal_dates = [d["signal_date"] for d in daily_results]
+    if len(signal_dates) < 20:
+        return {"walk_forward_passed": False, "walk_forward_folds": 0}
+    splits = walk_forward_splits(signal_dates, train_size=max(10, len(signal_dates) // 2), test_size=5, step=3)
+    wf_returns: list[float] = []
+    date_to_ret = {d["signal_date"]: d["avg_net_return"] for d in daily_results}
+    for sp in splits[:5]:
+        test_dates = [d for d in signal_dates if sp["test_start"] <= d <= sp["test_end"]]
+        rets = [date_to_ret[d] for d in test_dates if d in date_to_ret]
+        if rets:
+            wf_returns.append(statistics.fmean(rets))
+    passed = bool(wf_returns) and statistics.fmean(wf_returns) > 0
+    return {
+        "walk_forward_folds": len(wf_returns),
+        "walk_forward_mean_return": round(statistics.fmean(wf_returns), 3) if wf_returns else 0,
+        "walk_forward_passed": passed,
+    }
+
+
+def _dsr_pbo_metrics(returns: list[float]) -> dict[str, Any]:
+    if len(returns) < 5:
+        return {"dsr": None, "pbo": None}
+    try:
+        from quant.validation.overfitting import deflated_sharpe_ratio, probability_backtest_overfitting
+
+        mean = statistics.fmean(returns)
+        std = statistics.pstdev(returns) if len(returns) > 1 else 1.0
+        sharpe = (mean / std) * (252 ** 0.5) if std > 1e-9 else 0.0
+        dsr_result = deflated_sharpe_ratio(sharpe, n_trials=3, n_obs=len(returns))
+        pbo_result = probability_backtest_overfitting([returns])
+        return {
+            "dsr": dsr_result.get("dsr"),
+            "dsr_passed": dsr_result.get("passed"),
+            "pbo": pbo_result.get("pbo"),
+            "pbo_passed": pbo_result.get("passed"),
+        }
+    except Exception:
+        return {"dsr": None, "pbo": None}
+
+
+def _persist_validation(result: ValidationResult, purged: dict[str, Any]) -> None:
+    path = ROOT / "artifacts" / "model_validation.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = result.to_dict()
+    payload["purged_kfold_passed"] = purged.get("purged_kfold_passed")
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _verdict(
+    out: dict[str, Any],
+    rolling: dict[str, Any],
+    stability: dict[str, Any],
+    execution: dict[str, Any],
+    paper: dict[str, Any],
+    purged: dict[str, Any] | None = None,
+) -> tuple[str, list[str]]:
     actions: list[str] = []
     if out.get("blocked"):
-        return "NOT_READY", ["没有足够样本外结果。"]
+        return "BLOCKED_BY_DATA", ["没有足够样本外结果。"]
     if out.get("avg_daily_net_return", 0) <= 0:
         actions.append("样本外扣成本收益不达标，禁止进入真实交易。")
     if out.get("avg_outperform_rate", 0) < 52:
@@ -308,9 +390,15 @@ def _verdict(out: dict[str, Any], rolling: dict[str, Any], stability: dict[str, 
         actions.append("存在涨停买入不可执行样本，实盘前必须过滤。")
     if stability.get("top30_overlap_avg", 0) < 20:
         actions.append("因子排名过于不稳定，可能过度追逐短期噪声。")
+    if purged and not purged.get("purged_kfold_passed"):
+        actions.append("Purged K-Fold 未通过，保持 RESEARCH_ONLY / Paper 阶段。")
     if not paper.get("sample_ready"):
         actions.append("Paper/Shadow 样本少于 20 条，不能升级真实交易流程。")
-    return ("READY_FOR_EXTENDED_PAPER" if not actions else "NOT_READY", actions or ["继续扩展 Paper/Shadow 样本并每日复盘。"])
+    if not actions and purged and purged.get("purged_kfold_passed"):
+        return "PASS", ["验证通过，可进入扩展 Paper / Shadow。"]
+    if not actions:
+        return "CAUTION", ["继续扩展 Paper/Shadow 样本并每日复盘。"]
+    return "NOT_READY", actions
 
 
 _service: ModelValidationService | None = None
