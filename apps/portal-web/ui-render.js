@@ -187,6 +187,80 @@
     container.appendChild(wrap);
   }
 
+  function sparklineSvg(values, up) {
+    if (!values || values.length < 2) return "";
+    const w = 80, h = 24, pad = 2;
+    const min = Math.min(...values), max = Math.max(...values);
+    const range = max - min || 1;
+    const step = (w - pad * 2) / (values.length - 1);
+    const pts = values
+      .map((v, i) => `${(pad + i * step).toFixed(1)},${(h - pad - ((v - min) / range) * (h - pad * 2)).toFixed(1)}`)
+      .join(" ");
+    const color = up ? "var(--up)" : "var(--down)";
+    return `<svg class="sparkline" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.5" /></svg>`;
+  }
+
+  function renderScreener(container, vm) {
+    if (!container) return;
+    container.innerHTML = "";
+    if (!vm || vm.blocked) {
+      container.appendChild(renderEmpty("暂无候选", vm?.blockerReason || "点击「运行选股」生成排名", "请先确保数据已更新"));
+      return;
+    }
+    if (!vm.rows.length) {
+      container.appendChild(renderEmpty("无结果", "当前条件下没有候选股", "尝试降低成交额门槛"));
+      return;
+    }
+    const maxScore = Math.max(...vm.rows.map((r) => r.score)) || 1;
+    const table = el("table", "data-table");
+    table.innerHTML =
+      "<thead><tr><th>#</th><th>代码</th><th>最新价</th><th>今日%</th><th>20日%</th><th>60日%</th><th>趋势%</th><th>波动</th><th>成交额(亿)</th><th>评分</th><th>走势</th></tr></thead>";
+    const tb = el("tbody");
+    vm.rows.forEach((r) => {
+      const tr = el("tr");
+      const barW = Math.max(6, Math.round((r.score / maxScore) * 60));
+      const up = (r.ret_20 || 0) >= 0;
+      tr.innerHTML =
+        `<td>${r.rank}</td>` +
+        `<td><b>${r.symbol}</b></td>` +
+        `<td class="num">${r.last_close}</td>` +
+        `<td class="${r.last_pct >= 0 ? "up" : "down"}">${r.last_pct >= 0 ? "+" : ""}${r.last_pct}</td>` +
+        `<td class="${r.ret_20 >= 0 ? "up" : "down"}">${r.ret_20 >= 0 ? "+" : ""}${r.ret_20}</td>` +
+        `<td class="${r.ret_60 >= 0 ? "up" : "down"}">${r.ret_60 >= 0 ? "+" : ""}${r.ret_60}</td>` +
+        `<td class="${r.trend >= 0 ? "up" : "down"}">${r.trend >= 0 ? "+" : ""}${r.trend}</td>` +
+        `<td class="num">${r.vol_20}</td>` +
+        `<td class="num">${(r.avg_amount / 1e8).toFixed(2)}</td>` +
+        `<td><span class="score-bar" style="width:${barW}px"></span> ${r.score.toFixed(2)}</td>` +
+        `<td>${sparklineSvg(r.spark, up)}</td>`;
+      tb.appendChild(tr);
+    });
+    table.appendChild(tb);
+    container.appendChild(table);
+  }
+
+  function toast(title, message, tone) {
+    let stack = document.getElementById("toast-stack");
+    if (!stack) {
+      stack = el("div", "toast-stack");
+      stack.id = "toast-stack";
+      document.body.appendChild(stack);
+    }
+    const t = el("div", `toast ${tone || "info"}`);
+    const icon = tone === "ok" ? "✓" : tone === "fail" ? "✕" : "•";
+    const head = el("div", "toast-title");
+    head.appendChild(el("span", "", icon));
+    head.appendChild(el("span", "", title));
+    t.appendChild(head);
+    if (message) t.appendChild(el("div", "toast-msg", message));
+    stack.appendChild(t);
+    const remove = () => {
+      t.classList.add("toast-fade");
+      setTimeout(() => t.remove(), 300);
+    };
+    t.addEventListener("click", remove);
+    setTimeout(remove, tone === "fail" ? 7000 : 4000);
+  }
+
   function setLoading(btn, loading, msg) {
     if (!btn) return;
     if (loading) {
@@ -226,6 +300,8 @@
     renderAgentPanel,
     renderActionLog,
     renderJob,
+    renderScreener,
+    toast,
     setLoading,
     countPrimaryRawJson,
   };

@@ -47,6 +47,18 @@ def frontend_build_id() -> str:
     return "-".join(parts)[:64]
 
 
+@lru_cache(maxsize=1)
+def portal_build_id() -> str:
+    """Stable build id captured once per running process.
+
+    Both the rendered portal HTML and the /version endpoint use THIS value, so
+    they always agree within a single server. A mismatch therefore only occurs
+    when the browser is holding HTML from a previous server instance — exactly
+    the case where a hard refresh actually helps.
+    """
+    return frontend_build_id()
+
+
 def backend_build_id() -> str:
     return f"gateway-{git_commit()}-{int((ROOT / 'gateway' / 'api' / 'app.py').stat().st_mtime)}"
 
@@ -64,6 +76,7 @@ def version_payload() -> dict[str, Any]:
         "git_dirty": git_dirty(),
         "backend_build_id": backend_build_id(),
         "frontend_build_id": frontend_build_id(),
+        "portal_build_id": portal_build_id(),
         "gateway_module_path": inspect.getfile(gateway),
         "app_module_path": inspect.getfile(app_module),
         "repository_root": str(ROOT),

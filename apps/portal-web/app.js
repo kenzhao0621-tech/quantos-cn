@@ -20,14 +20,20 @@
   }
 
   function logAction(label, res) {
+    const summary = VM.actionSummary(label, res);
     UI.renderActionLog($("action-log-body"), {
       label,
       ok: res.ok,
       time: new Date().toLocaleString("zh-CN"),
-      summary: VM.actionSummary(label, res),
+      summary,
       runId: res.run_id || res.data?.run_id,
       raw: { request_id: res.request_id, trace_id: res.trace_id, data: res.data, error: res.error },
     });
+    UI.toast(
+      `${label}${res.ok ? " 成功" : " 失败"}`,
+      res.ok ? summary : (res.error?.message || "操作未成功"),
+      res.ok ? "ok" : "fail",
+    );
     return res;
   }
 
@@ -37,7 +43,7 @@
       const res = await api.request(path, options);
       logAction(label, res);
       if (!res.ok && res.httpStatus === 403) {
-        alert(`权限不足: 当前角色 ${api.role} — ${res.error?.message || "forbidden"}`);
+        UI.toast("权限不足", `当前角色 ${api.role} 无此权限`, "fail");
       }
       return res;
     } finally {
@@ -70,6 +76,7 @@
     "candidate-gate": (btn) => act("候选门", "/api/v1/research/candidate", { method: "POST" }, btn),
     "market-refresh": () => refreshMarket(),
     "market-update-job": (btn) => runMarketUpdateJob(btn),
+    "screener-run": (btn) => runScreener(btn),
     "paper-refresh": () => refreshPaper(),
     "open-pdf": async () => {
       const st = await api.request("/api/v1/system/status");
@@ -115,6 +122,9 @@
       document.querySelectorAll("main.layout").forEach((m) => m.classList.add("hidden"));
       const el = $(`page-${tab.dataset.page}`);
       if (el) el.classList.remove("hidden");
+      if (tab.dataset.page === "screener" && !$("screener-table")?.children.length) {
+        runScreener($("screener-meta") ? document.querySelector('[data-action="screener-run"]') : null);
+      }
     });
   });
 
@@ -156,6 +166,37 @@
     UI.renderTable($("market-providers"), ["数据源", "状态", "数据集", "说明"], m.providers, "Provider 信息不可用");
     if ($("market-coverage")) {
       UI.renderTable($("market-coverage"), ["数据集", "行数", "最新交易日", "状态"], m.coverage, "暂无覆盖信息");
+    }
+  }
+
+  async function runScreener(btn) {
+    UI.setLoading(btn, true, "计算中…");
+    try {
+      const preset = $("screener-preset")?.value || "balanced";
+      const topN = $("screener-topn")?.value || "25";
+      const minAmt = $("screener-minamt")?.value || "50000000";
+      const res = await api.request(
+        `/api/v1/screener/run?preset=${preset}&top_n=${topN}&min_amount_cny=${minAmt}`,
+      );
+      const vm = VM.fromScreener(res);
+      UI.renderScreener($("screener-table"), vm);
+      const meta = $("screener-meta");
+      if (meta) {
+        meta.innerHTML = vm.blocked
+          ? ""
+          : `<span class="metric-chip">截至 <b>${vm.asOfDate}</b></span>` +
+            `<span class="metric-chip">策略 <b>${vm.preset}</b></span>` +
+            `<span class="metric-chip">候选池 <b>${vm.universeSize}</b> 只</span>` +
+            `<span class="metric-chip">入选 <b>${vm.rows.length}</b> 只</span>`;
+      }
+      UI.toast(
+        res.ok && !vm.blocked ? "选股完成" : "选股失败",
+        res.ok && !vm.blocked ? `从 ${vm.universeSize} 只中选出 ${vm.rows.length} 只` : (vm.blockerReason || "请先更新数据"),
+        res.ok && !vm.blocked ? "ok" : "fail",
+      );
+      return res;
+    } finally {
+      UI.setLoading(btn, false);
     }
   }
 
@@ -290,8 +331,10 @@
     if (!ver.ok) return;
     const d = ver.data;
     const pageBuild = document.body.dataset.portalBuild || "";
-    const mismatch = pageBuild && d.frontend_build_id && !d.frontend_build_id.startsWith(pageBuild.split("-")[0]);
-    $("footer-version").textContent = `Backend ${d.git_commit_short} · Frontend ${d.frontend_build_id?.slice(0, 24) || "—"} · PID ${d.process_id}`;
+    // Compare the build the browser loaded against the SAME server's stable build.
+    // Mismatch => the browser is holding HTML from a previous server instance.
+    const mismatch = !!(pageBuild && d.portal_build_id && pageBuild !== d.portal_build_id);
+    $("footer-version").textContent = `Backend ${d.git_commit_short} · PID ${d.process_id}`;
     $("footer-build-warn").classList.toggle("hidden", !mismatch);
   }
 

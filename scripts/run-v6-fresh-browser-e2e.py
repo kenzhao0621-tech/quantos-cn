@@ -61,7 +61,7 @@ def main() -> int:
         page.screenshot(path=str(SHOT / "01_overview.png"), full_page=True)
 
         footer = page.text_content("#footer-version") or ""
-        check("Slice1: footer shows backend+frontend build", "Backend" in footer and "Frontend" in footer, footer[:80])
+        check("Slice1: footer shows backend build + pid", "Backend" in footer and "PID" in footer, footer[:80])
         warn_hidden = page.is_hidden("#footer-build-warn")
         check("Slice1: NO build mismatch warning", warn_hidden)
 
@@ -129,6 +129,17 @@ def main() -> int:
         # reset back to research-only
         page.locator('[data-action="paper-stop"]').locator("visible=true").first.click()
         page.wait_for_timeout(800)
+
+        # ---- Slice 5: screener (real multi-factor ranking) ----------------
+        page.click('.tab[data-page="screener"]')
+        page.wait_for_timeout(2500)  # auto-runs on open
+        page.screenshot(path=str(SHOT / "05_screener.png"), full_page=True)
+        scr_rows = page.query_selector_all("#screener-table table.data-table tbody tr")
+        check("Slice5: screener returns ranked candidates", len(scr_rows) >= 10, f"rows={len(scr_rows)}")
+        meta = page.text_content("#screener-meta") or ""
+        check("Slice5: screener shows universe + as-of", "候选池" in meta and "截至" in meta, meta[:80])
+        sparks = page.query_selector_all("#screener-table svg.sparkline")
+        check("Slice5: screener rows have sparklines", len(sparks) >= 10, f"sparks={len(sparks)}")
 
         context.close()
         browser.close()

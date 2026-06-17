@@ -99,6 +99,30 @@
     ];
   }
 
+  function fromScreener(res) {
+    const d = res?.data || {};
+    return {
+      blocked: !!d.blocked,
+      blockerReason: d.blocker_reason || "",
+      asOfDate: d.as_of_date || "—",
+      preset: d.preset || "—",
+      universeSize: d.universe_size || 0,
+      rows: (d.candidates || []).map((c) => ({
+        rank: c.rank,
+        symbol: c.symbol,
+        last_close: c.last_close,
+        last_pct: c.last_pct,
+        ret_20: c.ret_20,
+        ret_60: c.ret_60,
+        trend: c.trend,
+        vol_20: c.vol_20,
+        avg_amount: c.avg_amount,
+        score: c.score,
+        spark: c.spark || [],
+      })),
+    };
+  }
+
   function fromMarket(overview, providers, coverage) {
     const o = overview?.data || {};
     const blocked = !!o.blocked;
@@ -223,6 +247,7 @@
   global.QuantOSViewModels = {
     fromSystemStatus,
     overviewCards,
+    fromScreener,
     fromMarket,
     fromPaper,
     fromRisk,

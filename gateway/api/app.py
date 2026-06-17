@@ -366,9 +366,9 @@ app.include_router(bff_market_router)
 # Portal static files
 PORTAL_DIR = ROOT / "apps" / "portal-web"
 if PORTAL_DIR.exists():
-    from gateway.build_info import frontend_build_id
+    from gateway.build_info import portal_build_id
 
-    _PORTAL_BUILD = frontend_build_id()
+    _PORTAL_BUILD = portal_build_id()
 
     class _PortalStaticFiles(StaticFiles):
         async def get_response(self, path: str, scope):  # type: ignore[override]

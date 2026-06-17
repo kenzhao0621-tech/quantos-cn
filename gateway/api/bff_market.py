@@ -84,6 +84,23 @@ def market_coverage(principal: Optional[Principal] = Depends(_principal)) -> Dic
     return envelope_ok({"coverage": [c.to_dict() for c in cov]})
 
 
+@router.get("/api/v1/screener/run")
+def screener_run(
+    preset: str = "balanced",
+    top_n: int = 25,
+    min_amount_cny: float = 5e7,
+    principal: Optional[Principal] = Depends(_principal),
+) -> Dict[str, Any]:
+    _require(principal, "market:read")
+    from quant.application.screener_service import get_screener_service
+
+    top_n = max(5, min(int(top_n), 100))
+    result = get_screener_service().screen(
+        preset=preset, top_n=top_n, min_amount_cny=float(min_amount_cny)
+    )
+    return envelope_ok(result.to_dict(), provenance={"source": "canonical_duckdb", "engine": "multi_factor_screener"})
+
+
 # --------------------------------------------------------------------------
 # Job system
 # --------------------------------------------------------------------------

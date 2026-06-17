@@ -44,6 +44,7 @@
   <nav class="nav-tabs" aria-label="主导航">
     <button class="tab active" data-page="overview" type="button">总览</button>
     <button class="tab" data-page="market" type="button">市场中心</button>
+    <button class="tab" data-page="screener" type="button">智能选股</button>
     <button class="tab" data-page="reports" type="button">量化日报</button>
     <button class="tab" data-page="models" type="button">模型实验室</button>
     <button class="tab" data-page="agents" type="button">多智能体研究室</button>
@@ -108,6 +109,41 @@
       <div id="market-job"></div>
       <button data-action="market-refresh" type="button">刷新行情</button>
       <button data-action="market-update-job" type="button">更新数据（异步任务）</button>
+    </section>
+  </main>
+
+  <main class="layout hidden" id="page-screener">
+    <section class="panel full">
+      <h2>智能选股 · 多因子排名</h2>
+      <p class="muted">基于规范化日线（动量 + 趋势 + 流动性，波动率惩罚）。仅研究用途，不直接下单。</p>
+      <div class="screener-controls">
+        <label>策略
+          <select id="screener-preset">
+            <option value="balanced">均衡</option>
+            <option value="momentum">动量优先</option>
+            <option value="trend">趋势优先</option>
+            <option value="low_vol">低波动</option>
+          </select>
+        </label>
+        <label>数量
+          <select id="screener-topn">
+            <option value="15">15</option>
+            <option value="25" selected>25</option>
+            <option value="50">50</option>
+          </select>
+        </label>
+        <label>最小日均成交额(亿)
+          <select id="screener-minamt">
+            <option value="20000000">0.2</option>
+            <option value="50000000" selected>0.5</option>
+            <option value="100000000">1.0</option>
+            <option value="300000000">3.0</option>
+          </select>
+        </label>
+        <button data-action="screener-run" type="button">运行选股</button>
+      </div>
+      <div id="screener-meta" class="metric-row"></div>
+      <div id="screener-table" class="primary-view" data-primary-view="screener"></div>
     </section>
   </main>
 
