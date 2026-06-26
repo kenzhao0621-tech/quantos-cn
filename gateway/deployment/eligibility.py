@@ -83,6 +83,16 @@ def compute_deployment_eligibility(*, e2e_passed: bool | None = None) -> dict[st
         else:
             stage = DeploymentStage.MANUAL_LIVE_ELIGIBLE
 
+    from gateway.live_trading.gates import load_gates
+
+    g = load_gates()
+    unattended_ok = (
+        g.unattended_auto_enabled
+        and g.execution_level >= 3
+        and g.real_money_enabled
+        and stage in (DeploymentStage.MANUAL_LIVE_ELIGIBLE, DeploymentStage.SIMULATED_BROKER_ELIGIBLE, DeploymentStage.PAPER_ELIGIBLE)
+    )
+
     if blockers and stage == DeploymentStage.RESEARCH_ONLY:
         stage = DeploymentStage.BLOCKED if "CRITICAL_E2E_FAILED" in blockers else stage
 
@@ -90,6 +100,7 @@ def compute_deployment_eligibility(*, e2e_passed: bool | None = None) -> dict[st
         "deployment_eligibility": stage.value,
         "gates": gates,
         "blockers": blockers,
-        "unattended_live_prohibited": True,
-        "manual_confirmation_required": True,
+        "unattended_live_prohibited": not unattended_ok,
+        "unattended_live_available": unattended_ok,
+        "manual_confirmation_required": not g.unattended_auto_enabled,
     }

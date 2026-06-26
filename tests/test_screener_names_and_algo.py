@@ -30,7 +30,7 @@ class TestScreenerNamesAndAlgo(unittest.TestCase):
         self.assertTrue(top.get("name"), "top candidate should have name")
         self.assertIn("detailed_reasons", top)
         self.assertIn("trade_zones", top)
-        self.assertIn("alpha158_lite", top.get("factor_contributions", {}))
+        self.assertIn("alpha158_inspired_lite", top.get("factor_contributions", {}))
 
     def test_screener_api_includes_name(self) -> None:
         client = TestClient(app)
@@ -46,7 +46,7 @@ class TestScreenerNamesAndAlgo(unittest.TestCase):
         cands = body["data"]["candidates"]
         self.assertGreater(len(cands), 0)
         self.assertTrue(cands[0].get("name"))
-        self.assertEqual(body["data"]["model_version"], "screener_v3_alpha158_blend_2026-06-17")
+        self.assertEqual(body["data"]["model_version"], "screener_v4_industry_neutral_2026-06-17")
 
     def test_dossier_includes_trade_zones(self) -> None:
         svc = get_screener_service()

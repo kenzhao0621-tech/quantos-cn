@@ -208,9 +208,142 @@ button.danger { background: var(--danger); }
 .stock-name { font-weight: 700; min-width: 5rem; }
 .screener-detail-list { margin: 0; padding-left: 1rem; font-size: 0.78rem; color: var(--muted); }
 .screener-detail-list li { margin: 0.15rem 0; }
-.screener-detail-cell { max-width: 14rem; vertical-align: top; }
-.screener-table { font-size: 0.85rem; }
+.screener-expand-btn { font-size: 0.75rem; padding: 0.25rem 0.55rem; }
+
+/* ---- stock detail modal ---- */
+.stock-modal-overlay {
+  position: fixed; inset: 0; z-index: 200;
+  display: flex; align-items: center; justify-content: center;
+  padding: 1rem;
+  background: rgba(5, 8, 14, 0.78);
+  backdrop-filter: blur(8px);
+}
+.stock-modal-overlay.hidden { display: none !important; }
+.stock-modal-dialog {
+  width: min(920px, 100%);
+  max-height: min(92vh, 900px);
+  background: linear-gradient(180deg, var(--panel), var(--bg-elev));
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+.stock-modal-body {
+  overflow-y: auto;
+  padding: 1.25rem 1.5rem 1.5rem;
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+.stock-modal-head {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  gap: 1rem; margin-bottom: 1rem;
+  padding-bottom: 1rem; border-bottom: 1px solid var(--border-soft);
+}
+.stock-modal-title-block { flex: 1; min-width: 0; }
+.stock-modal-title-block h2 {
+  margin: 0 0 0.35rem; font-size: 1.35rem; font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.stock-modal-sub { font-size: 0.82rem; color: var(--muted); }
+.stock-modal-close {
+  flex-shrink: 0;
+  width: 2.25rem; height: 2.25rem;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--muted);
+  font-size: 1.1rem;
+  cursor: pointer;
+  line-height: 1;
+}
+.stock-modal-close:hover { color: var(--text); border-color: var(--accent); }
+.stock-modal-hero {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 1.25rem;
+  align-items: center;
+  margin-bottom: 1.25rem;
+}
+.stock-modal-score-ring {
+  width: 5.5rem; height: 5.5rem;
+  border-radius: 50%;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  background: rgba(74, 153, 136, 0.12);
+  border: 2px solid var(--accent);
+}
+.stock-modal-score-ring .score-num { font-size: 1.45rem; font-weight: 800; color: var(--accent); line-height: 1; }
+.stock-modal-score-ring .score-lbl { font-size: 0.65rem; color: var(--muted); margin-top: 0.2rem; }
+.stock-modal-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 0.5rem;
+}
+.stock-modal-kpi {
+  background: var(--card);
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  padding: 0.55rem 0.65rem;
+}
+.stock-modal-kpi .k { display: block; font-size: 0.68rem; color: var(--muted); }
+.stock-modal-kpi .v { font-size: 0.95rem; font-weight: 700; }
+.stock-modal-section {
+  margin: 1.15rem 0 0;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-soft);
+}
+.stock-modal-section h3 {
+  margin: 0 0 0.65rem;
+  font-size: 0.95rem;
+  color: var(--accent2);
+}
+.stock-modal-summary {
+  margin: 0;
+  padding: 0.85rem 1rem;
+  background: rgba(255,255,255,0.03);
+  border-left: 3px solid var(--accent);
+  border-radius: 0 10px 10px 0;
+  line-height: 1.6;
+}
+.stock-modal-zones {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0.65rem;
+}
+.stock-modal-zone {
+  padding: 0.75rem;
+  border-radius: 10px;
+  border: 1px solid var(--border-soft);
+  background: var(--card);
+}
+.stock-modal-zone.buy { border-color: rgba(61, 214, 168, 0.35); }
+.stock-modal-zone.stop { border-color: rgba(240, 96, 96, 0.35); }
+.stock-modal-zone.sell { border-color: rgba(91, 156, 245, 0.35); }
+.stock-modal-zone .z-label { font-size: 0.72rem; color: var(--muted); }
+.stock-modal-zone .z-val { font-size: 1rem; font-weight: 700; margin-top: 0.15rem; }
+.stock-modal-loading {
+  text-align: center;
+  padding: 2rem;
+  color: var(--muted);
+}
+.stock-modal-footnote { font-size: 0.78rem; color: var(--muted); margin-top: 1rem; }
+.dossier-head { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
+.paper-report-row { margin: 0.35rem 0; }
+.paper-report-row a { color: var(--accent); }
 .dossier-card p { margin: 0.4rem 0 0.6rem; color: var(--text); }
+.screener-search-card { margin-top: 0.5rem; }
+.screener-search-row { margin-bottom: 0.35rem; }
+.screener-search-label input { min-width: 220px; max-width: 320px; }
+.stock-analysis-card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 0.85rem; margin-top: 0.5rem; }
+.stock-analysis-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem 1rem; margin-bottom: 0.5rem; }
+.stock-score-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; }
+.stock-score-value { font-size: 1.35rem; font-weight: 700; color: var(--accent); }
+.stock-rank, .stock-alpha { font-size: 0.82rem; color: var(--muted); }
+.stock-meta-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 0.35rem 0.75rem; margin: 0.5rem 0; }
+.stock-meta-key { display: block; font-size: 0.72rem; color: var(--muted); }
+.stock-meta-val { font-size: 0.88rem; font-weight: 600; }
+.stock-summary { margin: 0.5rem 0; line-height: 1.45; }
 .legal-card { max-width: 560px; }
 .live-ticker-grid, .broker-link-grid {
   display: grid;
@@ -226,3 +359,17 @@ button.danger { background: var(--danger); }
 .live-symbol { color: var(--muted); font-size: 0.75rem; font-weight: 700; }
 .live-price { font-size: 1.35rem; font-weight: 800; margin: 0.25rem 0; }
 .broker-link-card h3 { margin-top: 0; color: var(--text); }
+.paper-desk.grid-2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1rem;
+  margin: 1rem 0;
+}
+.paper-desk .form-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.65rem;
+}
+.paper-desk label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.82rem; }
+.paper-desk input, .paper-desk select { padding: 0.4rem 0.5rem; border-radius: 6px; border: 1px solid var(--border-soft); }
+.checklist.compact { font-size: 0.85rem; line-height: 1.45; }

@@ -68,7 +68,7 @@ _DEV_API_KEYS: dict[str, Role] = {
 
 def authenticate(api_key: str, demo_key: str, service_accounts: list[dict[str, str]]) -> Optional[Principal]:
     if api_key == demo_key:
-        return Principal(user_id="demo-admin", role=Role.ADMIN, project_id="netlify-demo-china-ashare")
+        return Principal(user_id="demo-admin", role=Role.ADMIN, project_id="quantos-cn")
     for sa in service_accounts:
         if sa.get("id") == api_key:
             role_name = sa.get("role", "viewer")
@@ -78,13 +78,13 @@ def authenticate(api_key: str, demo_key: str, service_accounts: list[dict[str, s
                 role = Role.VIEWER
             return Principal(
                 user_id=sa["id"], role=role,
-                project_id="netlify-demo-china-ashare", is_service_account=True,
+                project_id="quantos-cn", is_service_account=True,
             )
     dev_role = _DEV_API_KEYS.get(api_key)
     if dev_role:
         return Principal(
             user_id=api_key, role=dev_role,
-            project_id="netlify-demo-china-ashare", is_service_account=False,
+            project_id="quantos-cn", is_service_account=False,
         )
     return None
 

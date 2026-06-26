@@ -5,7 +5,21 @@
   const UI = window.QuantOSUI;
 
   let lastAgentRun = null;
+  let lastAutopilotTicket = null;
   let lastScreenerVm = null;
+  let lastScreenerDetailSymbol = null;
+  let lastLiveRefresh = null;
+  let lastLiveRefreshMeta = null;
+  let liveRefreshPromise = null;
+  let paperLiveTimer = null;
+  let paperAutoLiveEnabled = true;
+  let paperLiveCycleRunning = false;
+  /** 实时行情缓存有效期；Paper 自动轮询间隔 */
+  const LIVE_QUOTE_TTL_MS = 14 * 60 * 1000;
+  const PAPER_AUTO_LIVE_MS = 15 * 60 * 1000;
+  const INTRADAY_QUOTE_MS = 15 * 60 * 1000;
+  let globalIntradayTimer = null;
+  let paperMonitorTimer = null;
   let cachedNative = null;
   let cachedQuantos = null;
   let cachedBrokerEcosystem = null;
@@ -86,8 +100,8 @@
     "market-sync-all": (btn) => marketSyncAll(btn),
     "daily-run": (btn) => act("生成日报", "/api/v1/research/daily-run", { method: "POST" }, btn),
     "risk-check": (btn) => act("风险自检", "/api/v1/risk/status", {}, btn),
-    "paper-start": (btn) => act("Paper 启动", "/api/v1/paper/start", { method: "POST" }, btn),
-    "paper-stop": (btn) => act("Paper 停止", "/api/v1/paper/stop", { method: "POST" }, btn),
+    "paper-start": (btn) => act("Paper 启动", "/api/v1/paper/start", { method: "POST" }, btn).then(() => refreshPaper()),
+    "paper-stop": (btn) => act("Paper 停止", "/api/v1/paper/stop", { method: "POST" }, btn).then(() => refreshPaper()),
     "shadow-start": (btn) => act("Shadow 启动", "/api/v1/shadow/start", { method: "POST" }, btn),
     "shadow-stop": (btn) => act("Shadow 停止", "/api/v1/shadow/stop", { method: "POST" }, btn),
     halt: (btn) => act("紧急停机", "/api/v1/risk/halt", {
@@ -106,19 +120,31 @@
     "market-update-job": (btn) => runMarketUpdateJob(btn),
     "screener-run": (btn) => runScreener(btn),
     "screener-proof": (btn) => runScreenerProof(btn),
+    "screener-learn": (btn) => runScreenerLearn(btn),
+    "screener-report-pdf": (btn) => exportScreenerReportPdf(btn),
     "screener-dossier-top": (btn) => runTopDossier(btn),
+    "screener-stock-search": (btn) => runStockSearch(btn),
     "paper-from-screener": (btn) => paperFromScreener(btn),
+    "execute-allocation": (btn) => executeAllocation(btn),
     "save-preferences": (btn) => savePreferences(btn),
     "autopilot-readiness": (btn) => autopilotReadiness(btn),
     "autopilot-ticket": (btn) => autopilotTicket(btn),
+    "autopilot-execute-ticket": (btn) => autopilotExecuteTicket(btn),
     "model-validate": (btn) => modelValidate(btn),
     "paper-refresh": () => refreshPaper(),
+    "paper-mark-to-market": (btn) => paperMarkToMarket(btn),
+    "paper-submit-order": (btn) => paperSubmitOrder(btn),
+    "paper-monitor-tick": (btn) => paperMonitorTick(btn),
+    "paper-monitor-stop": (btn) => paperMonitorStop(btn),
+    "paper-report-close": (btn) => paperGenerateCloseReport(btn),
     "open-pdf": async () => {
       const st = await api.request("/api/v1/system/status");
-      const path = st.data?.latest_daily_report?.path_pdf;
-      if (path) {
-        logAction("打开 PDF", { ok: true, data: { summary: path }, request_id: st.request_id, trace_id: st.trace_id });
-        window.open(`/api/v1/research/reports?format=pdf`, "_blank");
+      const latest = st.data?.latest_daily_report || {};
+      const pdfName = latest.path_pdf ? latest.path_pdf.split("/").pop() : "";
+      if (pdfName && latest.status === "AVAILABLE") {
+        const url = `/api/v1/research/reports/download?file=${encodeURIComponent(pdfName)}`;
+        logAction("打开 PDF", { ok: true, data: { summary: pdfName }, request_id: st.request_id, trace_id: st.trace_id });
+        window.open(url, "_blank");
       } else alert("日报 PDF 尚未生成 — 请先运行「生成日报」");
     },
     "agents-run": async (btn) => {
@@ -168,9 +194,15 @@
       await submitLiveOrder(liveBtn);
       return;
     }
-    const btn = ev.target?.closest?.("[data-dossier-symbol]");
-    if (btn) {
-      await runDossier(btn.dataset.dossierSymbol, btn);
+    const closeModalBtn = ev.target?.closest?.("[data-stock-modal-close], [data-dossier-close]");
+    if (closeModalBtn) {
+      UI.closeStockDetailModal();
+      UI.renderDossier($("screener-dossier"), { _closed: true });
+      return;
+    }
+    const detailBtn = ev.target?.closest?.("[data-screener-detail]");
+    if (detailBtn) {
+      showStockDetail(detailBtn.dataset.screenerDetail);
       return;
     }
     const setupBtn = ev.target?.closest?.("[data-setup-action]");
@@ -195,6 +227,29 @@
     }
   });
 
+  $("stock-detail-modal")?.addEventListener("click", (ev) => {
+    if (ev.target?.id === "stock-detail-modal") {
+      UI.closeStockDetailModal();
+      const hint = $("screener-dossier");
+      if (hint) {
+        hint.innerHTML = "";
+        hint.appendChild(document.createTextNode("点击表格「分析报告」打开个股弹窗；支持 Esc / 点击遮罩 / ✕ 关闭"));
+      }
+    }
+  });
+
+  document.addEventListener("keydown", (ev) => {
+    if (ev.key !== "Escape") return;
+    const modal = $("stock-detail-modal");
+    if (!modal || modal.classList.contains("hidden")) return;
+    UI.closeStockDetailModal();
+    const hint = $("screener-dossier");
+    if (hint) {
+      hint.innerHTML = "";
+      hint.appendChild(document.createTextNode("点击表格「分析报告」打开个股弹窗；支持 Esc / 点击遮罩 / ✕ 关闭"));
+    }
+  });
+
   document.querySelectorAll(".tab").forEach((tab) => {
     tab.addEventListener("click", () => {
       document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
@@ -202,7 +257,15 @@
       document.querySelectorAll("main.layout").forEach((m) => m.classList.add("hidden"));
       const el = $(`page-${tab.dataset.page}`);
       if (el) el.classList.remove("hidden");
-      /* 不再自动跑选股，避免一进页面就超时 */
+      if (tab.dataset.page === "paper") {
+        paperAutoLiveEnabled = true;
+        startPaperMonitorLoop();
+        refreshPaper();
+      } else if (tab.dataset.page === "screener") {
+        stopPaperMonitorLoop();
+      } else {
+        stopPaperMonitorLoop();
+      }
     });
   });
 
@@ -354,6 +417,98 @@
     refreshLivePlan();
   }
 
+  function isLiveScreenerMode() {
+    return ($("screener-mode")?.value || "eod") === "live";
+  }
+
+  function liveQuotesStale() {
+    if (!lastLiveRefresh) return true;
+    const t = Date.parse(lastLiveRefresh);
+    if (Number.isNaN(t)) return true;
+    return Date.now() - t > LIVE_QUOTE_TTL_MS;
+  }
+
+  function updateLiveQuotePill(meta) {
+    const pill = $("live-quote-pill");
+    if (!pill) return;
+    const d = meta || lastLiveRefreshMeta;
+    if (!d || d.blocked) {
+      pill.textContent = "实时: 不可用";
+      pill.classList.add("kill");
+      pill.title = d?.reason || "请先连接行情源";
+      return;
+    }
+    pill.classList.remove("kill");
+    const n = d.row_count || 0;
+    const at = d.retrieved_at || lastLiveRefresh || "—";
+    pill.textContent = `实时: ${n}只 · ${String(at).slice(11, 19) || at}`;
+    pill.title = `${d.provider || ""} · ${d.freshness || ""} · 真实报价`;
+  }
+
+  function setPaperLiveBanner(text, tone) {
+    const el = $("paper-live-auto-banner");
+    if (!el) return;
+    if (!text) {
+      el.classList.add("hidden");
+      return;
+    }
+    el.classList.remove("hidden");
+    el.className = `banner ${tone === "warn" ? "banner-warn" : "banner-ok"}`;
+    el.textContent = text;
+  }
+
+  /**
+   * 拉取全市场真实实时报价（去重并发）。无 mock — 失败则返回 blocked。
+   */
+  async function ensureLiveQuotesFresh(opts = {}) {
+    const { force = false, silent = true, updateMarket = true } = opts;
+    if (!force && !liveQuotesStale() && lastLiveRefreshMeta && !lastLiveRefreshMeta.blocked) {
+      return { ok: true, cached: true, data: lastLiveRefreshMeta };
+    }
+    if (liveRefreshPromise) return liveRefreshPromise;
+    liveRefreshPromise = (async () => {
+      try {
+        if (!silent) UI.toast("刷新实时行情", "正在获取全市场真实报价…", "ok");
+        const res = await api.request("/api/v1/market/live-refresh", { method: "POST", timeoutMs: 180000 });
+        const d = res.data || res.meta?.live_status || {};
+        const rowCount = d.row_count || 0;
+        const quotesReady = d.quotes_ready !== false && rowCount >= 100 && !d.blocked;
+        lastLiveRefreshMeta = res.ok && quotesReady
+          ? d
+          : { ...d, blocked: true, reason: d.reason || res.error?.message || "实时行情未就绪" };
+        if (res.ok && quotesReady) {
+          lastLiveRefresh = d.retrieved_at || new Date().toISOString();
+        }
+        updateLiveQuotePill(lastLiveRefreshMeta);
+        if (updateMarket) {
+          const box = $("market-live");
+          if (box && quotesReady) {
+            box.innerHTML =
+              `<div class="banner banner-ok">实时行情：${d.provider} · ${rowCount} 行 · ${d.freshness} · ${d.retrieved_at}${d.stale_fallback ? "（缓存回退）" : ""}</div>`;
+            UI.renderTable(
+              box.appendChild(document.createElement("div")),
+              ["代码", "名称", "最新价", "涨跌幅%", "成交额"],
+              (d.top_up || []).slice(0, 8).map((r) => [r.code, r.name, r.price, r.change_pct, r.amount]),
+              "暂无实时涨幅榜",
+            );
+          } else if (box) {
+            box.innerHTML = `<div class="banner banner-warn">实时行情不可证明：${lastLiveRefreshMeta.reason || "provider blocked"}</div>`;
+          }
+        }
+        if (!silent && res.ok && quotesReady) {
+          UI.toast("实时行情已更新", `${rowCount} 只 · ${d.provider || ""}`, "ok");
+        }
+        if (!silent && (!res.ok || !quotesReady)) {
+          UI.toast("实时行情不可用", lastLiveRefreshMeta.reason || "provider blocked", "fail");
+        }
+        return { ...res, data: lastLiveRefreshMeta, quotesReady };
+      } finally {
+        liveRefreshPromise = null;
+      }
+    })();
+    return liveRefreshPromise;
+  }
+
   async function refreshLivePlan() {
     const plan = await api.request("/api/v1/market/intraday-plan");
     const p = plan.data || {};
@@ -364,25 +519,7 @@
   async function refreshLiveMarket(btn) {
     UI.setLoading(btn, true, "刷新中…");
     try {
-      const res = await api.request("/api/v1/market/live-refresh", { method: "POST" });
-      const d = res.data || {};
-      const box = $("market-live");
-      if (box) {
-        if (d.blocked) {
-          box.innerHTML = `<div class="banner banner-warn">实时行情不可证明：${d.reason || "provider blocked"}</div>`;
-        } else {
-          box.innerHTML =
-            `<div class="banner banner-ok">实时行情：${d.provider} · ${d.row_count} 行 · ${d.freshness} · ${d.retrieved_at}</div>`;
-          UI.renderTable(
-            box.appendChild(document.createElement("div")),
-            ["代码", "名称", "最新价", "涨跌幅%", "成交额"],
-            (d.top_up || []).slice(0, 8).map((r) => [r.code, r.name, r.price, r.change_pct, r.amount]),
-            "暂无实时涨幅榜",
-          );
-        }
-      }
-      UI.toast(d.blocked ? "实时行情不可用" : "实时行情已更新", d.blocked ? (d.reason || "provider blocked") : `${d.row_count} 行`, d.blocked ? "fail" : "ok");
-      return res;
+      return await ensureLiveQuotesFresh({ force: true, silent: false, updateMarket: true });
     } finally {
       UI.setLoading(btn, false);
     }
@@ -443,10 +580,25 @@
   }
 
   async function runScreener(btn) {
-    UI.setLoading(btn, true, "计算中…");
+    const mode = $("screener-mode")?.value || "eod";
+    const liveLabel = mode === "live" ? "刷新行情并选股…" : "计算中…";
+    UI.setLoading(btn, true, liveLabel);
     try {
       const preset = $("screener-preset")?.value || "balanced";
-      const mode = $("screener-mode")?.value || "eod";
+      if (mode === "live") {
+        $("screener-table")?.replaceChildren(
+          UI.renderEmpty("一键实时选股", "正在刷新全市场真实行情，完成后自动运行选股…", ""),
+        );
+        const liveRes = await ensureLiveQuotesFresh({ force: true, silent: true, updateMarket: true });
+        const ld = liveRes.data || {};
+        if (!liveRes.quotesReady && !(ld.row_count >= 100 && !ld.blocked)) {
+          const hint = ld.reason || liveRes.error?.message || "实时行情未就绪";
+          UI.renderScreener($("screener-table"), { blocked: true, blockerReason: hint, rows: [] });
+          UI.toast("选股失败", hint, "fail");
+          return liveRes;
+        }
+        UI.setLoading(btn, true, `实时选股 · ${ld.row_count || 0} 只行情已就绪…`);
+      }
       const topN = $("screener-topn")?.value || "25";
       const minAmt = $("screener-minamt")?.value || "50000000";
       const capital = Number($("pref-capital")?.value || 5000);
@@ -460,8 +612,9 @@
         `&capital_cny=${capital}&price_min_cny=${priceMin}` +
         (priceMax !== "" ? `&price_max_cny=${priceMax}` : "") +
         `&enforce_capital_price_ceiling=${priceCeiling}`;
+      const fastQ = mode === "eod" ? "&fast=true" : "&fast=false";
       const res = await api.request(
-        `/api/v1/screener/run?preset=${preset}&top_n=${topN}&min_amount_cny=${minAmt}&mode=${mode}&preferred_sectors=${sectors}&excluded_sectors=${excluded}${priceQ}`,
+        `/api/v1/screener/run?preset=${preset}&top_n=${topN}&min_amount_cny=${minAmt}&mode=${mode}&preferred_sectors=${sectors}&excluded_sectors=${excluded}${priceQ}${fastQ}`,
         { timeoutMs: mode === "live" ? 45000 : 20000 },
       );
       if (!res.ok) {
@@ -477,7 +630,11 @@
       UI.renderSelectionGuide($("screener-guide"), vm);
       const meta = $("screener-meta");
       if (meta) {
-        const liveNote = vm.liveStatus?.hint || (vm.mode === "live" && !vm.liveStatus?.used ? "（未接入实时行情，已用收盘因子）" : "");
+        const liveNote = vm.mode === "live"
+          ? (vm.liveStatus?.used
+            ? `行情匹配 ${vm.liveStatus.matched_in_universe ?? vm.rows.filter((r) => r.live_price != null).length}/${vm.universeSize} · ${vm.liveStatus.provider || vm.liveProvider || ""} · ${vm.liveRetrievedAt || lastLiveRefresh || "—"}`
+            : vm.liveStatus?.hint || "（行情未挂价 — 请重试一键选股）")
+          : (lastLiveRefresh ? `最近行情刷新 ${lastLiveRefresh}（收盘模式用昨收价）` : "");
         const pf = vm.priceFilters || {};
         const priceChip =
           pf.effective_price_max_cny || pf.price_min_cny
@@ -493,7 +650,8 @@
             priceChip +
             `<span class="metric-chip">候选池 <b>${vm.universeSize}</b> 只</span>` +
             `<span class="metric-chip">入选 <b>${vm.rows.length}</b> 只</span>` +
-            (liveNote ? `<span class="metric-chip warn">${liveNote}</span>` : "");
+            (liveNote ? `<span class="metric-chip warn">${liveNote}</span>` : "") +
+            (vm.agentOverlay?.framework ? `<span class="metric-chip">智能体 <b>${vm.agentOverlay.framework}</b> · ${vm.agentOverlay.risk_verdict || "—"}</span>` : "");
       }
       logAction("智能选股", res);
       UI.toast(
@@ -509,6 +667,60 @@
 
   function splitCsv(value) {
     return String(value || "").replaceAll("，", ",").split(",").map((x) => x.trim()).filter(Boolean);
+  }
+
+  async function runScreenerLearn(btn) {
+    UI.setLoading(btn, true, "自验证学习中…");
+    try {
+      const preset = $("screener-preset")?.value || "balanced";
+      const topN = $("screener-topn")?.value || "25";
+      const res = await api.request(`/api/v1/screener/learn?preset=${preset}&top_n=${topN}`, { method: "POST", timeoutMs: 120000 });
+      if (res.ok) {
+        UI.renderProof($("screener-proof"), { data: res.data?.proof || res.data, learning: res.data });
+        const agent = res.data?.agent_overlay || {};
+        const rec = res.data?.recommended_preset;
+        UI.toast(
+          "策略自验证完成",
+          `${agent.risk_verdict || "—"}${rec && rec !== preset ? ` · 建议预设: ${rec}` : ""}`,
+          agent.risk_verdict === "PASS" ? "ok" : "warn",
+        );
+      } else {
+        UI.toast("自验证失败", res.error?.message || "学习循环未完成", "fail");
+      }
+      logAction("策略自验证学习", res);
+      return res;
+    } finally {
+      UI.setLoading(btn, false);
+    }
+  }
+
+  async function exportScreenerReportPdf(btn) {
+    const sym = lastScreenerDetailSymbol || lastScreenerVm?.rows?.[0]?.symbol;
+    if (!sym) {
+      UI.toast("无法导出", "请先运行选股或打开个股分析", "fail");
+      return;
+    }
+    UI.setLoading(btn, true, "生成 PDF…");
+    try {
+      const preset = $("screener-preset")?.value || "balanced";
+      const mode = $("screener-mode")?.value || "eod";
+      const sectors = encodeURIComponent($("pref-sectors")?.value || "");
+      const excluded = encodeURIComponent($("pref-exclude-sectors")?.value || "");
+      const res = await api.request(
+        `/api/v1/screener/report/${encodeURIComponent(sym)}?preset=${preset}&mode=${mode}&preferred_sectors=${sectors}&excluded_sectors=${excluded}`,
+        { method: "POST", timeoutMs: 90000 },
+      );
+      if (res.ok && res.data?.download_url) {
+        window.open(res.data.download_url, "_blank");
+        UI.toast("PDF 已生成", `${sym} 选股分析报告`, "ok");
+      } else {
+        UI.toast("PDF 失败", res.error?.message || "渲染未完成", "fail");
+      }
+      logAction("导出选股 PDF", res);
+      return res;
+    } finally {
+      UI.setLoading(btn, false);
+    }
   }
 
   async function runScreenerProof(btn) {
@@ -547,39 +759,255 @@
     }
   }
 
-  async function runDossier(symbol, btn) {
-    UI.setLoading(btn, true, "解释中…");
+  $("screener-mode")?.addEventListener("change", (ev) => {
+    const hint = $("screener-dossier");
+    const runBtn = document.querySelector('[data-action="screener-run"]');
+    if (ev.target?.value === "live") {
+      if (runBtn) runBtn.textContent = "运行实时智能选股";
+      if (hint) {
+        hint.textContent = "实时模式：点击「运行实时智能选股」将自动刷新行情并选股，无需先去其他页面。后台在盘中每 15 分钟自动刷新行情。";
+      }
+    } else {
+      if (runBtn) runBtn.textContent = "运行收盘选股（快速）";
+      if (hint) hint.textContent = "收盘模式使用昨收价，速度更快。弹窗分析后可导出 PDF。Esc / 遮罩 / ✕ 关闭";
+    }
+  });
+
+  async function showStockDetail(symbol) {
+    if (!symbol) return false;
+    lastScreenerDetailSymbol = symbol;
+    const body = $("stock-detail-body");
+    const row = lastScreenerVm?.rows?.find((r) => r.symbol === symbol);
+    UI.renderStockDetailModal(body, { row, loading: true });
+    UI.openStockDetailModal();
     try {
       const preset = $("screener-preset")?.value || "balanced";
       const mode = $("screener-mode")?.value || "live";
       const sectors = encodeURIComponent($("pref-sectors")?.value || "");
       const excluded = encodeURIComponent($("pref-exclude-sectors")?.value || "");
-      const res = await api.request(`/api/v1/screener/dossier/${encodeURIComponent(symbol)}?preset=${preset}&mode=${mode}&preferred_sectors=${sectors}&excluded_sectors=${excluded}`);
-      UI.renderDossier($("screener-dossier"), res);
-      UI.toast("个股报告已生成", symbol, "ok");
+      const res = await api.request(
+        `/api/v1/screener/dossier/${encodeURIComponent(symbol)}?preset=${preset}&mode=${mode}&preferred_sectors=${sectors}&excluded_sectors=${excluded}`,
+        { timeoutMs: 45000 },
+      );
+      if (res.ok) {
+        UI.renderStockDetailModal(body, { row, dossier: res.data, loading: false });
+        const hint = $("screener-dossier");
+        if (hint) {
+          hint.innerHTML = "";
+          hint.appendChild(document.createTextNode(`已打开 ${res.data?.name || symbol} 分析报告弹窗`));
+        }
+        return true;
+      }
+      UI.renderStockDetailModal(body, {
+        row,
+        loading: false,
+        blocked: !row,
+        blocker_reason: res.error?.message || "无法加载完整报告",
+      });
+      return !!row;
+    } catch (err) {
+      UI.renderStockDetailModal(body, {
+        row,
+        loading: false,
+        blocked: !row,
+        blocker_reason: err?.message || "网络错误",
+      });
+      return !!row;
+    }
+  }
+
+  async function runDossier(symbol, btn) {
+    UI.setLoading(btn, true, "解释中…");
+    try {
+      const ok = await showStockDetail(symbol);
+      if (ok) UI.toast("个股报告已生成", symbol, "ok");
+      else UI.toast("报告加载失败", symbol, "fail");
+      return { ok };
+    } finally {
+      UI.setLoading(btn, false);
+    }
+  }
+
+  let stockSearchTimer = null;
+  async function suggestStockSearch(query) {
+    const q = (query || "").trim();
+    const list = $("screener-search-suggestions");
+    if (!list || q.length < 2) {
+      if (list) list.innerHTML = "";
+      return;
+    }
+    try {
+      const res = await api.request(`/api/v1/screener/search?q=${encodeURIComponent(q)}&limit=8`);
+      const matches = res.data?.matches || [];
+      list.innerHTML = matches
+        .map((m) => `<option value="${m.name ? m.name + " " : ""}${m.symbol}"></option>`)
+        .join("");
+    } catch {
+      /* ignore autocomplete errors */
+    }
+  }
+
+  async function runStockSearch(btn) {
+    const query = ($("screener-stock-query")?.value || "").trim();
+    if (!query) {
+      UI.toast("请输入股票", "代码或名称均可", "fail");
+      return { ok: false };
+    }
+    UI.setLoading(btn, true, "分析中…");
+    const box = $("screener-search-results");
+    try {
+      const preset = $("screener-preset")?.value || "balanced";
+      const mode = $("screener-mode")?.value || "eod";
+      if (mode === "live") {
+        UI.setLoading(btn, true, "刷新实时行情…");
+        const lr = await ensureLiveQuotesFresh({ force: true, silent: true, updateMarket: false });
+        if (!lr.ok || lr.data?.blocked) {
+          UI.toast("无法分析", lr.data?.reason || lr.error?.message || "实时行情不可用", "fail");
+          return { ok: false };
+        }
+      }
+      let symbol = query;
+      const capital = Number($("pref-capital")?.value || 5000);
+      const sectors = encodeURIComponent($("pref-sectors")?.value || "");
+      const excluded = encodeURIComponent($("pref-exclude-sectors")?.value || "");
+      const suggest = await api.request(`/api/v1/screener/search?q=${encodeURIComponent(query)}&limit=5`);
+      const matches = suggest.data?.matches || [];
+      if (matches.length === 1) {
+        symbol = matches[0].symbol;
+      } else if (matches.length > 1 && !/^\d{6}/.test(query)) {
+        symbol = matches[0].symbol;
+      }
+      const res = await api.request(
+        `/api/v1/screener/analyze/${encodeURIComponent(symbol)}?preset=${preset}&mode=${mode}&capital_cny=${capital}&preferred_sectors=${sectors}&excluded_sectors=${excluded}`,
+        { timeoutMs: 45000 },
+      );
+      if (!res.ok) {
+        UI.renderStockAnalysis(box, { blocked: true, blocker_reason: res.error?.message || "未找到该股票" });
+        UI.toast("搜索失败", res.error?.message || query, "fail");
+        return res;
+      }
+      UI.renderStockAnalysis(box, res.data);
+      const modalBody = $("stock-detail-body");
+      UI.renderStockDetailModal(modalBody, { dossier: res.data, row: res.data?.candidate || res.data, loading: false });
+      UI.openStockDetailModal();
+      const hint = $("screener-dossier");
+      if (hint) {
+        hint.innerHTML = "";
+        hint.appendChild(document.createTextNode(`已打开 ${res.data?.name || symbol} 分析报告弹窗`));
+      }
+      logAction("搜索股票", res);
+      UI.toast("分析完成", res.data?.name || symbol, "ok");
       return res;
     } finally {
       UI.setLoading(btn, false);
     }
   }
 
+  $("screener-stock-query")?.addEventListener("input", (ev) => {
+    clearTimeout(stockSearchTimer);
+    stockSearchTimer = setTimeout(() => suggestStockSearch(ev.target?.value), 280);
+  });
+  $("screener-stock-query")?.addEventListener("keydown", (ev) => {
+    if (ev.key === "Enter") {
+      ev.preventDefault();
+      document.querySelector('[data-action="screener-stock-search"]')?.click();
+    }
+  });
+
   async function paperFromScreener(btn) {
     UI.setLoading(btn, true, "生成组合…");
     try {
+      const mode = $("screener-mode")?.value || "live";
+      if (mode === "live") {
+        UI.setLoading(btn, true, "刷新实时行情…");
+        const lr = await ensureLiveQuotesFresh({ force: true, silent: true, updateMarket: false });
+        if (!lr.ok || lr.data?.blocked) {
+          UI.toast("导入失败", lr.data?.reason || "实时行情不可用", "fail");
+          return lr;
+        }
+      }
       const preset = $("screener-preset")?.value || "balanced";
       const topN = $("screener-topn")?.value || "25";
       const maxPositions = Number($("pref-positions")?.value || 5);
       const res = await api.request("/api/v1/paper/from-screener", {
         method: "POST",
-        body: JSON.stringify({ preset, top_n: Number(topN), max_positions: maxPositions, capital_fraction: 0.8 }),
+        body: JSON.stringify({
+          preset,
+          top_n: Number(topN),
+          max_positions: maxPositions,
+          capital_fraction: 0.8,
+          mode: $("screener-mode")?.value || "live",
+        }),
       });
       logAction("选股加入 Paper", res);
       if (res.ok) {
         UI.toast("已加入 Paper 模拟组合", `生成 ${res.data?.orders?.length || 0} 张模拟订单`, "ok");
+        document.querySelector('.tab[data-page="paper"]')?.click();
+        paperAutoLiveEnabled = true;
+        startPaperMonitorLoop();
       } else if (res.error?.code === "PAPER_NOT_STARTED") {
         UI.toast("请先启动 Paper", "点击「启动 Paper」后再加入模拟组合", "fail");
       }
       await refreshPaper();
+      return res;
+    } finally {
+      UI.setLoading(btn, false);
+    }
+  }
+
+  async function executeAllocation(btn) {
+    const unattended = !!$("gate-unattended")?.checked;
+    const msg = unattended
+      ? "将运行 ensemble 选股 → 组合优化 → 无人值守实盘执行。\n需已配置 Sidecar/Playwright 门控。"
+      : "将运行 ensemble 选股 → 组合优化 → 人工确认实盘下单。";
+    if (!confirm(msg)) return;
+    UI.setLoading(btn, true, "执行组合…");
+    try {
+      const preset = $("screener-preset")?.value || "balanced";
+      const topN = Number($("screener-topn")?.value || 25);
+      const mode = $("screener-mode")?.value || "live";
+      if (mode === "live") {
+        UI.setLoading(btn, true, "刷新实时行情…");
+        const lr = await ensureLiveQuotesFresh({ force: true, silent: true, updateMarket: false });
+        if (!lr.ok || lr.data?.blocked) {
+          UI.toast("执行被拦截", lr.data?.reason || "实时行情不可用", "fail");
+          return lr;
+        }
+        UI.setLoading(btn, true, "执行组合…");
+      }
+      const res = await api.request("/api/v1/trading/execute-allocation", {
+        method: "POST",
+        body: JSON.stringify({ preset, top_n: topN, mode, unattended, allow_drift_override: true }),
+      });
+      logAction(unattended ? "无人值守执行组合" : "执行组合", res);
+      const n = (res.data?.results || []).filter((r) => r.ok).length;
+      UI.toast(
+        res.ok ? "组合执行完成" : "组合执行被拦截",
+        res.ok ? `成功 ${n} 笔` : (res.error?.message || res.data?.blockers?.join("; ") || ""),
+        res.ok ? "ok" : "fail",
+      );
+      await refreshBrokerPanel();
+      return res;
+    } finally {
+      UI.setLoading(btn, false);
+    }
+  }
+
+  async function autopilotExecuteTicket(btn) {
+    const ticketId = btn.dataset.ticketId || lastAutopilotTicket?.ticket_id;
+    if (!ticketId) {
+      UI.toast("无票据", "请先生成订单票据", "fail");
+      return;
+    }
+    if (!confirm(`无人值守执行票据 ${ticketId}？`)) return;
+    UI.setLoading(btn, true, "执行票据…");
+    try {
+      const res = await api.request("/api/v1/autopilot/execute-ticket", {
+        method: "POST",
+        body: JSON.stringify({ ticket_id: ticketId, unattended: true }),
+      });
+      logAction("执行订单票据", res);
+      UI.toast(res.ok ? "票据已执行" : "执行失败", res.error?.message || "", res.ok ? "ok" : "fail");
       return res;
     } finally {
       UI.setLoading(btn, false);
@@ -591,7 +1019,13 @@
     try {
       const res = await api.request("/api/v1/autopilot/readiness");
       UI.renderAutopilot($("autopilot-panel"), res);
-      UI.toast("Autopilot 准入检查完成", res.data?.ready_for_order_ticket ? "可生成订单票据" : "仍有阻塞项", res.data?.ready_for_order_ticket ? "ok" : "fail");
+      const msg = res.data?.ready_for_unattended_auto
+        ? "无人值守实盘已就绪"
+        : res.data?.ready_for_order_ticket
+          ? "可生成订单票据"
+          : "仍有阻塞项";
+      const level = res.data?.ready_for_unattended_auto || res.data?.ready_for_order_ticket ? "ok" : "fail";
+      UI.toast("Autopilot 准入检查完成", msg, level);
       return res;
     } finally {
       UI.setLoading(btn, false);
@@ -608,6 +1042,7 @@
         method: "POST",
         body: JSON.stringify({ preset, top_n: topN, mode }),
       });
+      lastAutopilotTicket = res.data;
       UI.renderAutopilot($("autopilot-panel"), res);
       logAction("生成订单票据", res);
       return res;
@@ -665,20 +1100,248 @@
   }
 
   async function refreshPaper() {
-    const [pnl, pos, orders] = await Promise.all([
-      api.request("/api/v1/paper/pnl"),
+    await refreshPaperPanels();
+  }
+
+  async function refreshPaperMonitor() {
+    try {
+      const res = await api.request("/api/v1/paper/monitor");
+      UI.renderPaperMonitor($("paper-monitor"), res);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  async function refreshPaperReports() {
+    try {
+      const res = await api.request("/api/v1/paper/reports");
+      const box = $("paper-reports");
+      if (!box) return;
+      box.innerHTML = "";
+      const reports = res.data?.reports || [];
+      if (!reports.length) {
+        box.appendChild(UI.renderEmpty("暂无收盘报告", "点击「生成今日收盘报告」", ""));
+        return;
+      }
+      reports.slice(0, 10).forEach((r) => {
+        const row = document.createElement("div");
+        row.className = "paper-report-row";
+        const a = document.createElement("a");
+        a.href = `${api.base}${r.download_url}`;
+        a.target = "_blank";
+        a.rel = "noopener";
+        a.textContent = `${r.trade_date} · ${r.label || "Paper 日报"} · 下载 PDF`;
+        row.appendChild(a);
+        box.appendChild(row);
+      });
+    } catch {
+      /* ignore */
+    }
+  }
+
+  async function paperLiveCycle(silent) {
+    if (paperLiveCycleRunning) return;
+    paperLiveCycleRunning = true;
+    try {
+      setPaperLiveBanner("正在刷新真实行情并更新 Paper 市值…", "ok");
+      const lr = await ensureLiveQuotesFresh({ force: true, silent: true, updateMarket: false });
+      if (!lr.ok || lr.data?.blocked) {
+        setPaperLiveBanner(`实时行情不可用：${lr.data?.reason || lr.error?.message || "请稍后重试"}`, "warn");
+        return lr;
+      }
+      await api.request("/api/v1/paper/mark-to-market", { method: "POST", timeoutMs: 60000 });
+      const res = await api.request("/api/v1/paper/monitor/tick", { method: "POST", timeoutMs: 120000 });
+      UI.renderPaperMonitor($("paper-monitor"), res.ok ? res : { data: res.data || res });
+      await refreshPaperPanels();
+      const qm = res.data?.quote_meta || {};
+      const next = new Date(Date.now() + PAPER_AUTO_LIVE_MS).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
+      setPaperLiveBanner(
+        `真实行情 ${lr.data?.row_count || qm.quote_count || 0} 只 · ${lr.data?.retrieved_at || qm.retrieved_at || ""} · 下次自动刷新 ${next}`,
+        res.ok ? "ok" : "warn",
+      );
+      if (!silent && !res.ok) {
+        UI.toast("监控被阻断", res.error?.message || res.data?.reason || "无真实报价", "fail");
+      }
+      return res;
+    } finally {
+      paperLiveCycleRunning = false;
+    }
+  }
+
+  /** 刷新 Paper 面板（不重启定时器） */
+  async function refreshPaperPanels() {
+    const [account, pos, orders, fills, status] = await Promise.all([
+      api.request("/api/v1/paper/account").catch(() => ({ data: {} })),
       api.request("/api/v1/paper/positions"),
       api.request("/api/v1/paper/orders"),
+      api.request("/api/v1/paper/fills"),
+      api.request("/api/v1/system/status").catch(() => ({ data: {} })),
     ]);
-    const p = VM.fromPaper(pnl, pos, orders);
+    const p = VM.fromPaper(account, pos, orders, fills);
+    const banner = $("paper-status-banner");
+    if (banner) {
+      const running = status.data?.mode === "PAPER_TRADING";
+      banner.className = running ? "banner banner-ok" : "banner banner-warn";
+      banner.textContent = running
+        ? "Paper 运行中 — 真实行情自动刷新（15 分钟）"
+        : "Paper 未启动 — 点击「启动 Paper」后开始虚拟交易";
+    }
     UI.renderKeyValues($("paper-pnl"), [
+      ["初始资金", p.summary.initialCapital],
       ["现金", p.summary.cash],
       ["权益", p.summary.equity],
-      ["模拟盈亏", p.summary.realized],
+      ["总盈亏", p.summary.totalPnl],
+      ["浮动盈亏", p.summary.unrealized],
       ["持仓数", p.summary.openPositions],
     ]);
-    UI.renderTable($("paper-positions"), ["代码", "数量", "T+1可卖", "成本", "市值"], p.positions, "暂无持仓");
-    UI.renderTable($("paper-orders"), ["订单号", "代码", "方向", "状态", "成交量"], p.orders, "暂无订单");
+    UI.renderTable(
+      $("paper-positions"),
+      ["代码", "数量", "T+1可卖", "成本", "市值", "浮动盈亏"],
+      p.positions,
+      "暂无持仓",
+    );
+    UI.renderTable($("paper-fills"), ["成交号", "代码", "方向", "数量", "价格", "费用"], p.fills, "暂无成交");
+    UI.renderTable($("paper-orders"), ["订单号", "代码", "方向", "状态", "成交量", "成交价"], p.orders, "暂无订单");
+    await refreshPaperMonitor();
+    await refreshPaperReports();
+  }
+
+  function startGlobalIntradayLoop() {
+    if (globalIntradayTimer) return;
+    const tick = async () => {
+      try {
+        const st = await api.request("/api/v1/system/status");
+        const session = String(st.data?.market_session || "").toLowerCase();
+        const bg = st.data?.intraday_refresh || {};
+        const marketOpen = bg.market_open || session.includes("open");
+        if (!marketOpen) return;
+        await ensureLiveQuotesFresh({ force: liveQuotesStale(), silent: true, updateMarket: false });
+      } catch {
+        /* gateway offline — skip */
+      }
+    };
+    tick();
+    globalIntradayTimer = setInterval(tick, INTRADAY_QUOTE_MS);
+  }
+
+  function startPaperMonitorLoop() {
+    stopPaperMonitorLoop();
+    if (!paperAutoLiveEnabled) return;
+    paperLiveCycle(false);
+    paperLiveTimer = setInterval(() => {
+      if (paperAutoLiveEnabled) paperLiveCycle(true);
+    }, PAPER_AUTO_LIVE_MS);
+  }
+
+  function stopPaperMonitorLoop() {
+    if (paperLiveTimer) {
+      clearInterval(paperLiveTimer);
+      paperLiveTimer = null;
+    }
+    if (paperMonitorTimer) {
+      clearInterval(paperMonitorTimer);
+      paperMonitorTimer = null;
+    }
+    setPaperLiveBanner("");
+  }
+
+  async function paperMonitorTick(btn, silent) {
+    if (btn) UI.setLoading(btn, true, "监控中…");
+    try {
+      await ensureLiveQuotesFresh({ force: true, silent: !!silent, updateMarket: false });
+      const res = await api.request("/api/v1/paper/monitor/tick", { method: "POST", timeoutMs: 120000 });
+      if (!silent) logAction("Paper 实时监控", res);
+      UI.renderPaperMonitor($("paper-monitor"), res.ok ? res : { data: res.data || res });
+      if (!silent) {
+        UI.toast(
+          res.ok ? "监控完成" : "监控被阻断",
+          res.ok ? `${(res.data?.actions || []).length} 条动作` : (res.error?.message || "请先刷新实时行情"),
+          res.ok ? "ok" : "fail",
+        );
+      }
+      if (res.ok) await refreshPaperPanels();
+      return res;
+    } finally {
+      if (btn) UI.setLoading(btn, false);
+    }
+  }
+
+  async function paperMonitorStop(btn) {
+    UI.setLoading(btn, true, "停止…");
+    try {
+      paperAutoLiveEnabled = false;
+      stopPaperMonitorLoop();
+      await api.request("/api/v1/paper/monitor/stop", { method: "POST" });
+      await refreshPaperMonitor();
+      setPaperLiveBanner("已停止 15 分钟自动监控", "warn");
+      UI.toast("已停止自动监控", "重新进入「模拟练习」页可恢复 15 分钟轮询", "ok");
+    } finally {
+      UI.setLoading(btn, false);
+    }
+  }
+
+  async function paperGenerateCloseReport(btn) {
+    UI.setLoading(btn, true, "生成 PDF…");
+    try {
+      const res = await api.request("/api/v1/paper/reports/generate-close", { method: "POST", timeoutMs: 120000 });
+      logAction("Paper 收盘报告", res);
+      await refreshPaperReports();
+      if (res.data?.download_url) {
+        window.open(`${api.base}${res.data.download_url}`, "_blank");
+      }
+      UI.toast(res.ok ? "收盘报告已生成" : "生成失败", res.error?.message || "", res.ok ? "ok" : "fail");
+      return res;
+    } finally {
+      UI.setLoading(btn, false);
+    }
+  }
+
+  async function paperMarkToMarket(btn) {
+    UI.setLoading(btn, true, "刷新市值…");
+    try {
+      await ensureLiveQuotesFresh({ force: true, silent: false, updateMarket: false });
+      const res = await api.request("/api/v1/paper/mark-to-market", { method: "POST" });
+      logAction("Paper 按市价刷新", res);
+      UI.toast(res.ok ? "市值已更新" : "刷新失败", res.error?.message || `${res.data?.live_prices || 0} 只实时价`, res.ok ? "ok" : "fail");
+      await refreshPaper();
+      return res;
+    } finally {
+      UI.setLoading(btn, false);
+    }
+  }
+
+  async function paperSubmitOrder(btn) {
+    const symbol = $("paper-symbol")?.value?.trim();
+    if (!symbol) {
+      UI.toast("缺少代码", "请输入股票代码", "fail");
+      return;
+    }
+    UI.setLoading(btn, true, "提交中…");
+    try {
+      const limitRaw = Number($("paper-price")?.value || 0);
+      if (limitRaw <= 0) {
+        await ensureLiveQuotesFresh({ force: liveQuotesStale(), silent: true, updateMarket: false });
+      }
+      const res = await api.request("/api/v1/paper/order", {
+        method: "POST",
+        body: JSON.stringify({
+          symbol,
+          side: $("paper-side")?.value || "BUY",
+          quantity: Number($("paper-qty")?.value || 100),
+          limit_price: Number($("paper-price")?.value || 0),
+        }),
+      });
+      logAction("Paper 模拟下单", res);
+      UI.toast(
+        res.ok ? "订单已提交" : "下单失败",
+        res.ok ? `${res.data?.order?.symbol} ${res.data?.order?.state}` : (res.error?.message || ""),
+        res.ok ? "ok" : "fail",
+      );
+      if (res.ok) await refreshPaper();
+      return res;
+    } finally {
+      UI.setLoading(btn, false);
+    }
   }
 
   function refreshRiskView(risk) {
@@ -724,11 +1387,22 @@
 
   function openBrokerLoginWindow(urlOrPath) {
     if (!urlOrPath) return false;
+    if (urlOrPath.includes("/brokers/login-redirect/")) {
+      return false;
+    }
     const target = urlOrPath.startsWith("http")
       ? urlOrPath
       : `${api.base}${urlOrPath}`;
     window.open(target, "_blank", "noopener,noreferrer");
     return true;
+  }
+
+  function preferredBrokerLoginUrl(brokerId) {
+    const b = (cachedBrokerEcosystem?.brokers || []).find((x) => x.broker_id === brokerId);
+    const fallbacks = b?.fallback_urls || [];
+    if (fallbacks.length) return fallbacks[0].url;
+    if (!b?.urls) return "";
+    return b.urls.portal || b.urls.trade_login || b.urls.trade_login_alt || "";
   }
 
   function brokerLoginUrlFromCache(brokerId) {
@@ -767,25 +1441,32 @@
     UI.setLoading(btn, true, "连接中…");
     try {
       const bid = selectedBrokerId();
-      const direct = brokerLoginUrlFromCache(bid);
-      if (direct) openBrokerLoginWindow(direct);
+      const openUrl = preferredBrokerLoginUrl(bid);
+      if (openUrl) openBrokerLoginWindow(openUrl);
       const res = await api.request("/api/v1/brokers/connect-flow", {
         method: "POST",
         body: JSON.stringify({
           broker_id: bid,
-          open_login: true,
+          open_login: false,
           assist_login: false,
           sync_watchlist: false,
         }),
       });
       const d = res.data || {};
-      if (d.login_redirect_path) openBrokerLoginWindow(d.login_redirect_path);
-      else if (d.client_url && !direct) openBrokerLoginWindow(d.client_url);
+      if (!openUrl && d.open_url_preferred) openBrokerLoginWindow(d.open_url_preferred);
       logAction("券商连接", res);
+      const waf = d.waf_recovery;
+      if (waf?.fallback_urls?.length) {
+        UI.renderWafRecovery($("broker-waf-recovery"), waf);
+      }
       const hint = res.ok
-        ? (d.message || "已在浏览器打开官方登录页")
+        ? (d.message || "已在浏览器打开官方首页 — 请在官网/App 内登录")
         : (window.QuantOSFriendlyError?.(res) || d.message || "");
-      UI.toast(res.ok ? "券商已连接" : "连接失败", hint, res.ok ? "ok" : "fail");
+      UI.toast(
+        res.ok ? "请完成官方登录" : "连接失败",
+        waf?.symptom ? `${waf.symptom}：优先用「官网首页」或 App` : hint,
+        res.ok ? "ok" : "fail",
+      );
       await refreshBrokerPanel();
       return res;
     } finally {
@@ -794,6 +1475,9 @@
   }
 
   async function brokerLogin(btn) {
+    if (!confirm("「保存登录会话」会打开自动化浏览器，部分券商会显示 Nginx forbidden。\n建议改用上方「官网首页」或 App 登录。\n仍要继续吗？")) {
+      return;
+    }
     UI.setLoading(btn, true, "等待登录…");
     try {
       const bid = selectedBrokerId();
@@ -806,10 +1490,17 @@
       const d = res.data || {};
       if (d.url && d.mode === "manual_browser_only") openBrokerLoginWindow(d.url);
       logAction("保存登录会话", res);
+      if (d.waf_blocked && d.waf_recovery) {
+        UI.renderWafRecovery($("broker-waf-recovery"), d.waf_recovery);
+      }
       UI.toast(
-        d.logged_in_detected ? "登录成功" : "请完成浏览器登录",
-        d.logged_in_detected ? "会话已保存，可预填订单" : (window.QuantOSFriendlyError?.(res) || d.message || "在弹出窗口完成登录"),
-        d.logged_in_detected ? "ok" : "fail",
+        d.waf_blocked ? "WAF 拦截" : d.logged_in_detected ? "登录成功" : "请完成浏览器登录",
+        d.waf_blocked
+          ? (d.message || "请用官网/App")
+          : d.logged_in_detected
+            ? "会话已保存，可预填订单"
+            : (window.QuantOSFriendlyError?.(res) || d.message || "在弹出窗口完成登录"),
+        d.waf_blocked ? "fail" : d.logged_in_detected ? "ok" : "warn",
       );
       await refreshBrokerPanel();
       return res;
@@ -1114,6 +1805,8 @@
       refreshHelpPage();
       await checkBuildSync();
       await safeSection("overview-live", refreshOverviewLive);
+      ensureLiveQuotesFresh({ force: false, silent: true, updateMarket: false }).catch(() => {});
+      startGlobalIntradayLoop();
       if (!window.__quantosRefreshTimer) {
         window.__quantosRefreshTimer = setInterval(refresh, 30000);
         window.__quantosLiveTimer = setInterval(refreshOverviewLive, 15000);

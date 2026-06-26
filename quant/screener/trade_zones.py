@@ -30,15 +30,15 @@ def compute_trade_zones(
     limit_up = round(price * (1.0 + limit * 0.995), 2)
     limit_down = round(price * (1.0 - limit * 0.995), 2)
 
-    # Buy: prefer pullback toward MA20, never chase limit-up
+    # Buy: prefer pullback toward MA20; slightly wider band for responsive paper signals
     ideal_buy = min(price, ma20 * 1.02)
-    buy_low = round(max(limit_down, ideal_buy * (1.0 - vol * 0.008), price * 0.96), 2)
-    buy_high = round(min(price * 1.005, ma20 * 1.04, limit_up * 0.92), 2)
+    buy_low = round(max(limit_down, ideal_buy * (1.0 - vol * 0.01), price * 0.965), 2)
+    buy_high = round(min(price * 1.012, ma20 * 1.045, limit_up * 0.93), 2)
     if buy_low > buy_high:
         buy_low, buy_high = round(price * 0.98, 2), round(price * 1.01, 2)
 
-    # Sell / take-profit zone
-    sell_low = round(price * (1.0 + max(0.02, vol * 0.006)), 2)
+    # Sell / take-profit zone — earlier partial take-profit for sensitivity
+    sell_low = round(price * (1.0 + max(0.015, vol * 0.005)), 2)
     sell_high = round(min(price * (1.0 + max(0.05, vol * 0.012)), limit_up * 0.98), 2)
 
     stop_loss = round(max(limit_down, price * (1.0 - max(0.05, vol * 0.015))), 2)

@@ -46,13 +46,23 @@
     return { short: "兼容模式", long: "Qlib：兼容模式", tone: "muted" };
   }
 
+  const BLOCKER_LABELS = {
+    LIVE_TRADING_NOT_APPROVED_THIS_BATCH: "本批次未批准实盘下单（模拟/Paper 不受影响）",
+    KILL_SWITCH_HALTED: "Kill Switch 已触发",
+    PROTECTED_FLOOR_BREACH: "权益触及保护下限",
+    LOSS_BUDGET_EXHAUSTED: "累计亏损额度已用尽",
+    LIVE_SNAPSHOT_STALE: "实时行情缓存过期",
+  };
+
   function fromSystemStatus(data, nativeStatus, quantosStatus) {
     if (!data) return null;
     const vn = mapVnpyLabel(nativeStatus, quantosStatus);
     const ql = mapQlibLabel(nativeStatus, data.qlib);
-    const blockers = (data.blockers || []).map((b) =>
-      typeof b === "string" ? { code: b, message: b } : b
-    );
+    const blockers = (data.blockers || []).map((b) => {
+      const code = typeof b === "string" ? b : b.code || b;
+      const message = BLOCKER_LABELS[code] || (typeof b === "string" ? b : b.message || b);
+      return { code, message };
+    });
     return {
       modeLabel: MODE_LABELS[data.mode] || data.mode || "—",
       sessionLabel: SESSION_LABELS[data.market_session] || data.market_session || "—",
@@ -117,7 +127,7 @@
       forecastHorizon: d.forecast_horizon || "—",
       validationStatus: d.validation_status || "NOT_RUN",
       diversityNotes: d.diversity_notes || [],
-      portfolioAllocation: d.portfolio_allocation_5000 || [],
+      portfolioAllocation: d.portfolio_allocation?.positions || d.portfolio_allocation_5000 || [],
       liveRetrievedAt: d.live_retrieved_at || "",
       liveFreshness: d.live_freshness || "",
       liveProvider: d.live_provider || "",
@@ -180,6 +190,8 @@
       selectionGuide: d.selection_guide || {},
       priceFilters: d.price_filters || {},
       capitalCny: d.capital_cny || 5000,
+      agentOverlay: d.agent_overlay || {},
+      screenerEngine: d.screener_engine || "",
     };
   }
 
@@ -222,13 +234,15 @@
     };
   }
 
-  function fromPaper(pnl, positions, orders) {
-    const p = pnl?.data || {};
+  function fromPaper(account, positions, orders, fills) {
+    const p = account?.data || {};
     return {
       summary: {
+        initialCapital: fmtCny(p.initial_capital_cny),
         cash: fmtCny(p.cash_cny),
         equity: fmtCny(p.equity_cny),
-        realized: fmtCny(p.realized_pnl_cny ?? p.realized_pnl ?? p.realized),
+        totalPnl: fmtCny(p.total_pnl_cny ?? p.realized_pnl_cny),
+        unrealized: fmtCny(p.unrealized_pnl_cny),
         openPositions: p.open_positions ?? 0,
       },
       positions: (positions?.data?.positions || positions?.data || []).map((row) => [
@@ -237,13 +251,23 @@
         row.available_qty ?? row.available ?? row.sellable ?? "—",
         fmtCny(row.avg_cost ?? row.avg_price ?? row.cost),
         fmtCny(row.market_value),
+        fmtCny(row.unrealized_pnl ?? 0),
+      ]),
+      fills: (fills?.data?.fills || []).slice(0, 30).map((row) => [
+        (row.fill_id || "—").slice(0, 8),
+        row.symbol || "—",
+        row.side || "—",
+        row.quantity ?? 0,
+        row.price ?? "—",
+        fmtCny(row.fees_cny),
       ]),
       orders: (orders?.data?.orders || orders?.data || []).slice(0, 20).map((row) => [
-        row.client_order_id || row.order_id || row.id || "—",
+        (row.client_order_id || row.order_id || row.id || "—").slice(0, 8),
         row.symbol || "—",
         row.side || "—",
         row.state || row.status || "—",
         row.filled_qty ?? row.filled ?? 0,
+        row.avg_fill_price ?? "—",
       ]),
       empty: !(positions?.data?.positions?.length || positions?.data?.length),
     };

@@ -1,6 +1,6 @@
 # Gateway V2 — China A-share autonomous quant portal (paper/shadow only)
 mode: RESEARCH_ONLY
-project_id: netlify-demo-china-ashare
+project_id: quantos-cn
 
 capital:
   total_allocated_cny: 5000
@@ -20,8 +20,9 @@ risk_defaults:
 
 safety:
   paper_trading_only: true
-  real_money_execution_disabled: false
-  enable_live_trading: true
+  real_money_execution_disabled: true
+  enable_live_trading: false
+  live_trading_batch_approved: false
   gc_mgc_sidecar_isolated: true
 
 auth:

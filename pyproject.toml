@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "quantos-cn"
-version = "4.0.0"
-description = "QuantOS CN — China A-share quant gateway (paper/shadow only)"
+version = "4.1.0"
+description = "QuantOS CN — China A-share intelligent quant screener, paper trading, and broker-assist gateway"
 requires-python = ">=3.9"
 dependencies = []
 

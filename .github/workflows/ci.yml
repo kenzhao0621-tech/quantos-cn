@@ -1,0 +1,26 @@
+name: CI
+
+on:
+  push:
+    branches: [main, fix/a-share-quant-reliability-paper-validation]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: |
+          python -m venv .venv-china-quant
+          .venv-china-quant/bin/pip install -r docs/ai/requirements-china-quant-pins.txt
+          .venv-china-quant/bin/pip install -r docs/ai/requirements-gateway-pins.txt
+          .venv-china-quant/bin/pip install -e .
+      - name: Doctor
+        run: .venv-china-quant/bin/python -c "import gateway; import quant; print(gateway.__version__)"
+      - name: Unit tests
+        run: .venv-china-quant/bin/python -m pytest tests/test_paper_live_desk.py tests/test_screener_names_and_algo.py -q --tb=short

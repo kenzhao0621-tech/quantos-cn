@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>QuantOS CN · 产品发布会实用指南</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    :root {
+      --bg: #0b0f14;
+      --surface: #121820;
+      --card: #1a2230;
+      --border: #2a3548;
+      --text: #e8edf5;
+      --muted: #8b9bb4;
+      --accent: #3dd6a8;
+      --accent2: #5b9cf5;
+      --warn: #f0a030;
+      --danger: #f06060;
+      --up: #3dd6a8;
+      --down: #f06060;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      font-family: "PingFang SC", "Microsoft YaHei", "Helvetica Neue", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.65;
+      font-size: 15px;
+    }
+    .hero {
+      min-height: 92vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 4rem 2rem;
+      background:
+        radial-gradient(ellipse 80% 60% at 50% 0%, rgba(61,214,168,0.12), transparent),
+        radial-gradient(ellipse 60% 40% at 80% 80%, rgba(91,156,245,0.08), transparent),
+        var(--bg);
+      border-bottom: 1px solid var(--border);
+    }
+    .hero-badge {
+      display: inline-block;
+      padding: 0.35rem 1rem;
+      border: 1px solid var(--accent);
+      border-radius: 999px;
+      color: var(--accent);
+      font-size: 0.78rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 1.5rem;
+    }
+    .hero h1 {
+      font-size: clamp(2.2rem, 5vw, 3.6rem);
+      font-weight: 800;
+      margin: 0 0 0.75rem;
+      letter-spacing: -0.02em;
+    }
+    .hero .tagline {
+      font-size: 1.25rem;
+      color: var(--muted);
+      max-width: 640px;
+      margin: 0 auto 2rem;
+    }
+    .hero-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      justify-content: center;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+    .hero-meta span {
+      background: var(--card);
+      padding: 0.4rem 0.9rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+    .cta-row { margin-top: 2.5rem; display: flex; gap: 1rem; flex-wrap: wrap; justify-content: center; }
+    .cta {
+      padding: 0.75rem 1.5rem;
+      border-radius: 10px;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 0.95rem;
+    }
+    .cta-primary { background: var(--accent); color: #0b0f14; }
+    .cta-secondary { border: 1px solid var(--border); color: var(--text); }
+
+    nav.toc {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(11,15,20,0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 0.6rem 1.5rem;
+      overflow-x: auto;
+      white-space: nowrap;
+    }
+    nav.toc a {
+      color: var(--muted);
+      text-decoration: none;
+      margin-right: 1.25rem;
+      font-size: 0.82rem;
+    }
+    nav.toc a:hover { color: var(--accent); }
+
+    main { max-width: 1080px; margin: 0 auto; padding: 3rem 1.5rem 6rem; }
+    section { margin-bottom: 4.5rem; scroll-margin-top: 4rem; }
+    section h2 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      margin: 0 0 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    section h2 .num {
+      font-size: 0.75rem;
+      color: var(--accent);
+      border: 1px solid var(--accent);
+      padding: 0.15rem 0.5rem;
+      border-radius: 6px;
+    }
+    .lead { color: var(--muted); font-size: 1.05rem; margin-bottom: 2rem; max-width: 720px; }
+
+    .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.25rem; }
+    .grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1.25rem 1.4rem;
+    }
+    .card h3 { margin: 0 0 0.5rem; font-size: 1.05rem; color: var(--accent2); }
+    .card p { margin: 0; color: var(--muted); font-size: 0.9rem; }
+
+    .badge-row { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 1rem 0; }
+    .badge {
+      font-size: 0.75rem;
+      padding: 0.25rem 0.65rem;
+      border-radius: 6px;
+      font-weight: 600;
+    }
+    .badge-pass { background: rgba(61,214,168,0.15); color: var(--up); border: 1px solid rgba(61,214,168,0.35); }
+    .badge-warn { background: rgba(240,160,48,0.12); color: var(--warn); border: 1px solid rgba(240,160,48,0.35); }
+    .badge-fail { background: rgba(240,96,96,0.12); color: var(--down); border: 1px solid rgba(240,96,96,0.35); }
+
+    figure {
+      margin: 1.5rem 0;
+      border-radius: 14px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      background: var(--surface);
+    }
+    figure img { width: 100%; display: block; }
+    figcaption {
+      padding: 0.75rem 1rem;
+      font-size: 0.82rem;
+      color: var(--muted);
+      border-top: 1px solid var(--border);
+    }
+    .fig-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem; }
+
+    .mermaid-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1.5rem;
+      margin: 1.5rem 0;
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+      margin: 1rem 0;
+    }
+    th, td {
+      border: 1px solid var(--border);
+      padding: 0.65rem 0.85rem;
+      text-align: left;
+    }
+    th { background: var(--card); color: var(--accent2); font-weight: 600; }
+    td { color: var(--muted); }
+    tr:hover td { background: rgba(255,255,255,0.02); }
+
+    .steps { counter-reset: step; list-style: none; padding: 0; }
+    .steps li {
+      counter-increment: step;
+      position: relative;
+      padding: 1rem 1rem 1rem 3.5rem;
+      margin-bottom: 0.75rem;
+      background: var(--card);
+      border-radius: 12px;
+      border: 1px solid var(--border);
+    }
+    .steps li::before {
+      content: counter(step);
+      position: absolute;
+      left: 1rem;
+      top: 1rem;
+      width: 1.75rem;
+      height: 1.75rem;
+      background: var(--accent);
+      color: var(--bg);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 0.85rem;
+    }
+    .steps li strong { color: var(--text); display: block; margin-bottom: 0.25rem; }
+
+    .reliability-meter {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 0.75rem;
+      margin: 1.5rem 0;
+    }
+    .meter {
+      text-align: center;
+      padding: 1rem;
+      background: var(--card);
+      border-radius: 12px;
+      border: 1px solid var(--border);
+    }
+    .meter .value { font-size: 1.5rem; font-weight: 800; }
+    .meter .label { font-size: 0.75rem; color: var(--muted); margin-top: 0.25rem; }
+    .meter.ok .value { color: var(--up); }
+    .meter.partial .value { color: var(--warn); }
+    .meter.no .value { color: var(--down); }
+
+    .disclaimer {
+      background: rgba(240,96,96,0.08);
+      border: 1px solid rgba(240,96,96,0.25);
+      border-radius: 12px;
+      padding: 1.25rem;
+      font-size: 0.88rem;
+      color: var(--muted);
+    }
+    .disclaimer strong { color: var(--down); }
+
+    footer {
+      text-align: center;
+      padding: 3rem 1.5rem;
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+
+    @media print {
+      nav.toc, .cta-row { display: none; }
+      body { background: #fff; color: #111; }
+      .card, figure, .mermaid-wrap, .steps li, th { background: #f8f8f8; border-color: #ddd; }
+      .hero { min-height: auto; page-break-after: always; }
+      section { page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="hero-badge">Product Launch · v4.x · 2026</div>
+  <h1>QuantOS CN</h1>
+  <p class="tagline">中国 A 股智能量化操作系统<br/>本地优先 · 可解释选股 · 真实行情 Paper · 人工确认辅助实盘</p>
+  <div class="hero-meta">
+    <span>Python 3.9+ · FastAPI Gateway</span>
+    <span>DuckDB 本地仓库</span>
+    <span>Portal :8787</span>
+    <span>MIT License</span>
+  </div>
+  <div class="cta-row">
+    <a class="cta cta-primary" href="#quickstart">快速上手</a>
+    <a class="cta cta-secondary" href="#reliability">可靠度白皮书</a>
+    <a class="cta cta-secondary" href="#modules">功能全景</a>
+  </div>
+</header>
+
+<nav class="toc">
+  <a href="#positioning">定位</a>
+  <a href="#architecture">架构</a>
+  <a href="#modules">功能模块</a>
+  <a href="#workflow">标准工作流</a>
+  <a href="#screener">智能选股</a>
+  <a href="#paper">模拟交易</a>
+  <a href="#broker">券商助手</a>
+  <a href="#risk">风控门控</a>
+  <a href="#reliability">可靠度</a>
+  <a href="#quickstart">快速开始</a>
+  <a href="#faq">FAQ</a>
+</nav>
+
+<main>
+
+<!-- 01 定位 -->
+<section id="positioning">
+  <h2><span class="num">01</span> 产品定位</h2>
+  <p class="lead">QuantOS CN 不是云端黑盒投顾，也不是「一键全自动炒股」工具。它是运行在你本机上的<strong>量化操作系统</strong>：把数据、研究、模拟、辅助实盘串成可审计闭环。</p>
+
+  <div class="grid-2">
+    <div class="card">
+      <h3>我们解决什么</h3>
+      <p>云端平台逻辑不透明 → 本地 DuckDB + 可解释因子<br/>
+         研究难接实盘 → Paper → Shadow → 订单票据 → 券商确认<br/>
+         小资金难量化 → 按资金算一手、股价区间过滤<br/>
+         全自动风险高 → Kill Switch + 多层门控，无人值守默认关闭</p>
+    </div>
+    <div class="card">
+      <h3>我们不是什么</h3>
+      <p>❌ 不承诺收益 · ❌ 不替你在券商端自动扣款<br/>
+         ❌ 不是托管投顾 · ❌ 不保存交易密码<br/>
+         ✅ 是研究 + 模拟 + 辅助填单的生产力工具</p>
+    </div>
+  </div>
+
+  <div class="fig-grid">
+    <figure>
+      <img src="ai/app/screenshots/01_login.png" alt="登录与角色选择" loading="lazy" />
+      <figcaption>图 1-1 · 门户登录：新手投资者 / 研究者 / 管理员角色与风险确认</figcaption>
+    </figure>
+    <figure>
+      <img src="ai/app/screenshots/02_guide.png" alt="新手入门向导" loading="lazy" />
+      <figcaption>图 1-2 · 新手入门四步向导：更新数据 → 选股 → 模拟 → 券商</figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- 02 架构 -->
+<section id="architecture">
+  <h2><span class="num">02</span> 系统架构</h2>
+  <p class="lead">单端口 Web 门户 + Python 网关 + 量化引擎 + 本地数据仓库。所有用户操作经 REST API，响应统一 envelope 格式。</p>
+
+  <div class="mermaid-wrap">
+    <pre class="mermaid">
+flowchart TB
+  subgraph Portal["🖥️ Portal Web · :8787/portal"]
+    P1[新手入门]
+    P2[智能选股]
+    P3[模拟练习]
+    P4[券商助手]
+    P5[高级·数据/模型]
+  end
+
+  subgraph Gateway["⚡ FastAPI Gateway"]
+    G1[operations.py]
+    G2[bff_market.py]
+    G3[Risk + Kill Switch]
+    G4[Execution Preflight]
+  end
+
+  subgraph Quant["📊 Quant Engine"]
+    Q1[Screener v5 Ensemble]
+    Q2[Alpha158-compatible]
+    Q3[Portfolio Optimizer]
+    Q4[Validation / Backtest]
+  end
+
+  subgraph Data["💾 Local Data"]
+    D1[(DuckDB Warehouse)]
+    D2[Live Snapshot JSON]
+    D3[Paper State / Ledger]
+  end
+
+  Portal -->|X-API-Key| Gateway
+  Gateway --> Quant
+  Quant --> D1
+  Gateway --> D2
+  Gateway --> D3
+    </pre>
+  </div>
+
+  <table>
+    <thead>
+      <tr><th>层级</th><th>路径</th><th>职责</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>门户</td><td><code>apps/portal-web/</code></td><td>中文 UI、ViewModel、操作盘</td></tr>
+      <tr><td>网关</td><td><code>gateway/api/</code></td><td>REST、RBAC、审计、Paper/券商路由</td></tr>
+      <tr><td>量化</td><td><code>quant/</code></td><td>选股、因子、组合、验证、日报</td></tr>
+      <tr><td>数据</td><td><code>data/warehouse/</code></td><td>DuckDB 日线、指数、板块</td></tr>
+      <tr><td>运行时</td><td><code>data/gateway/</code></td><td>Paper 状态、行情快照、订单票据（本地，不上传 Git）</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- 03 功能模块 -->
+<section id="modules">
+  <h2><span class="num">03</span> 功能全景</h2>
+  <p class="lead">从研究到辅助实盘的完整能力矩阵。标注 ✅ 为当前版本已落地能力。</p>
+
+  <div class="grid-3">
+    <div class="card"><h3>智能选股 ✅</h3><p>Ensemble 45% ML + 35% 基线 + 20% 风险；收盘/实时双模式；行内可折叠专业解释</p></div>
+    <div class="card"><h3>Paper 模拟 ✅</h3><p>T+1、整手、费用模型；真实行情监控自动买卖；收盘 PDF 资金报告</p></div>
+    <div class="card"><h3>Shadow 影子 ✅</h3><p>零真实订单；晋级前观察模式</p></div>
+    <div class="card"><h3>券商助手 ✅</h3><p>东方财富/华泰/同花顺等；浏览器 handoff；WAF 403 恢复指引</p></div>
+    <div class="card"><h3>Autopilot 票据 ✅</h3><p>选股 → 组合优化 → 订单票据；可选无人值守（门控开启时）</p></div>
+    <div class="card"><h3>量化日报 ✅</h3><p>Markdown / HTML / PDF；盘前盘后流水线</p></div>
+    <div class="card"><h3>模型实验室 ✅</h3><p>Purged K-Fold、样本外、过拟合检测；诚实 NOT_READY 标注</p></div>
+    <div class="card"><h3>多智能体研究 ✅</h3><p>政策、板块、个股研究工作流</p></div>
+    <div class="card"><h3>vn.py / Qlib 适配 ✅</h3><p>原生隔离环境验收；非替代，是编排集成</p></div>
+  </div>
+
+  <figure>
+    <img src="ai/v6/screenshots/01_overview.png" alt="系统总览" loading="lazy" />
+    <figcaption>图 3-1 · 高级总览：模式、资金、Kill Switch、数据新鲜度、原生引擎状态</figcaption>
+  </figure>
+</section>
+
+<!-- 04 工作流 -->
+<section id="workflow">
+  <h2><span class="num">04</span> 标准工作流</h2>
+  <p class="lead">推荐路径：先 Paper 验证，再人工确认辅助实盘。系统自动拦截未就绪状态下的真实发单。</p>
+
+  <div class="mermaid-wrap">
+    <pre class="mermaid">
+stateDiagram-v2
+  [*] --> Research: 安装启动
+  Research --> DataReady: 更新数据
+  DataReady --> Screener: 运行选股
+  Screener --> Paper: 启动 Paper + 导入组合
+  Paper --> Monitor: 真实行情监控
+  Monitor --> Shadow: 晋级 Shadow
+  Shadow --> Ticket: 生成订单票据
+  Ticket --> Broker: 券商官方确认
+  Broker --> [*]: 成交对账
+
+  Research --> Halted: Kill Switch
+  Paper --> Halted: 紧急停机
+  Halted --> Research: 人工解除
+    </pre>
+  </div>
+
+  <ol class="steps">
+    <li><strong>更新数据</strong>新手入门 →「更新数据」或高级·数据 → 市场同步。确认顶栏数据状态为 EOD_OK。</li>
+    <li><strong>智能选股</strong>设资金与股价区间 → 收盘模式（约 1 秒）或实时模式（需先刷新行情）→ 查看行内「详情 ▼」解释。</li>
+    <li><strong>模拟验证</strong>启动 Paper → 从选股导入组合 → 开启真实行情监控（无报价则不下单）。</li>
+    <li><strong>收盘复盘</strong>模拟练习页 →「生成今日收盘报告 PDF」→ 下载资金动向报告。</li>
+    <li><strong>辅助实盘</strong>券商助手登录官方平台 → 选股页「实盘辅助」→ 在券商 App 亲自确认。</li>
+  </ol>
+</section>
+
+<!-- 05 选股 -->
+<section id="screener">
+  <h2><span class="num">05</span> 智能选股深度指南</h2>
+  <p class="lead">多因子 + Alpha158-compatible 融合引擎。每只股票附带专业因子说明、买卖区间参考、一手建议——均可折叠展开。</p>
+
+  <div class="mermaid-wrap">
+    <pre class="mermaid">
+flowchart LR
+  A[DuckDB 日线] --> B[流动性/板块/股价过滤]
+  B --> C[多因子 Z-Score]
+  C --> D[ML Ensemble Gate]
+  D --> E[多样性 Top-N]
+  E --> F[Enrichment 一手/区间]
+  F --> G[Selection Guide]
+  H[Live Snapshot] -.->|实时模式| C
+    </pre>
+  </div>
+
+  <table>
+    <thead><tr><th>模式</th><th>速度</th><th>适用场景</th><th>前置条件</th></tr></thead>
+    <tbody>
+      <tr><td>收盘数据 EOD</td><td>~1 秒</td><td>日常选股、新手推荐</td><td>已更新日线</td></tr>
+      <tr><td>实时智能 Live</td><td>~5–30 秒</td><td>盘中决策</td><td>先刷新实时行情</td></tr>
+    </tbody>
+  </table>
+
+  <div class="grid-2">
+    <figure>
+      <img src="ai/v6/screenshots/05_screener.png" alt="智能选股" loading="lazy" />
+      <figcaption>图 5-1 · 选股结果：排名、实时价、收益区间、一手建议、详情折叠</figcaption>
+    </figure>
+    <figure>
+      <img src="ai/v6/screenshots/02_market.png" alt="市场数据" loading="lazy" />
+      <figcaption>图 5-2 · 市场数据：Provider 健康、覆盖、实时刷新计划</figcaption>
+    </figure>
+  </div>
+
+  <div class="card" style="margin-top:1rem">
+    <h3>增强版选股指南（每次运行自动生成）</h3>
+    <p>包含：策略说明、资金与股价过滤摘要、逐步操作指引、术语速查表。适合新手直接跟做。</p>
+  </div>
+</section>
+
+<!-- 06 Paper -->
+<section id="paper">
+  <h2><span class="num">06</span> 模拟练习 · Paper 操作盘</h2>
+  <p class="lead"><strong>核心原则：没有真实行情报价，就不模拟成交。</strong>Paper 使用新浪/多源实时价做监控与 mark-to-market。</p>
+
+  <div class="grid-2">
+    <div class="card">
+      <h3>虚拟操作盘</h3>
+      <p>手动模拟下单 · 从选股导入组合 · 按市价刷新持仓 · 成交/订单/持仓全览</p>
+    </div>
+    <div class="card">
+      <h3>实时行情监控</h3>
+      <p>导入组合后自动开启；买入区间/止损/止盈来自选股 trade_zones；60 秒自动轮询（Paper 页）</p>
+    </div>
+    <div class="card">
+      <h3>A 股规则内置</h3>
+      <p>T+1 可卖 · 100 股整手 · 佣金/印花税/过户费 · Kill Switch 联动</p>
+    </div>
+    <div class="card">
+      <h3>收盘 PDF 报告</h3>
+      <p>现金/权益/持仓/操作流水 · 一键生成下载 · 路径 docs/ai/daily-trading/daily/</p>
+    </div>
+  </div>
+
+  <figure>
+    <img src="ai/v6/screenshots/04_paper.png" alt="Paper 模拟" loading="lazy" />
+    <figcaption>图 6-1 · 模拟练习：Paper 状态、监控面板、操作盘、收盘报告</figcaption>
+  </figure>
+
+  <div class="mermaid-wrap">
+    <pre class="mermaid">
+sequenceDiagram
+  participant U as 用户
+  participant P as Portal
+  participant M as Paper Monitor
+  participant Q as Live Quotes
+  participant E as Paper Engine
+
+  U->>P: 从选股导入组合
+  P->>M: 开启监控
+  loop 每 60s / 手动
+    M->>Q: ensure_live_quotes(refresh)
+    alt 无真实报价
+      Q-->>M: blocked
+      M-->>U: 提示刷新行情
+    else 价格在买入区间
+      Q-->>M: live_price
+      M->>E: submit(BUY, market_price=live)
+    else 触及止损/止盈
+      M->>E: submit(SELL, market_price=live)
+    end
+  end
+    </pre>
+  </div>
+</section>
+
+<!-- 07 券商 -->
+<section id="broker">
+  <h2><span class="num">07</span> 券商助手与执行路径</h2>
+  <p class="lead">系统生成可审计订单票据，用户在券商官方 App / 网页<strong>亲自确认</strong>。不保存密码，不绕过券商 WAF。</p>
+
+  <table>
+    <thead><tr><th>执行路径</th><th>说明</th><th>推荐度</th></tr></thead>
+    <tbody>
+      <tr><td>浏览器官方页</td><td>打开 www.18.cn 等官网，用户手动登录</td><td>⭐⭐⭐ 默认</td></tr>
+      <tr><td>订单票据 handoff</td><td>Autopilot 生成票据 → 预填参数</td><td>⭐⭐⭐</td></tr>
+      <tr><td>Playwright 会话</td><td>可选；部分券商会 Nginx 403</td><td>⭐ 进阶</td></tr>
+      <tr><td>MiniQMT / Sidecar</td><td>Mac + Windows VM 远程发单</td><td>⭐ 专业用户</td></tr>
+      <tr><td>无人值守 auto</td><td>须 execution_level≥3 + 全部门控</td><td>⚠️ 默认关闭</td></tr>
+    </tbody>
+  </table>
+
+  <figure>
+    <img src="ai/app/screenshots/05_broker.png" alt="券商助手" loading="lazy" />
+    <figcaption>图 7-1 · 券商助手：多券商生态、官方链接、WAF 恢复、门控配置</figcaption>
+  </figure>
+</section>
+
+<!-- 08 风控 -->
+<section id="risk">
+  <h2><span class="num">08</span> 风控与合规设计</h2>
+  <p class="lead">多层防护：研究态默认不可实盘；数据漂移可硬拦截；Kill Switch 一键停机。</p>
+
+  <div class="mermaid-wrap">
+    <pre class="mermaid">
+flowchart TD
+  O[下单请求] --> K{Kill Switch?}
+  K -->|HALTED| X[拒绝]
+  K -->|OPEN| P{Preflight}
+  P -->|shadow 未就绪| X
+  P -->|数据漂移| W[警告/硬拦截]
+  P --> G{Live Gates}
+  G -->|real_money OFF| X
+  G -->|risk 未确认| X
+  G -->|legal 未通过| X
+  G -->|unattended OFF| M[人工确认路径]
+  G -->|全部通过| A[执行路由]
+    </pre>
+  </div>
+
+  <figure>
+    <img src="ai/app/screenshots/07_risk.png" alt="风险中心" loading="lazy" />
+    <figcaption>图 8-1 · 风险中心：资金、权益、亏损额度、Kill Switch 状态</figcaption>
+  </figure>
+</section>
+
+<!-- 09 可靠度 -->
+<section id="reliability">
+  <h2><span class="num">09</span> 可靠度与生产就绪</h2>
+  <p class="lead">QuantOS 采用「诚实标注」策略：未通过的门禁不会伪装成 production ready。以下基于 QuantOS Closed Loop 验收报告。</p>
+
+  <div class="reliability-meter">
+    <div class="meter ok"><div class="value">✓</div><div class="label">Paper 模拟就绪</div></div>
+    <div class="meter ok"><div class="value">✓</div><div class="label">Shadow 晋级</div></div>
+    <div class="meter ok"><div class="value">✓</div><div class="label">选股 Smoke</div></div>
+    <div class="meter ok"><div class="value">✓</div><div class="label">泄漏检测</div></div>
+    <div class="meter ok"><div class="value">✓</div><div class="label">Purged K-Fold</div></div>
+    <div class="meter partial"><div class="value">△</div><div class="label">数据漂移监控</div></div>
+    <div class="meter partial"><div class="value">△</div><div class="label">样本外 OOS</div></div>
+    <div class="meter no"><div class="value">—</div><div class="label">无人值守量产</div></div>
+  </div>
+
+  <table>
+    <thead><tr><th>门禁项</th><th>状态</th><th>含义</th></tr></thead>
+    <tbody>
+      <tr><td>data_quality</td><td><span class="badge badge-pass">PASS</span></td><td>数据质量基线通过</td></tr>
+      <tr><td>data_drift</td><td><span class="badge badge-fail">需关注</span></td><td>特征分布漂移时 disable_live_trading</td></tr>
+      <tr><td>leakage</td><td><span class="badge badge-pass">PASS</span></td><td>未来信息泄漏检测</td></tr>
+      <tr><td>rank_ic / purged_kfold</td><td><span class="badge badge-pass">PASS</span></td><td>因子与验证链</td></tr>
+      <tr><td>paper_engine</td><td><span class="badge badge-pass">PASS</span></td><td>Paper 引擎验收</td></tr>
+      <tr><td>ml_ensemble_gate</td><td><span class="badge badge-pass">PASS</span></td><td>ML 失败自动降级基线</td></tr>
+      <tr><td>production_ready</td><td><span class="badge badge-warn">false</span></td><td>全量产门禁未全开——诚实披露</td></tr>
+    </tbody>
+  </table>
+
+  <div class="card">
+    <h3>Alpha158 政策（不可降级）</h3>
+    <p>158 列 <code>alpha158_compatible_v1</code> 完整保留，不因「简化」而替换。ROC 等语义差异已文档化于审计报告，不静默改公式。</p>
+  </div>
+
+  <div class="card" style="margin-top:1rem">
+    <h3>自检命令</h3>
+    <p><code>make doctor</code> · <code>make quantos-closed-loop</code> · <code>make prelaunch</code> · <code>make test</code></p>
+    <p style="margin-top:0.5rem">报告：<code>artifacts/QUANTOS_CLOSED_LOOP_REPORT.json</code> · <code>artifacts/final_quantos_upgrade_report.md</code></p>
+  </div>
+</section>
+
+<!-- 10 快速开始 -->
+<section id="quickstart">
+  <h2><span class="num">10</span> 快速开始</h2>
+  <p class="lead">5 分钟从零到第一次选股。</p>
+
+  <pre style="background:var(--card);padding:1.25rem;border-radius:12px;border:1px solid var(--border);overflow-x:auto;font-size:0.85rem;color:var(--accent);"><code>git clone https://github.com/kenzhao0621-tech/netlify-demo.git
+cd netlify-demo
+make bootstrap
+cp .env.example .env   # 填入 TUSHARE_TOKEN（推荐）
+make app
+# 浏览器 → http://127.0.0.1:8787/portal</code></pre>
+
+  <table>
+    <thead><tr><th>角色</th><th>推荐页面</th><th>API Key 角色</th></tr></thead>
+    <tbody>
+      <tr><td>新手投资者</td><td>新手入门 / 选股 / Paper</td><td>investor</td></tr>
+      <tr><td>量化研究者</td><td>+ 模型实验室 / 回测 / 智能体</td><td>researcher</td></tr>
+      <tr><td>管理员</td><td>门控 / 审计 / 系统体检</td><td>admin</td></tr>
+    </tbody>
+  </table>
+
+  <figure>
+    <img src="ai/app/screenshots/03_overview.png" alt="总览" loading="lazy" />
+    <figcaption>图 10-1 · 登录后总览与快捷入口</figcaption>
+  </figure>
+</section>
+
+<!-- 11 API 速查 -->
+<section id="api">
+  <h2><span class="num">11</span> 核心 API 速查</h2>
+  <table>
+    <thead><tr><th>端点</th><th>用途</th></tr></thead>
+    <tbody>
+      <tr><td><code>GET /api/v1/screener/run</code></td><td>运行智能选股</td></tr>
+      <tr><td><code>POST /api/v1/market/live-refresh</code></td><td>刷新实时行情</td></tr>
+      <tr><td><code>POST /api/v1/paper/start</code></td><td>启动 Paper 模式</td></tr>
+      <tr><td><code>POST /api/v1/paper/from-screener</code></td><td>导入组合 + 开启监控</td></tr>
+      <tr><td><code>POST /api/v1/paper/monitor/tick</code></td><td>执行一轮真实行情监控</td></tr>
+      <tr><td><code>POST /api/v1/paper/reports/generate-close</code></td><td>生成收盘 PDF</td></tr>
+      <tr><td><code>POST /api/v1/brokers/connect-flow</code></td><td>券商连接向导</td></tr>
+      <tr><td><code>GET /api/v1/trading/preflight</code></td><td>实盘执行预检</td></tr>
+      <tr><td><code>POST /api/v1/risk/halt</code></td><td>紧急 Kill Switch</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- 12 FAQ -->
+<section id="faq">
+  <h2><span class="num">12</span> 常见问题</h2>
+  <div class="grid-2">
+    <div class="card"><h3>选股超时？</h3><p>改用「收盘数据」模式；或先更新日线。实时模式需先刷新行情。</p></div>
+    <div class="card"><h3>券商 Nginx forbidden？</h3><p>券商 WAF 拦截公网 IP，非系统故障。用官网/App 登录，勿用自动化浏览器。</p></div>
+    <div class="card"><h3>Paper 不下单？</h3><p>监控要求真实报价。先在「市场数据」刷新行情，且价格须落在买入区间。</p></div>
+    <div class="card"><h3>能否全自动炒股？</h3><p>默认禁止。无人值守须手动开启全部门控 + Sidecar/QMT，且 drift 可能拦截。</p></div>
+    <div class="card"><h3>数据存在哪？</h3><p>本机 DuckDB + data/gateway/。默认 .gitignore，不上传云端。</p></div>
+    <div class="card"><h3>如何导出 PDF？</h3><p>模拟练习 → 生成今日收盘报告；或 make daily-report 生成量化日报。</p></div>
+  </div>
+
+  <div class="disclaimer" style="margin-top:2rem">
+    <strong>重要免责声明</strong><br/>
+    QuantOS CN 为研究与模拟工具，不构成投资建议。历史回测与 Paper 表现不代表未来收益。
+    真实交易须在券商官方平台由用户本人确认。使用本软件即表示您理解并接受上述限制。
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <p><strong>QuantOS CN Product Launch Guide</strong> · 生成于 2026-06 · MIT License</p>
+  <p>配套文档：<code>docs/USER_GUIDE.md</code> · <code>docs/PRODUCT.md</code> · <code>docs/ARCHITECTURE.md</code></p>
+  <p style="margin-top:1rem;color:var(--muted)">打印为 PDF：浏览器打开本页 → 文件 → 打印 → 存储为 PDF</p>
+</footer>
+
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: "dark",
+    themeVariables: {
+      primaryColor: "#1a2230",
+      primaryTextColor: "#e8edf5",
+      primaryBorderColor: "#3dd6a8",
+      lineColor: "#5b9cf5",
+      secondaryColor: "#121820",
+      tertiaryColor: "#0b0f14",
+    },
+  });
+</script>
+</body>
+</html>

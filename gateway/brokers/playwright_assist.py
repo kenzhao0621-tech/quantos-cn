@@ -99,6 +99,24 @@ def run_login_assist(broker_id: str = "eastmoney_manual", *, wait_seconds: int =
         page = context.new_page()
         page.goto(login_url, wait_until="domcontentloaded", timeout=60000)
         page.bring_to_front()
+        try:
+            body_text = page.inner_text("body", timeout=3000)
+        except Exception:
+            body_text = ""
+        from gateway.brokers.waf_recovery import is_waf_block, waf_recovery_for_broker
+
+        if is_waf_block(body_text):
+            browser.close()
+            recovery = waf_recovery_for_broker(broker_id)
+            launch_cn_broker(broker_id, target="portal")
+            return {
+                "ok": False,
+                "mode": "waf_blocked",
+                "waf_blocked": True,
+                "message": "券商页面返回 Nginx forbidden — 你的 IP 被 WAF 拦截，请用官网/App 登录",
+                "waf_recovery": recovery,
+                "url": login_url,
+            }
         logged_in = False
         deadline = min(wait_seconds, 300)
         for _ in range(deadline // 2):

@@ -1,0 +1,40 @@
+{
+  "scheduled_at": "2026-06-17T10:50:43",
+  "dry_run": true,
+  "installed": false,
+  "label": "com.netlify-demo.quant.intraday-refresh",
+  "plist": "config/launchd/com.netlify-demo.quant.intraday-refresh.plist",
+  "wrapper": "scripts/run-intraday-refresh-scheduled.sh",
+  "slots": [
+    {
+      "slot": "pre_open",
+      "label": "开盘前",
+      "hour": 9,
+      "minute": 15
+    },
+    {
+      "slot": "morning",
+      "label": "上午盘中",
+      "hour": 10,
+      "minute": 30
+    },
+    {
+      "slot": "lunch",
+      "label": "中午收盘",
+      "hour": 11,
+      "minute": 35
+    },
+    {
+      "slot": "afternoon",
+      "label": "下午盘中",
+      "hour": 14,
+      "minute": 0
+    },
+    {
+      "slot": "close",
+      "label": "工作日收盘",
+      "hour": 15,
+      "minute": 5
+    }
+  ]
+}

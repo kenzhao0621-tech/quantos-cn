@@ -1,0 +1,146 @@
+# QuantOS Factor Registry — Spec V4 §4.1
+# All factors require ValidationOS approval before production weight changes.
+
+version: "2026-06-17"
+price_type_default: unadjusted_close
+
+ret_20:
+  formula: "(close_t / close_{t-20}) - 1"
+  data_source: daily_bars
+  price_type: unadjusted_close
+  economic_logic: medium-term momentum
+  expected_direction: positive
+  category: Momentum
+  coverage: full_universe
+  validation_status: APPROVED
+  creation_date: "2026-06-17"
+  last_review_date: "2026-06-17"
+  enabled: true
+
+ret_60:
+  formula: "(close_t / close_{t-60}) - 1"
+  data_source: daily_bars
+  price_type: unadjusted_close
+  economic_logic: long-term momentum
+  expected_direction: positive
+  category: Momentum
+  coverage: full_universe
+  validation_status: APPROVED
+  creation_date: "2026-06-17"
+  last_review_date: "2026-06-17"
+  enabled: true
+
+trend:
+  formula: "(close_t / MA20_t) - 1"
+  data_source: daily_bars
+  price_type: unadjusted_close
+  economic_logic: price above moving average
+  expected_direction: positive
+  category: Trend
+  coverage: full_universe
+  validation_status: APPROVED
+  creation_date: "2026-06-17"
+  last_review_date: "2026-06-17"
+  enabled: true
+
+vol_penalty:
+  formula: "stdev(daily_returns, 20d)"
+  data_source: daily_bars
+  price_type: unadjusted_close
+  economic_logic: lower vol preferred in balanced preset
+  expected_direction: negative
+  category: Volatility
+  coverage: full_universe
+  validation_status: APPROVED
+  creation_date: "2026-06-17"
+  last_review_date: "2026-06-17"
+  enabled: true
+
+alpha158_lgbm:
+  formula: "LightGBM LambdaRank on Alpha158 features"
+  data_source: alpha158_wide.parquet
+  price_type: unadjusted_close
+  economic_logic: nonlinear cross-sectional rank
+  expected_direction: positive
+  category: Simulation
+  coverage: csi300_proxy_top300
+  validation_status: CANDIDATE
+  creation_date: "2026-06-17"
+  last_review_date: "2026-06-17"
+  enabled: true
+
+avg_amount:
+  formula: "avg(amount, 20d) in yuan"
+  data_source: daily_bars
+  category: Liquidity
+  validation_status: APPROVED
+  enabled: true
+
+pe:
+  formula: "PE TTM from fundamentals"
+  data_source: fundamentals_tushare
+  category: Value
+  validation_status: PARTIAL
+  enabled: true
+
+pb:
+  formula: "PB from fundamentals"
+  data_source: fundamentals_tushare
+  category: Value
+  validation_status: PARTIAL
+  enabled: true
+
+dividend_yield:
+  formula: "dv_ttm"
+  data_source: fundamentals_tushare
+  category: Value
+  validation_status: PARTIAL
+  enabled: true
+
+market_cap:
+  formula: "total_mv"
+  data_source: fundamentals_tushare
+  category: Risk
+  validation_status: PARTIAL
+  enabled: true
+
+alpha158_compatible_v1:
+  formula: "158-column Qlib-inspired feature engine"
+  data_source: quant/features/alpha158.py
+  category: Momentum/Trend/Volatility/Liquidity
+  n_features: 158
+  validation_status: CANDIDATE
+  enabled: true
+  policy: RETAIN — do not replace with spec lite list
+
+disclosure_penalty:
+  formula: "-1.0 if disclosure_flag in {HIGH,MEDIUM}"
+  data_source: disclosure_index
+  price_type: n/a
+  economic_logic: risk reduction on adverse disclosures
+  expected_direction: negative
+  category: Event
+  coverage: partial
+  validation_status: PARTIAL
+  creation_date: "2026-06-17"
+  last_review_date: "2026-06-17"
+  enabled: true
+
+# SimulationOS features — disabled until ValidationOS §9.4
+policy_support_score:
+  formula: simulation_os
+  data_source: simulation
+  validation_status: NOT_RUN
+  enabled: false
+
+theme_strength_score:
+  formula: simulation_os
+  data_source: simulation
+  validation_status: NOT_RUN
+  enabled: false
+
+counterfactual_alpha_score:
+  formula: simulation_os
+  data_source: simulation
+  validation_status: NOT_RUN
+  enabled: false

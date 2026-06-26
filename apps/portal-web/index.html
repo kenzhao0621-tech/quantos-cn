@@ -50,6 +50,7 @@
       <span class="pill" id="role-pill">身份: —</span>
       <span class="pill" id="mode-pill">模式: —</span>
       <span class="pill" id="freshness-pill">数据: —</span>
+      <span class="pill" id="live-quote-pill" title="全市场实时报价">实时: —</span>
       <span class="pill" id="capital-pill">资金: —</span>
     </div>
     <button id="btn-logout" type="button" class="btn-secondary">退出</button>
@@ -185,11 +186,23 @@
           <button data-action="save-preferences" type="button">保存偏好</button>
         </div>
       </div>
+      <div class="dossier-card screener-search-card">
+        <h3>搜索股票</h3>
+        <p class="muted">输入股票代码或中文名称，查看量化评分与专业说明（无需先运行全市场选股）。</p>
+        <div class="screener-controls screener-search-row">
+          <label class="screener-search-label">代码/名称
+            <input id="screener-stock-query" type="search" placeholder="如 600519、贵州茅台" autocomplete="off" list="screener-search-suggestions" />
+          </label>
+          <datalist id="screener-search-suggestions"></datalist>
+          <button data-action="screener-stock-search" type="button" class="primary">查看量化评分</button>
+        </div>
+        <div id="screener-search-results" class="sub-panel"></div>
+      </div>
       <div class="screener-controls">
         <label>选股模式
           <select id="screener-mode">
             <option value="eod" selected>收盘数据（推荐·快速）</option>
-            <option value="live">实时智能（需先刷新行情）</option>
+            <option value="live">实时智能（自动刷新行情）</option>
           </select>
         </label>
         <label>策略
@@ -215,15 +228,18 @@
             <option value="300000000">3.0</option>
           </select>
         </label>
-        <button data-action="screener-run" type="button">运行选股</button>
+        <button data-action="screener-run" type="button" class="primary">运行实时智能选股</button>
         <button data-action="screener-proof" type="button">验证昨日选股</button>
+        <button data-action="screener-learn" type="button">策略自验证学习</button>
+        <button data-action="screener-report-pdf" type="button">导出选股 PDF</button>
         <button data-action="screener-dossier-top" type="button">解释第一名</button>
         <button data-action="paper-from-screener" type="button">加入 Paper 模拟组合</button>
+        <button data-action="execute-allocation" type="button" class="primary">一键执行组合（实盘/无人值守）</button>
       </div>
       <div id="screener-meta" class="metric-row"></div>
       <div id="screener-guide" class="sub-panel"></div>
       <div id="screener-proof" class="sub-panel"></div>
-      <div id="screener-dossier" class="sub-panel"></div>
+      <div id="screener-dossier" class="sub-panel muted small">实时模式：一键选股含行情刷新；后台盘中每 15 分钟自动刷新。弹窗分析后可导出 PDF。Esc / 遮罩 / ✕ 关闭</div>
       <div id="screener-table" class="primary-view" data-primary-view="screener"></div>
       <div class="dossier-card">
         <h3>Safe Autopilot · 订单票据</h3>
@@ -231,6 +247,7 @@
         <div class="actions wrap">
           <button data-action="autopilot-readiness" type="button">检查准入</button>
           <button data-action="autopilot-ticket" type="button">生成订单票据</button>
+          <button data-action="autopilot-execute-ticket" type="button" class="primary">无人值守执行票据</button>
         </div>
         <div id="autopilot-panel" class="sub-panel"></div>
       </div>
@@ -298,15 +315,57 @@
 
   <main class="layout hidden" id="page-paper">
     <section class="panel full">
-      <h2>模拟交易 · Paper</h2>
+      <h2>模拟交易 · Paper 操作盘</h2>
+      <div id="paper-live-auto-banner" class="banner banner-ok hidden" role="status"></div>
+      <div id="paper-status-banner" class="banner banner-warn">Paper 未启动 — 点击「启动 Paper」后开始虚拟交易</div>
       <div id="paper-pnl" class="primary-view" data-primary-view="paper-pnl"></div>
+      <div class="paper-desk grid-2">
+        <div class="sub-panel">
+          <h3>模拟下单</h3>
+          <div class="form-row">
+            <label>代码 <input id="paper-symbol" type="text" placeholder="600519 或 600519.SH" /></label>
+            <label>方向
+              <select id="paper-side">
+                <option value="BUY">买入</option>
+                <option value="SELL">卖出</option>
+              </select>
+            </label>
+            <label>数量(股) <input id="paper-qty" type="number" value="100" min="100" step="100" /></label>
+            <label>限价(0=现价) <input id="paper-price" type="number" value="0" min="0" step="0.01" /></label>
+          </div>
+          <div class="actions wrap">
+            <button data-action="paper-submit-order" type="button" class="primary">提交模拟单</button>
+            <button data-action="paper-from-screener" type="button">从选股导入组合</button>
+          </div>
+        </div>
+        <div class="sub-panel">
+          <h3>操作说明</h3>
+          <ul class="checklist compact">
+            <li>① 启动 Paper → ② 选「实时智能」运行选股或导入组合</li>
+            <li>本页<strong>每 15 分钟</strong>自动刷新真实行情、更新市值并按规则监控买卖</li>
+            <li>买入须 100 股整数倍；无真实报价时不模拟成交</li>
+          </ul>
+        </div>
+      </div>
+      <h3>实时行情监控（真实报价）</h3>
+      <div id="paper-monitor" class="sub-panel"></div>
+      <div class="actions wrap">
+        <button data-action="paper-monitor-tick" type="button" class="primary">立即监控一轮</button>
+        <button data-action="paper-monitor-stop" type="button">停止 15 分钟自动监控</button>
+      </div>
+      <h3>收盘资金报告 PDF</h3>
+      <div id="paper-reports" class="sub-panel"></div>
+      <button data-action="paper-report-close" type="button">生成今日收盘报告 PDF</button>
       <h3>持仓</h3>
       <div id="paper-positions"></div>
+      <h3>成交记录</h3>
+      <div id="paper-fills"></div>
       <h3>订单</h3>
       <div id="paper-orders"></div>
       <div class="actions wrap">
         <button data-action="paper-start" type="button">启动 Paper</button>
         <button data-action="paper-stop" type="button">停止 Paper</button>
+        <button data-action="paper-mark-to-market" type="button">按市价刷新</button>
         <button data-action="paper-refresh" type="button">刷新状态</button>
       </div>
     </section>
@@ -352,7 +411,8 @@
           <button data-action="broker-connect" type="button" class="primary">连接并打开登录页</button>
         </div>
         <div id="broker-official-links" class="broker-official-links sub-panel"></div>
-        <p class="muted broker-tip">若页面显示 403：请点下方<strong>备用官方链接</strong>，或下载券商 App 登录（自动化窗口会被部分券商拦截）。</p>
+        <div id="broker-waf-recovery" class="sub-panel"></div>
+        <p class="muted broker-tip">若页面显示 <strong>Nginx forbidden</strong>（含 request info IP）：这是<strong>券商 WAF 拦截你的公网 IP</strong>，不是本系统故障。请点下方「官网首页」或下载 App 登录，勿用自动化浏览器。</p>
         <div class="broker-step">
           <span class="step-num">2</span>
           <button data-action="broker-login" type="button">保存登录会话（可选）</button>
@@ -390,6 +450,12 @@
       <p class="warn" id="broker-execution-mode">执行模式加载中…</p>
     </section>
   </main>
+
+  <div id="stock-detail-modal" class="stock-modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="stock-modal-title">
+    <div class="stock-modal-dialog">
+      <div id="stock-detail-body" class="stock-modal-body"></div>
+    </div>
+  </div>
 
   <footer class="footer">
     <span>PAPER_TRADING_ONLY · 真实资金交易已禁用 · QuantOS CN V4</span>

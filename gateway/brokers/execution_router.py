@@ -139,6 +139,23 @@ def execute_order(
             "paths_tried": [],
         }
 
+    from gateway.execution.preflight import execution_preflight
+
+    pre = execution_preflight(
+        mode="unattended" if unattended else "live",
+        unattended=unattended,
+        allow_drift_override=unattended,
+    )
+    if not pre["allowed"]:
+        return {
+            "ok": False,
+            "error": {"code": "PREFLIGHT_BLOCKED", "message": "平台门禁未通过"},
+            "blockers": pre["blockers"],
+            "warnings": pre.get("warnings"),
+            "preflight": pre,
+            "paths_tried": [],
+        }
+
     notional = round(limit_price * quantity, 2)
     if unattended:
         gate = can_submit_unattended_order(notional_cny=notional)

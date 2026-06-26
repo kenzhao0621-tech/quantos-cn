@@ -106,7 +106,13 @@ class RiskEngine:
             blockers.append("PROTECTED_FLOOR_BREACH")
         if remaining <= 0:
             blockers.append("LOSS_BUDGET_EXHAUSTED")
-        if self.config.real_money_execution_disabled is False and self.config.enable_live_trading:
+        # Real-money live execution requires explicit batch approval (paper mode unaffected).
+        if (
+            not self.config.paper_trading_only
+            and not self.config.real_money_execution_disabled
+            and self.config.enable_live_trading
+            and not self.config.live_trading_batch_approved
+        ):
             blockers.append("LIVE_TRADING_NOT_APPROVED_THIS_BATCH")
         return RiskSnapshot(
             mode=self._mode,

@@ -93,8 +93,9 @@
       const trace_id = crypto.randomUUID();
       const timeoutMs = options.timeoutMs || (
         path.includes("/market/sync-all") ? 240000
+        : path.includes("/market/live-refresh") ? 180000
         : path.includes("/autopilot/order-ticket") ? 45000
-        : path.includes("/screener/run") ? 30000
+        : path.includes("/screener/run") ? 120000
         : 90000
       );
       const controller = new AbortController();

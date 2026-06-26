@@ -38,12 +38,13 @@ class RiskDefaults:
 @dataclass
 class GatewayConfig:
     mode: str = "RESEARCH_ONLY"
-    project_id: str = "netlify-demo-china-ashare"
+    project_id: str = "quantos-cn"
     capital: CapitalConfig = field(default_factory=CapitalConfig)
     risk: RiskDefaults = field(default_factory=RiskDefaults)
     paper_trading_only: bool = True
     real_money_execution_disabled: bool = True
     enable_live_trading: bool = False
+    live_trading_batch_approved: bool = False
     gc_mgc_sidecar_isolated: bool = True
     demo_api_key: str = "demo-local-key-change-in-prod"
     service_accounts: list[dict[str, str]] = field(default_factory=list)
@@ -60,7 +61,7 @@ class GatewayConfig:
         obs = raw.get("observability", {})
         return cls(
             mode=raw.get("mode", "RESEARCH_ONLY"),
-            project_id=raw.get("project_id", "netlify-demo-china-ashare"),
+            project_id=raw.get("project_id", "quantos-cn"),
             capital=CapitalConfig(
                 total_allocated_cny=float(cap.get("total_allocated_cny", 5000)),
                 absolute_max_cumulative_loss_cny=float(cap.get("absolute_max_cumulative_loss_cny", 1000)),
@@ -80,6 +81,7 @@ class GatewayConfig:
             paper_trading_only=bool(safety.get("paper_trading_only", True)),
             real_money_execution_disabled=bool(safety.get("real_money_execution_disabled", True)),
             enable_live_trading=bool(safety.get("enable_live_trading", False)),
+            live_trading_batch_approved=bool(safety.get("live_trading_batch_approved", False)),
             gc_mgc_sidecar_isolated=bool(safety.get("gc_mgc_sidecar_isolated", True)),
             demo_api_key=str(auth.get("demo_api_key", "demo-local-key-change-in-prod")),
             service_accounts=list(auth.get("service_accounts", [])),

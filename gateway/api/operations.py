@@ -99,6 +99,7 @@ class PaperFromScreenerBody(BaseModel):
     top_n: int = 5
     max_positions: int = 2
     capital_fraction: float = 0.45
+    mode: str = "live"
 
 
 class UserPreferencesBody(BaseModel):
@@ -180,6 +181,20 @@ class ExecuteAutoBody(BaseModel):
     side: str = "BUY"
     quantity: int = 100
     limit_price: float = 0.0
+
+
+class TradingExecuteBody(BaseModel):
+    preset: Optional[str] = None
+    top_n: int = 25
+    mode: str = "live"
+    unattended: bool = False
+    allow_drift_override: bool = True
+    capital_cny: Optional[float] = None
+
+
+class TicketExecuteBody(BaseModel):
+    ticket_id: str
+    unattended: bool = True
 
 
 class WatchlistMutateBody(BaseModel):
@@ -333,6 +348,7 @@ def system_status_v2(principal: Optional[Principal] = Depends(get_principal_ops)
         "qlib": CNMarketProvider().health(),
         "latest_daily_report": _latest_daily_report(),
         "latest_candidate": _latest_candidate(),
+        "intraday_refresh": __import__("gateway.monitoring.intraday_background", fromlist=["intraday_refresh_status"]).intraday_refresh_status(),
         "user_preferences": load_preferences().to_dict(),
     })
 
@@ -453,76 +469,52 @@ def paper_from_screener(
     p = _require(principal, "paper:trade")
     if _state.mode != TradingMode.PAPER_TRADING:
         return envelope_err("PAPER_NOT_STARTED", "请先点击「启动 Paper」，再从选股生成模拟组合")
-    from quant.application.screener_service import get_screener_service
+    from gateway.trading_pipeline import run_screener_with_allocation, execute_paper_allocation
 
     pref = load_preferences()
-    preset = body.preset or pref.strategy_preset
-    # Pull a wider list: with smaller paper capital and A-share 100-share board
-    # lots, the top ranked momentum names may be too expensive to buy one lot.
-    # Paper portfolio creation must be deterministic and should not block on an
-    # external realtime quote provider. Use the latest validated EOD factor set;
-    # live prices are still used in the order-ticket workflow.
-    screen = get_screener_service().screen(
-        preset=preset,
+    bundle = run_screener_with_allocation(
+        preset=body.preset or pref.strategy_preset,
         top_n=max(50, min(body.top_n * 4, 100)),
-        min_amount_cny=pref.min_amount_cny,
-        mode="eod",
-        preferred_sectors=pref.preferred_sectors,
-        excluded_sectors=pref.excluded_sectors,
+        mode=body.mode or "live",
+        capital_cny=pref.capital_cny * max(0.05, min(body.capital_fraction, 0.6)) if body.capital_fraction else pref.capital_cny,
     )
-    if screen.blocked:
-        return envelope_err("SCREENER_BLOCKED", screen.blocker_reason)
-    if not screen.candidates:
-        return envelope_err("NO_CANDIDATES", "当前没有可加入 Paper 的候选")
-
-    snap = _risk.snapshot()
-    deployable = snap.equity_cny * max(0.05, min(body.capital_fraction, 0.6))
-    target_positions = max(1, min(body.max_positions or pref.max_positions, pref.max_positions, 10))
-    risk = _risk.config.risk
-    per_name = min(deployable / target_positions, snap.equity_cny * risk.maximum_single_name_risk_pct)
-    run_id = str(uuid.uuid4())[:8]
-    orders: list[dict[str, Any]] = []
-    blockers: list[str] = []
-    for c in screen.candidates:
-        if len(orders) >= target_positions:
-            break
-        raw_qty = int(per_name / max(c.last_close, 0.01))
-        qty = (raw_qty // 100) * 100
-        if qty < 100:
-            blockers.append(f"{c.symbol}: 资金不足买入一手")
-            continue
-        intent = OrderIntent(
-            client_order_id=str(uuid.uuid4()),
-            run_id=run_id,
-            strategy_id=f"screener:{body.preset}",
-            model_id="multi_factor_screener_v1",
-            symbol=c.symbol,
-            side="BUY",
-            quantity=qty,
-            limit_price=round(c.last_close, 2),
-            notional_cny=round(qty * c.last_close, 2),
-        )
-        order = _paper.submit(intent, data_fresh=True, market_price=c.last_close)
-        od = order.to_dict()
-        if od.get("state") == "FILLED":
-            orders.append(od)
-        else:
-            blockers.append(f"{c.symbol}: {od.get('reject_reason') or od.get('state')}")
-
+    if not bundle.get("ok"):
+        return envelope_err("SCREENER_BLOCKED", bundle.get("blocker_reason") or "选股失败")
+    allocation = bundle.get("allocation") or {}
+    if body.max_positions:
+        allocation["positions"] = (allocation.get("positions") or [])[: body.max_positions]
+    exec_result = execute_paper_allocation(allocation, user_id=p.user_id, paper_adapter=_paper)
     _audit.emit("paper_from_screener", p.user_id, {
-        "run_id": run_id,
-        "preset": body.preset,
-        "orders": len(orders),
-        "blockers": blockers,
+        "run_id": exec_result.get("run_id"),
+        "orders": len(exec_result.get("orders") or []),
+        "blockers": exec_result.get("blockers"),
     })
+    if not exec_result.get("ok"):
+        return envelope_err(
+            "PAPER_ALLOCATION_FAILED",
+            "组合构建或模拟下单失败",
+            blockers=exec_result.get("blockers"),
+            preflight=exec_result.get("preflight"),
+        )
+    from gateway.paper.autopilot_monitor import run_monitor_tick, set_monitor_portfolio
+
+    screen = bundle.get("screen") or {}
+    cands = screen.get("candidates") or []
+    pos_syms = {p["symbol"] for p in (allocation.get("positions") or [])}
+    monitor_cands = [c for c in cands if c.get("symbol") in pos_syms] or cands[: body.max_positions or 5]
+    mon_state = set_monitor_portfolio(monitor_cands, enabled=True)
+    tick = run_monitor_tick(_paper, user_id=p.user_id, refresh_quotes=True)
     return envelope_ok({
-        "run_id": run_id,
+        "run_id": exec_result.get("run_id"),
         "mode": _state.mode.value,
-        "as_of_date": screen.as_of_date,
-        "orders": orders,
-        "blockers": blockers,
-        "note": "仅模拟交易；未连接真实券商，零真实订单。",
-    }, run_id=run_id)
+        "as_of_date": screen.get("as_of_date"),
+        "orders": exec_result.get("orders"),
+        "allocation": allocation,
+        "blockers": exec_result.get("blockers"),
+        "monitor": mon_state,
+        "monitor_tick": tick,
+        "note": "已导入组合并开启实时行情监控（仅真实报价触发买卖）。",
+    }, run_id=exec_result.get("run_id"))
 
 
 @router.post("/api/v1/shadow/start")
@@ -690,6 +682,7 @@ def brokers_ecosystem(principal: Optional[Principal] = Depends(get_principal_ops
             "order_hint": spec.get("order_hint", ""),
             "watchlist_hint": spec.get("watchlist_hint", ""),
             "notes": spec.get("notes", ""),
+            "fallback_urls": spec.get("fallback_urls", []),
         })
     return envelope_ok({
         "brokers": brokers,
@@ -1047,6 +1040,75 @@ def gateway_readiness(principal: Optional[Principal] = Depends(get_principal_ops
     from gateway.production_readiness import gateway_readiness_report
 
     return envelope_ok(gateway_readiness_report())
+
+
+@router.get("/api/v1/trading/preflight")
+def trading_preflight(
+    mode: str = "paper",
+    unattended: bool = False,
+    principal: Optional[Principal] = Depends(get_principal_ops),
+) -> Dict[str, Any]:
+    _require(principal, "market:read")
+    from gateway.execution.preflight import execution_preflight
+
+    return envelope_ok(execution_preflight(mode=mode, unattended=unattended, allow_drift_override=True))
+
+
+@router.post("/api/v1/trading/execute-allocation")
+def trading_execute_allocation(
+    body: TradingExecuteBody,
+    principal: Optional[Principal] = Depends(get_principal_ops),
+) -> Dict[str, Any]:
+    p = _require(principal, "mode:promote" if body.unattended else "broker:assist")
+    from gateway.trading_pipeline import execute_allocation_lines, run_screener_with_allocation
+
+    bundle = run_screener_with_allocation(
+        preset=body.preset,
+        top_n=body.top_n,
+        mode=body.mode,
+        capital_cny=body.capital_cny,
+    )
+    if not bundle.get("ok"):
+        return envelope_err("SCREENER_BLOCKED", bundle.get("blocker_reason") or "选股失败")
+    result = execute_allocation_lines(
+        bundle.get("allocation") or {},
+        user_id=p.user_id,
+        unattended=body.unattended,
+        allow_drift_override=body.allow_drift_override,
+    )
+    _audit.emit("trading_execute_allocation", p.user_id, {
+        "unattended": body.unattended,
+        "ok": result.get("ok"),
+        "n_results": len(result.get("results") or []),
+    })
+    if result.get("ok"):
+        return envelope_ok({**result, "screen_meta": {
+            "as_of_date": bundle.get("screen", {}).get("as_of_date"),
+            "ensemble_mode": bundle.get("screen", {}).get("ensemble_mode"),
+            "ml_active": bundle.get("screen", {}).get("ml_active"),
+        }})
+    return envelope_err(
+        "EXECUTION_BLOCKED",
+        "组合执行被拦截",
+        blockers=result.get("blockers"),
+        warnings=result.get("warnings"),
+        preflight=result.get("preflight"),
+    )
+
+
+@router.post("/api/v1/autopilot/execute-ticket")
+def autopilot_execute_ticket(
+    body: TicketExecuteBody,
+    principal: Optional[Principal] = Depends(get_principal_ops),
+) -> Dict[str, Any]:
+    p = _require(principal, "mode:promote")
+    from gateway.trading_pipeline import execute_order_ticket
+
+    result = execute_order_ticket(body.ticket_id, user_id=p.user_id, unattended=body.unattended)
+    _audit.emit("autopilot_execute_ticket", p.user_id, {"ticket_id": body.ticket_id, "ok": result.get("ok")})
+    if result.get("ok"):
+        return envelope_ok(result)
+    return envelope_err("TICKET_EXECUTE_FAILED", "票据执行失败", blockers=result.get("blockers"))
 
 
 @router.post("/api/v1/autopilot/order-ticket")

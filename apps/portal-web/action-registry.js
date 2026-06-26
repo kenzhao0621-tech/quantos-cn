@@ -9,6 +9,8 @@
     "research.agentsRun": { label_zh: "多智能体研究", role: "research:run", method: "POST", endpoint: "/api/v1/research/agents/run" },
     "paper.start": { label_zh: "启动 Paper", role: "mode:promote", method: "POST", endpoint: "/api/v1/paper/start" },
     "paper.stop": { label_zh: "停止 Paper", role: "mode:promote", method: "POST", endpoint: "/api/v1/paper/stop" },
+    "paper.order": { label_zh: "Paper 模拟下单", role: "paper:trade", method: "POST", endpoint: "/api/v1/paper/order" },
+    "paper.markToMarket": { label_zh: "Paper 按市价刷新", role: "paper:trade", method: "POST", endpoint: "/api/v1/paper/mark-to-market" },
     "shadow.start": { label_zh: "启动 Shadow", role: "mode:promote", method: "POST", endpoint: "/api/v1/shadow/start" },
     "shadow.stop": { label_zh: "停止 Shadow", role: "mode:promote", method: "POST", endpoint: "/api/v1/shadow/stop" },
     "risk.halt": { label_zh: "紧急停机", role: "risk:halt", method: "POST", endpoint: "/api/v1/risk/halt" },
@@ -19,6 +21,9 @@
     "native.vnpyStart": { label_zh: "启动 vn.py", role: "research:run", method: "POST", endpoint: "/api/v1/quantos/vnpy/start" },
     "native.qlibBaseline": { label_zh: "Qlib 基线", role: "research:run", method: "POST", endpoint: "/api/v1/quantos/qlib/baseline" },
     "broker.readonlyConnect": { label_zh: "只读连接向导", role: "portal:admin", method: "POST", endpoint: "/api/v1/brokers/readonly-connect" },
+    "trading.preflight": { label_zh: "执行预检", role: "market:read", method: "GET", endpoint: "/api/v1/trading/preflight" },
+    "trading.executeAllocation": { label_zh: "一键执行组合", role: "mode:promote", method: "POST", endpoint: "/api/v1/trading/execute-allocation" },
+    "autopilot.executeTicket": { label_zh: "无人值守执行票据", role: "mode:promote", method: "POST", endpoint: "/api/v1/autopilot/execute-ticket" },
   };
 
   const DATA_ACTION_MAP = {

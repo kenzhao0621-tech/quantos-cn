@@ -103,6 +103,13 @@ def run_connect_flow(
         + (f" 自选同步：{sync_result.get('message')}" if sync_result else "")
     )
     result["ready_for_trade"] = bool(result["session"].get("saved"))
+    from gateway.brokers.waf_recovery import waf_recovery_for_broker
+
+    result["waf_recovery"] = waf_recovery_for_broker(bid)
+    result["open_url_preferred"] = (
+        (waf_recovery_for_broker(bid).get("fallback_urls") or [{}])[0].get("url")
+        or result.get("client_url")
+    )
     return result
 
 

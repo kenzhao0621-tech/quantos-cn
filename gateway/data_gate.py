@@ -53,23 +53,30 @@ def _live_snapshot_status() -> dict[str, Any]:
     if not LIVE_SNAPSHOT.exists():
         return {"ok": False, "reason": "no live snapshot", "age_sec": None}
     try:
+        from quant.application.live_market_service import snapshot_rows
+
         data = json.loads(LIVE_SNAPSHOT.read_text(encoding="utf-8"))
+        row_count = len(snapshot_rows(data))
         retrieved = data.get("retrieved_at") or data.get("checked_at")
         age_sec = None
         if retrieved:
             try:
                 ts = datetime.fromisoformat(str(retrieved).replace("Z", "+00:00"))
-                age_sec = int((datetime.now(ts.tzinfo) - ts).total_seconds())
+                if ts.tzinfo is None:
+                    age_sec = int((datetime.now() - ts).total_seconds())
+                else:
+                    age_sec = int((datetime.now(ts.tzinfo) - ts).total_seconds())
             except Exception:
                 pass
         mtime_age = int(datetime.now().timestamp() - LIVE_SNAPSHOT.stat().st_mtime)
         age = age_sec if age_sec is not None else mtime_age
         return {
-            "ok": age < 3600,
+            "ok": row_count >= 100 and age < 3600 and not data.get("blocked"),
             "age_sec": age,
-            "row_count": data.get("row_count") or len(data.get("rows") or []),
+            "row_count": row_count or data.get("row_count") or 0,
             "provider": data.get("provider"),
             "retrieved_at": retrieved,
+            "stale_fallback": bool(data.get("stale_fallback")),
         }
     except Exception as exc:
         return {"ok": False, "reason": str(exc)[:80], "age_sec": None}

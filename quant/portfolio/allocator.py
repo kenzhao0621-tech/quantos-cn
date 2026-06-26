@@ -39,7 +39,7 @@ def allocate_top_k(
             break
         if not c.get("valid_for_purchase"):
             continue
-        price = float(c.get("last_close") or c.get("live_price") or 0)
+        price = float(c.get("live_price") or c.get("last_close") or 0)
         cap_for_pos = min(remaining, capital_cny * max_per_position_pct)
         lots, pos_cny = affordable_lots(price, cap_for_pos)
         if lots < 1:

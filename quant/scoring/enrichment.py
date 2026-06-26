@@ -12,13 +12,26 @@ from quant.screener.names import resolve_name
 from quant.screener.trade_zones import compute_trade_zones
 from quant.screener.beginner_guide import build_detailed_reasons
 
-MODEL_VERSION = "screener_v3_alpha158_blend_2026-06-17"
+MODEL_VERSION = "screener_v4_industry_neutral_2026-06-17"
 FORECAST_HORIZON = "T+1_close_to_close"
 
 
 def _as_pct(val: Any) -> float:
     v = float(val or 0)
     return v if abs(v) > 3 else v * 100.0
+
+
+def _effective_price(row: dict[str, Any]) -> float:
+    lp = row.get("live_price")
+    if lp is not None and float(lp) > 0:
+        return float(lp)
+    return float(row.get("last_close") or 0)
+
+
+def _effective_pct(row: dict[str, Any]) -> float:
+    if row.get("live_pct") is not None:
+        return float(row["live_pct"])
+    return float(row.get("last_pct") or 0)
 
 
 def enrich_candidate(
@@ -35,26 +48,30 @@ def enrich_candidate(
     sym = row["symbol"]
     stock_name = row.get("name") or resolve_name(sym)
     last_close = float(row.get("last_close") or 0)
-    last_pct = float(row.get("last_pct") or 0)
+    ref_price = _effective_price(row)
+    last_pct = _effective_pct(row)
     vol = float(row.get("vol_20") or 0)
     avg_amt = float(row.get("avg_amount") or 0)
     score = float(row.get("score") or 0)
 
     mask = evaluate_tradability(
         symbol=sym,
-        last_close=last_close,
+        last_close=ref_price,
         last_pct=last_pct,
         avg_amount=avg_amt,
         capital_cny=capital_cny,
     )
 
-    # Expected return channel (z-score based, not calibrated probability)
-    exp_ret_lo = round(score * 0.15 - vol * 0.05, 2)
-    exp_ret_hi = round(score * 0.25 + vol * 0.02, 2)
+    # Historical bucket stats replace score×constant heuristic (no statistical basis)
+    from quant.explain.bucket_stats import format_bucket_explanation
+
+    bucket_view = format_bucket_explanation(score)
+    exp_ret_lo = bucket_view.get("p5_loss_pct")
+    exp_ret_hi = bucket_view.get("mean_t5_pct")
     downside_risk = round(min(15.0, vol * 1.2 + max(0, -float(row.get("ret_20", 0)) * 100) * 0.3), 2)
     crash_risk = round(min(1.0, (vol / 5.0) * 0.4 + (1.0 if last_pct <= -7 else 0.0) * 0.3), 3)
     liquidity_score = round(min(1.0, avg_amt / 5e8), 3)
-    est_cost = estimate_round_trip_cost_cny(last_close, lots=1)
+    est_cost = estimate_round_trip_cost_cny(ref_price, lots=1)
     uncertainty = round(min(1.0, 0.35 + vol / 8.0 + (0.15 if row.get("disclosure_flag") else 0)), 3)
 
     pos = neg = []
@@ -69,7 +86,7 @@ def enrich_candidate(
     if last_pct >= 9:
         neg.append("接近涨停，买入可行性差")
 
-    lots, max_pos = affordable_lots(last_close, capital_cny)
+    lots, max_pos = affordable_lots(ref_price, capital_cny)
     risk_penalty = downside_risk * 0.02 + crash_risk * 0.5 + uncertainty * 0.3
     cost_penalty = est_cost / max(capital_cny, 1) * 10
     final_score = round(score - risk_penalty - cost_penalty - (2.0 if not mask.valid_for_purchase else 0), 3)
@@ -81,7 +98,7 @@ def enrich_candidate(
     detailed_reasons = build_detailed_reasons(row, factor_breakdown)
     trade_zones = compute_trade_zones(
         symbol=sym,
-        price=last_close,
+        price=ref_price,
         trend_pct=float(row.get("trend") or 0) * 100,
         vol_20=vol,
         last_pct=last_pct,
@@ -111,8 +128,10 @@ def enrich_candidate(
             "momentum_60d": round(_as_pct(row.get("ret_60", 0)), 2),
             "trend_vs_ma20": round(_as_pct(row.get("trend", 0)), 2),
             "volatility_penalty": round(vol, 2),
-            "alpha158_lite": round(float(row.get("alpha_score") or 0), 4),
+            "alpha158_inspired_lite": round(float(row.get("alpha_score") or 0), 4),
+            "price_momentum_lite": round(float(row.get("alpha_score") or 0), 4),
         },
+        "historical_bucket_stats": bucket_view,
         "factor_breakdown": factor_breakdown,
         "detailed_reasons": detailed_reasons,
         "trade_zones": trade_zones,

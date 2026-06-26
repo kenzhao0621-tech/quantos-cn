@@ -23,7 +23,7 @@ class UserPreferences:
     max_positions: int = 5
     max_single_position_pct: float = 0.18
     cash_buffer_pct: float = 0.20
-    min_amount_cny: float = 100000000.0
+    min_amount_cny: float = 50_000_000.0
     strategy_preset: str = "balanced"
     horizon: str = "3-10 sessions"
     preferred_sectors: list[str] = field(default_factory=list)

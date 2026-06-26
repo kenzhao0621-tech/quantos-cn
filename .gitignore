@@ -36,3 +36,10 @@ browser-artifacts/
 playwright/.auth/
 artifacts/
 secrets/
+.cache/
+data/
+!data/.gitkeep
+docs/ai/logs/
+docs/ai/v6/har/
+*.har
+README.site.md.bak

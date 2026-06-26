@@ -141,12 +141,27 @@ def market_live_snapshot(
 @router.post("/api/v1/market/live-refresh")
 def market_live_refresh(principal: Optional[Principal] = Depends(_principal)) -> Dict[str, Any]:
     _require(principal, "research:run")
-    snap = fetch_live_snapshot(require_live=True)
-    if not snap.get("success") or (snap.get("row_count") or 0) < 100:
-        snap = fetch_live_snapshot(require_live=False)
-    LIVE_STATE.parent.mkdir(parents=True, exist_ok=True)
-    LIVE_STATE.write_text(json.dumps(snap, ensure_ascii=False, indent=2), encoding="utf-8")
-    return envelope_ok(snap)
+    from quant.application.live_market_service import (
+        ensure_live_quotes,
+        live_quotes_ready,
+        persist_live_snapshot,
+        snapshot_rows,
+    )
+
+    snap = ensure_live_quotes(refresh=True)
+    rows = snapshot_rows(snap)
+    public = {k: v for k, v in snap.items() if k != "rows"}
+    public["row_count"] = snap.get("row_count") or len(rows)
+    public["quotes_ready"] = live_quotes_ready(snap)
+    if not public["quotes_ready"]:
+        return envelope_err(
+            "LIVE_QUOTES_UNAVAILABLE",
+            snap.get("reason") or "实时行情未就绪 — 行情源暂时不可用，请稍后重试",
+            **{k: public[k] for k in ("row_count", "quotes_ready", "provider", "retrieved_at", "stale_fallback") if k in public},
+            live_status=public,
+        )
+    persist_live_snapshot(snap)
+    return envelope_ok(public)
 
 
 @router.post("/api/v1/market/sync-all")
@@ -185,8 +200,13 @@ def market_sync_all(principal: Optional[Principal] = Depends(_principal)) -> Dic
     snap = fetch_live_snapshot(require_live=False)
     if not snap.get("success") or (snap.get("row_count") or 0) < 100:
         snap = fetch_live_snapshot(require_live=True)
-    LIVE_STATE.parent.mkdir(parents=True, exist_ok=True)
-    LIVE_STATE.write_text(json.dumps(snap, ensure_ascii=False, indent=2), encoding="utf-8")
+    from quant.application.live_market_service import normalize_snapshot_for_persist, persist_live_snapshot, snapshot_rows
+
+    if snapshot_rows(snap):
+        persist_live_snapshot(snap)
+    else:
+        LIVE_STATE.parent.mkdir(parents=True, exist_ok=True)
+        LIVE_STATE.write_text(json.dumps(normalize_snapshot_for_persist(snap), ensure_ascii=False, indent=2), encoding="utf-8")
 
     market_status = get_market_status_summary()
     updates_ok = all(x.get("ok") for x in results)
@@ -224,11 +244,24 @@ def screener_run(
     price_max_cny: Optional[float] = None,
     capital_cny: Optional[float] = None,
     enforce_capital_price_ceiling: Optional[bool] = None,
+    fast: bool = True,
     principal: Optional[Principal] = Depends(_principal),
 ) -> Dict[str, Any]:
     _require(principal, "market:read")
     from gateway.preferences import load_preferences
     from quant.application.screener_service import get_screener_service
+
+    if mode.lower() in ("live", "realtime", "intraday"):
+        from quant.application.live_market_service import ensure_live_quotes, live_quotes_ready, snapshot_rows
+
+        live_snap = ensure_live_quotes(refresh=True, max_age_sec=90)
+        if not live_quotes_ready(live_snap):
+            return envelope_err(
+                "LIVE_QUOTES_UNAVAILABLE",
+                live_snap.get("reason") or "实时行情未就绪 — 请稍后重试或检查行情源连接",
+                live_status={k: v for k, v in live_snap.items() if k != "rows"},
+                row_count=len(snapshot_rows(live_snap)),
+            )
 
     prefs = load_preferences()
     pref_sectors = _split_csv(preferred_sectors) or prefs.preferred_sectors
@@ -242,6 +275,7 @@ def screener_run(
         if enforce_capital_price_ceiling is not None
         else prefs.enforce_capital_price_ceiling
     )
+    use_fast = fast if mode.lower() not in ("live", "realtime", "intraday") else False
     result = get_screener_service().screen(
         preset=preset or prefs.strategy_preset,
         top_n=top_n,
@@ -254,8 +288,37 @@ def screener_run(
         price_max_cny=eff_pmax,
         capital_cny=eff_cap,
         enforce_capital_price_ceiling=eff_ceiling,
+        fast=use_fast,
     )
-    return envelope_ok(result.to_dict(), provenance={"source": "canonical_duckdb", "engine": "multi_factor_screener"})
+    payload = result.to_dict()
+    return envelope_ok(
+        payload,
+        provenance={
+            "source": "canonical_duckdb",
+            "engine": payload.get("screener_engine", "screener_v6_trading_agents_zh"),
+            "agent_framework": "TradingAgents-CN",
+            "fast_path": use_fast,
+        },
+    )
+
+
+@router.get("/api/v1/screener/capabilities")
+def screener_capabilities(principal: Optional[Principal] = Depends(_principal)) -> Dict[str, Any]:
+    _require(principal, "market:read")
+    return envelope_ok({
+        "engine": "screener_v6_trading_agents_zh",
+        "agent_framework": "TradingAgents-CN",
+        "modes": ["eod", "live"],
+        "fast_default": True,
+        "features": [
+            "multi_factor_ranking",
+            "trading_agents_zh_overlay",
+            "live_quote_integration",
+            "portfolio_allocation",
+            "diversity_constraints",
+        ],
+        "agent_roles": list(__import__("gateway.agents.cn_research.prompts", fromlist=["ROLE_PROMPTS"]).ROLE_PROMPTS.keys()),
+    })
 
 
 @router.get("/api/v1/screener/proof")
@@ -269,6 +332,102 @@ def screener_proof(
 
     result = get_screener_service().prove_next_day(preset=preset, top_n=max(5, min(int(top_n), 100)))
     return envelope_ok(result, provenance={"source": "canonical_duckdb", "engine": "t_plus_1_proof"})
+
+
+@router.get("/api/v1/screener/search")
+def screener_search(
+    q: str = "",
+    limit: int = 10,
+    principal: Optional[Principal] = Depends(_principal),
+) -> Dict[str, Any]:
+    _require(principal, "market:read")
+    from quant.screener.symbol_search import search_symbols
+
+    matches = search_symbols(q, limit=max(1, min(int(limit), 20)))
+    return envelope_ok({"query": q, "matches": matches, "count": len(matches)})
+
+
+@router.get("/api/v1/screener/analyze/{symbol}")
+def screener_analyze(
+    symbol: str,
+    preset: str = "balanced",
+    as_of_date: Optional[str] = None,
+    mode: str = "eod",
+    capital_cny: Optional[float] = None,
+    preferred_sectors: str = "",
+    excluded_sectors: str = "",
+    principal: Optional[Principal] = Depends(_principal),
+) -> Dict[str, Any]:
+    _require(principal, "market:read")
+    from gateway.preferences import load_preferences
+    from quant.application.screener_service import get_screener_service
+
+    prefs = load_preferences()
+    eff_cap = float(capital_cny) if capital_cny is not None else prefs.capital_cny
+    if mode.lower() in ("live", "realtime", "intraday"):
+        from quant.application.live_market_service import ensure_live_quotes
+
+        ensure_live_quotes(refresh=True, max_age_sec=90)
+    result = get_screener_service().analyze_symbol(
+        symbol,
+        preset=preset or prefs.strategy_preset,
+        as_of_date=as_of_date,
+        mode=mode,
+        capital_cny=eff_cap,
+        preferred_sectors=_split_csv(preferred_sectors) or prefs.preferred_sectors,
+        excluded_sectors=_split_csv(excluded_sectors) or prefs.excluded_sectors,
+    )
+    if result.get("blocked"):
+        return envelope_err(
+            "SYMBOL_NOT_FOUND",
+            result.get("blocker_reason", "无法分析该股票"),
+            details=result,
+        )
+    return envelope_ok(result, provenance={"source": "canonical_duckdb", "engine": "symbol_analyze"})
+
+
+@router.get("/api/v1/quant/regime")
+def quant_regime(principal: Optional[Principal] = Depends(_principal)) -> Dict[str, Any]:
+    _require(principal, "market:read")
+    from quant.regime import load_regime_from_warehouse
+
+    return envelope_ok(load_regime_from_warehouse())
+
+
+@router.get("/api/v1/quant/closed-loop")
+def quant_closed_loop_status(principal: Optional[Principal] = Depends(_principal)) -> Dict[str, Any]:
+    _require(principal, "market:read")
+    from pathlib import Path
+    import json
+
+    root = Path(__file__).resolve().parents[2]
+    report_path = root / "artifacts" / "QUANTOS_CLOSED_LOOP_REPORT.json"
+    if report_path.exists():
+        payload = json.loads(report_path.read_text(encoding="utf-8"))
+    else:
+        payload = {
+            "production_ready": False,
+            "status": "NOT_RUN",
+            "hint": "Run: python scripts/run_quantos_closed_loop.py",
+        }
+    return envelope_ok(payload, provenance={"source": "quantos_closed_loop", "path": str(report_path.name)})
+
+
+@router.get("/api/v1/quant/model-health")
+def quant_model_health(principal: Optional[Principal] = Depends(_principal)) -> Dict[str, Any]:
+    _require(principal, "market:read")
+    from pathlib import Path
+    import json
+
+    root = Path(__file__).resolve().parents[2]
+    health_path = root / "artifacts" / "model_health_report.json"
+    if health_path.exists():
+        payload = json.loads(health_path.read_text(encoding="utf-8"))
+    else:
+        from quant.models.ml_scorer import get_ml_gate_status
+
+        payload = {"status": "NOT_RUN", "ml_gate": get_ml_gate_status()}
+    return envelope_ok(payload)
 
 
 @router.get("/api/v1/screener/dossier/{symbol}")
@@ -286,6 +445,10 @@ def screener_dossier(
     from quant.application.screener_service import get_screener_service
 
     prefs = load_preferences()
+    if mode.lower() in ("live", "realtime", "intraday"):
+        from quant.application.live_market_service import ensure_live_quotes
+
+        ensure_live_quotes(refresh=True, max_age_sec=90)
     return envelope_ok(
         get_screener_service().dossier(
             symbol=symbol,
@@ -297,6 +460,83 @@ def screener_dossier(
         ),
         provenance={"source": "canonical_duckdb", "engine": "candidate_dossier"},
     )
+
+
+@router.post("/api/v1/screener/learn")
+def screener_learn(
+    preset: str = "balanced",
+    top_n: int = 25,
+    principal: Optional[Principal] = Depends(_principal),
+) -> Dict[str, Any]:
+    _require(principal, "research:run")
+    from gateway.learning.screener_learning import run_screener_learning_cycle
+
+    cycle = run_screener_learning_cycle(preset=preset, top_n=max(5, min(int(top_n), 100)))
+    return envelope_ok(cycle, provenance={"source": "screener_learning", "engine": "t_plus_1_agent_feedback"})
+
+
+@router.get("/api/v1/screener/learn/latest")
+def screener_learn_latest(principal: Optional[Principal] = Depends(_principal)) -> Dict[str, Any]:
+    _require(principal, "market:read")
+    from gateway.learning.screener_learning import latest_learning_report
+
+    report = latest_learning_report()
+    if not report:
+        return envelope_ok({"status": "NOT_RUN", "hint": "运行「策略自验证学习」生成首份报告"})
+    return envelope_ok(report)
+
+
+@router.post("/api/v1/screener/report/{symbol}")
+def screener_report_pdf(
+    symbol: str,
+    preset: str = "balanced",
+    mode: str = "eod",
+    preferred_sectors: str = "",
+    excluded_sectors: str = "",
+    principal: Optional[Principal] = Depends(_principal),
+) -> Dict[str, Any]:
+    _require(principal, "research:read")
+    from gateway.preferences import load_preferences
+    from quant.application.screener_service import get_screener_service
+    from quant.screener.screener_report_pdf import render_screener_analysis_pdf
+
+    prefs = load_preferences()
+    if mode.lower() in ("live", "realtime", "intraday"):
+        from quant.application.live_market_service import ensure_live_quotes
+
+        ensure_live_quotes(refresh=True, max_age_sec=90)
+    dossier = get_screener_service().dossier(
+        symbol=symbol,
+        preset=preset or prefs.strategy_preset,
+        mode=mode,
+        preferred_sectors=_split_csv(preferred_sectors) or prefs.preferred_sectors,
+        excluded_sectors=_split_csv(excluded_sectors) or prefs.excluded_sectors,
+    )
+    if dossier.get("blocked"):
+        return envelope_err("SYMBOL_NOT_FOUND", dossier.get("blocker_reason", "无法生成报告"), details=dossier)
+    paths = render_screener_analysis_pdf(dossier, symbol=symbol)
+    if not paths.get("pdf_ready"):
+        return envelope_err("PDF_RENDER_FAILED", "PDF 渲染失败，请检查 Playwright/ReportLab 依赖", details=paths)
+    return envelope_ok(paths)
+
+
+@router.get("/api/v1/screener/report/download")
+def screener_report_download(
+    file: str,
+    principal: Optional[Principal] = Depends(_principal),
+):
+    from fastapi import HTTPException
+    from fastapi.responses import FileResponse
+    from pathlib import Path
+
+    _require(principal, "research:read")
+    root = Path(__file__).resolve().parents[2]
+    report_dir = root / "docs" / "ai" / "daily-trading" / "screener_reports"
+    safe = Path(file).name
+    path = report_dir / safe
+    if not path.exists() or not safe.endswith(".pdf"):
+        raise HTTPException(status_code=404, detail="report not found")
+    return FileResponse(path, media_type="application/pdf", filename=safe)
 
 
 # --------------------------------------------------------------------------

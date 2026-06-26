@@ -130,7 +130,15 @@ def run_agent_research(*, as_of: str, run_id: str = "") -> AgentRunResult:
     risk_verdict = "REJECT" if blockers else "PASS_WITH_CAUTION"
 
     from gateway.portfolio.constructor import construct_portfolio
-    proposal = construct_portfolio(run_id=run_id, as_of_date=as_of, ranked_symbols=[("600000.SH", 70.0)])
+    from quant.application.screener_service import get_screener_service
+
+    screen = get_screener_service().screen(preset="balanced", top_n=10, mode="eod", fast=True)
+    ranked_symbols = [(c.symbol, float(c.score)) for c in screen.candidates[:5]]
+    if not ranked_symbols and not screen.blocked:
+        ranked_symbols = [("600000.SH", 70.0)]
+    proposal = construct_portfolio(
+        run_id=run_id, as_of_date=as_of, ranked_symbols=ranked_symbols or [("600000.SH", 70.0)],
+    )
     portfolio_verdict = "NO_TRADE" if blockers else ("TRADE_CANDIDATE" if proposal.candidates else "NO_TRADE")
 
     result = AgentRunResult(

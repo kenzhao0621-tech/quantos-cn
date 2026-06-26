@@ -11,6 +11,7 @@ This is research output only — it never places orders.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Optional
 
@@ -19,6 +20,8 @@ from quant.screener.names import resolve_name
 ROOT = Path(__file__).resolve().parents[2]
 WAREHOUSE = ROOT / "data" / "warehouse" / "quant.duckdb"
 _LIVE_CACHE: tuple[float, dict[str, dict[str, Any]], dict[str, Any]] | None = None
+_UNIVERSE_SCORE_CACHE: tuple[float, str, dict[str, Any]] | None = None
+_SCREEN_CACHE: tuple[float, str, "ScreenResult"] | None = None
 
 # Preset factor weightings. Sum need not be 1; scores are z-normalised.
 PRESETS: dict[str, dict[str, float]] = {
@@ -99,14 +102,22 @@ class ScreenResult:
     price_filters: dict[str, Any] = field(default_factory=dict)
     selection_guide: dict[str, Any] = field(default_factory=dict)
     capital_cny: float = 5000.0
+    ensemble_meta: dict[str, Any] = field(default_factory=dict)
+    agent_overlay: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         from quant.scoring.enrichment import enrich_candidate
-        from quant.portfolio.allocator import allocate_top_k
+        from quant.portfolio.unified import build_portfolio_allocation
 
         validation_status = _cached_validation_status()
         regime = _cached_regime_label()
         cap = float(self.capital_cny or 5000.0)
+        try:
+            from gateway.preferences import load_preferences
+
+            max_holdings = load_preferences().max_positions
+        except Exception:
+            max_holdings = 5
         enriched = [
             enrich_candidate(
                 c.to_dict(),
@@ -119,7 +130,12 @@ class ScreenResult:
             )
             for c in self.candidates
         ]
-        allocation = allocate_top_k(enriched, capital_cny=cap)
+        allocation = build_portfolio_allocation(
+            enriched,
+            capital_cny=cap,
+            max_holdings=max_holdings,
+            regime=regime,
+        )
         guide = self.selection_guide or {}
         if not guide:
             from quant.screener.selection_guide import build_selection_guide
@@ -145,11 +161,18 @@ class ScreenResult:
             "live_provider": self.live_status.get("provider"),
             "preset": self.preset,
             "mode": self.mode,
-            "model_version": "screener_v3_alpha158_blend_2026-06-17",
+            "model_version": "screener_v5_ensemble_lgbm_2026-06-17",
+            "neutralization": "size_industry",
             "forecast_horizon": "T+1_close_to_close",
+            "ensemble_mode": self.ensemble_meta.get("mode", "baseline_fallback"),
+            "ml_active": bool(self.ensemble_meta.get("passed")),
+            "ml_degraded_reason": self.ensemble_meta.get("reasons") or [],
+            "ensemble_weights": self.ensemble_meta.get("weights"),
+            "ml_model_id": self.ensemble_meta.get("model_id"),
             "universe_size": self.universe_size,
             "candidates": enriched,
-            "portfolio_allocation_5000": allocation,
+            "portfolio_allocation": allocation,
+            "portfolio_allocation_5000": allocation.get("positions") or allocation,
             "live_status": self.live_status,
             "blocked": self.blocked,
             "blocker_reason": self.blocker_reason,
@@ -158,12 +181,21 @@ class ScreenResult:
             "price_filters": self.price_filters,
             "selection_guide": guide,
             "capital_cny": cap,
+            "agent_overlay": self.agent_overlay,
+            "screener_engine": "screener_v6_trading_agents_zh",
         }
 
 
 class ScreenerService:
     def __init__(self, warehouse: Path | None = None) -> None:
         self.warehouse = warehouse or WAREHOUSE
+        self._db = None
+
+    def _connect(self):
+        if self._db is None:
+            import duckdb
+            self._db = duckdb.connect(str(self.warehouse), read_only=True)
+        return self._db
 
     def screen(
         self,
@@ -180,8 +212,20 @@ class ScreenerService:
         price_max_cny: float | None = None,
         capital_cny: float | None = None,
         enforce_capital_price_ceiling: bool = True,
+        fast: bool = False,
     ) -> ScreenResult:
         from quant.screener.selection_guide import build_selection_guide, price_passes, resolve_price_filters
+        import time
+
+        global _SCREEN_CACHE
+        cache_key = (
+            f"{preset}|{top_n}|{min_amount_cny}|{mode}|{as_of_date or ''}|"
+            f"{','.join(preferred_sectors or [])}|{','.join(excluded_sectors or [])}|"
+            f"{price_min_cny}|{price_max_cny}|{capital_cny}|{enforce_capital_price_ceiling}|{fast}"
+        )
+        now = time.time()
+        if fast and _SCREEN_CACHE and now - _SCREEN_CACHE[0] < 90 and _SCREEN_CACHE[1] == cache_key:
+            return _SCREEN_CACHE[2]
 
         if capital_cny is None:
             try:
@@ -215,14 +259,13 @@ class ScreenerService:
         preferred = _expand_sector_terms(preferred_sectors or [])
         excluded = _expand_sector_terms(excluded_sectors or [])
         sector_map = _load_sector_map()
-        fundamental_map = _load_fundamental_map()
-        disclosure_map = _load_disclosure_map()
+        fundamental_map = {} if fast else _load_fundamental_map()
         live_map: dict[str, dict[str, Any]] = {}
         live_status: dict[str, Any] = {"mode": mode, "used": False}
         if mode.lower() in ("live", "realtime", "intraday"):
             live_map, live_status = _load_or_fetch_live_map(fast_only=True)
 
-        con = duckdb.connect(str(self.warehouse), read_only=True)
+        con = self._connect()
         if as_of_date:
             as_of = con.execute(
                 "SELECT max(trade_date) FROM daily_bars WHERE trade_date <= ?",
@@ -232,9 +275,10 @@ class ScreenerService:
             as_of = con.execute("SELECT max(trade_date) FROM daily_bars").fetchone()[0]
         as_of_str = str(as_of) if as_of else None
         if not as_of:
-            con.close()
             return ScreenResult(None, preset, 0, [], blocked=True,
                                 blocker_reason="没有可用交易日数据")
+
+        disclosure_map = {} if fast else _load_disclosure_map(as_of_str)
 
         rows = con.execute(
             """
@@ -262,6 +306,7 @@ class ScreenerService:
         ).fetchall()
 
         raw: list[dict[str, Any]] = []
+        is_live = _is_live_mode(mode)
         for ts_code, last_close, last_pct, c20, c60, ma20, avg_amt, vol20, n in rows:
             if not (last_close and c20 and c60 and ma20):
                 continue
@@ -269,7 +314,10 @@ class ScreenerService:
             avg_amount_yuan = float(avg_amt) * 1000.0 if avg_amt is not None else 0.0
             if avg_amount_yuan < min_amount_cny:
                 continue
-            if last_pct is not None and last_pct >= 9.8:  # limit-up: can't enter
+            ref_price, ref_pct, live = _quote_ref(
+                ts_code, float(last_close), last_pct, live_map, is_live=is_live,
+            )
+            if ref_pct >= 9.8:  # limit-up: can't enter
                 continue
             if exclude_st and not _is_main_board(ts_code):
                 continue
@@ -278,7 +326,7 @@ class ScreenerService:
                 continue
             if excluded and _sector_matches(sector, excluded):
                 continue
-            if not price_passes(float(last_close), pmin=pmin, eff_max=eff_max):
+            if not price_passes(ref_price, pmin=pmin, eff_max=eff_max):
                 continue
             row = {
                 "symbol": ts_code,
@@ -303,7 +351,6 @@ class ScreenerService:
             disc = disclosure_map.get(ts_code)
             if disc:
                 row["disclosure_flag"] = disc.get("severity") or disc.get("category") or "DISCLOSURE"
-            live = live_map.get(ts_code)
             if live:
                 row.update({
                     "live_price": _to_float(live.get("price")),
@@ -312,9 +359,11 @@ class ScreenerService:
                 })
             raw.append(row)
 
+        if is_live and live_map:
+            live_status["matched_in_universe"] = sum(1 for r in raw if r.get("live_price") is not None)
+
         universe = len(raw)
         if universe == 0:
-            con.close()
             guide = build_selection_guide(
                 preset=preset,
                 mode=mode,
@@ -333,60 +382,21 @@ class ScreenerService:
                 mode=mode, price_filters=price_filters, selection_guide=guide, capital_cny=cap,
             )
 
-        def zscores(key: str) -> dict[str, float]:
-            vals = [r[key] for r in raw]
-            mean = statistics.fmean(vals)
-            sd = statistics.pstdev(vals) or 1.0
-            return {r["symbol"]: (r[key] - mean) / sd for r in raw}
+        z = _build_scoring_zmaps(raw)
 
-        z = {k: zscores(k) for k in ("ret_20", "ret_60", "trend", "vol_20", "avg_amount")}
-        if any(r.get("live_pct") is not None for r in raw):
-            z["live_pct"] = zscores_nullable(raw, "live_pct")
-            z["live_amount"] = zscores_nullable(raw, "live_amount")
-        for optional in ("pe", "pb", "dividend_yield", "market_cap"):
-            if any(r.get(optional) is not None for r in raw):
-                z[optional] = zscores_nullable(raw, optional)
-
+        from quant.application.scoring_helpers import assign_baseline_scores, finalize_with_ensemble
         from quant.screener.alpha_blend import alpha158_lite_zscore, blend_with_alpha, factor_breakdown
 
-        for r in raw:
-            sym = r["symbol"]
-            base_score = (
-                weights["ret_20"] * z["ret_20"][sym]
-                + weights["ret_60"] * z["ret_60"][sym]
-                + weights["trend"] * z["trend"][sym]
-                - weights["vol_penalty"] * z["vol_20"][sym]
-            )
-            alpha_score = alpha158_lite_zscore(r, z)
-            r["alpha_score"] = alpha_score
-            r["factor_breakdown"] = factor_breakdown(r, z, weights)
-            live_score = 0.0
-            if "live_pct" in z and r.get("live_pct") is not None:
-                if preset == "momentum":
-                    live_score += 1.15 * z["live_pct"].get(sym, 0.0) + 0.35 * z["live_amount"].get(sym, 0.0)
-                elif preset == "low_vol":
-                    live_score += 0.35 * z["live_pct"].get(sym, 0.0)
-                else:
-                    live_score += 0.85 * z["live_pct"].get(sym, 0.0) + 0.25 * z["live_amount"].get(sym, 0.0)
-                # Do not chase hard limit-up names in live mode.
-                if float(r.get("live_pct") or 0) >= 9.8:
-                    live_score -= 3.0
-            sector_bonus = 0.0
-            if preferred and _sector_matches(r.get("sector", ""), preferred):
-                sector_bonus = 1.2
-            quality_score = 0.0
-            if "pe" in z and r.get("pe") is not None and float(r["pe"]) > 0:
-                quality_score += -0.16 * z["pe"].get(sym, 0.0)
-            if "pb" in z and r.get("pb") is not None and float(r["pb"]) > 0:
-                quality_score += -0.12 * z["pb"].get(sym, 0.0)
-            if "dividend_yield" in z and r.get("dividend_yield") is not None:
-                quality_score += 0.10 * z["dividend_yield"].get(sym, 0.0)
-            disclosure_penalty = -1.0 if str(r.get("disclosure_flag", "")).upper() in {"HIGH", "MEDIUM"} else 0.0
-            blended = blend_with_alpha(base_score + sector_bonus + quality_score + disclosure_penalty, alpha_score)
-            if mode.lower() in ("live", "realtime", "intraday") and "live_pct" in z:
-                r["score"] = 0.45 * blended + live_score
-            else:
-                r["score"] = blended
+        fb_fn = (lambda _r, _z, _w: []) if fast else factor_breakdown
+        assign_baseline_scores(
+            raw, z, weights,
+            preset=preset, mode=mode, preferred=preferred,
+            sector_matches=_sector_matches,
+            blend_with_alpha=blend_with_alpha,
+            alpha158_lite_zscore=alpha158_lite_zscore,
+            factor_breakdown=fb_fn,
+        )
+        ensemble_meta = finalize_with_ensemble(raw, as_of_date=as_of_str, z=z, mode=mode, fast=fast)
 
         raw.sort(key=lambda r: r["score"], reverse=True)
         from quant.screener.diversity import apply_diversity_constraints
@@ -395,10 +405,26 @@ class ScreenerService:
         if not top:
             top = raw[: max(1, top_n)]
 
+        from gateway.agents.cn_research.screener_bridge import apply_trading_agents_zh_overlay
+
+        top_dicts = [dict(r) for r in top]
+        top_dicts, agent_meta = apply_trading_agents_zh_overlay(
+            top_dicts,
+            as_of_date=as_of_str,
+            mode=mode,
+            live_status=live_status,
+            regime=_cached_regime_label(),
+            capital_cny=cap,
+            fast=fast,
+        )
+        agent_overlay = dict(agent_meta.get("panel") or {})
+        agent_overlay["run_id"] = agent_meta.get("run_id")
+        overlays = agent_meta.get("overlays") or {}
+
         # sparkline (last ~30 closes) for the shortlist only
         spark_map: dict[str, list[float]] = {}
-        if top:
-            syms = [r["symbol"] for r in top]
+        if top_dicts and not fast:
+            syms = [r["symbol"] for r in top_dicts]
             placeholders = ",".join(["?"] * len(syms))
             srows = con.execute(
                 f"""
@@ -412,7 +438,6 @@ class ScreenerService:
             ).fetchall()
             for ts_code, close in srows:
                 spark_map.setdefault(ts_code, []).append(float(close))
-        con.close()
 
         candidates = [
             Candidate(
@@ -426,9 +451,9 @@ class ScreenerService:
                 trend=r["trend"],
                 vol_20=r["vol_20"],
                 avg_amount=r["avg_amount"],
-                score=r["score"],
+                score=float(r.get("score") or 0),
                 spark=spark_map.get(r["symbol"], []),
-                reasons=_candidate_reasons(r),
+                reasons=(overlays.get(r["symbol"], {}).get("bull_points") or _candidate_reasons(r))[:3],
                 sector=r.get("sector", ""),
                 live_price=r.get("live_price"),
                 live_pct=r.get("live_pct"),
@@ -441,7 +466,7 @@ class ScreenerService:
                 alpha_score=float(r.get("alpha_score") or 0.0),
                 factor_breakdown=list(r.get("factor_breakdown") or []),
             )
-            for i, r in enumerate(top)
+            for i, r in enumerate(top_dicts)
         ]
         guide = build_selection_guide(
             preset=preset,
@@ -455,48 +480,326 @@ class ScreenerService:
             validation_status=_cached_validation_status().get("verdict", "NOT_RUN"),
             as_of_date=as_of_str,
         )
-        return ScreenResult(
+        result = ScreenResult(
             as_of_str, preset, universe, candidates, mode=mode, live_status=live_status,
             diversity_notes=diversity_notes, price_filters=price_filters,
-            selection_guide=guide, capital_cny=cap,
+            selection_guide=guide, capital_cny=cap, ensemble_meta=ensemble_meta,
+            agent_overlay=agent_overlay,
         )
+        if fast:
+            _SCREEN_CACHE = (now, cache_key, result)
+        return result
 
-    def dossier(
+    def _score_universe(
+        self,
+        *,
+        preset: str = "balanced",
+        as_of_date: str | None = None,
+        mode: str = "eod",
+        min_amount_cny: float = 0.0,
+        exclude_st: bool = False,
+        preferred_sectors: list[str] | None = None,
+        excluded_sectors: list[str] | None = None,
+        price_min_cny: float = 0.0,
+        price_max_cny: float | None = None,
+        enforce_capital_price_ceiling: bool = False,
+        capital_cny: float | None = None,
+    ) -> tuple[str | None, list[dict[str, Any]], dict[str, Any], str | None]:
+        """Score full investable universe; returns (as_of, scored_rows, live_status, blocker)."""
+        import statistics
+        import time
+
+        global _UNIVERSE_SCORE_CACHE
+        cache_key = f"{preset}|{mode}|{as_of_date or ''}|{min_amount_cny}|{exclude_st}"
+        now = time.time()
+        if _UNIVERSE_SCORE_CACHE and now - _UNIVERSE_SCORE_CACHE[0] < 120 and _UNIVERSE_SCORE_CACHE[1] == cache_key:
+            cached = _UNIVERSE_SCORE_CACHE[2]
+            return cached["as_of"], list(cached["raw"]), dict(cached["live_status"]), cached.get("blocker")
+
+        from quant.screener.selection_guide import price_passes, resolve_price_filters
+
+        if capital_cny is None:
+            try:
+                from gateway.preferences import load_preferences
+
+                capital_cny = load_preferences().capital_cny
+            except Exception:
+                capital_cny = 5000.0
+        pmin, user_pmax, eff_max, _cap = resolve_price_filters(
+            price_min_cny=price_min_cny,
+            price_max_cny=price_max_cny,
+            capital_cny=capital_cny,
+            enforce_capital_price_ceiling=enforce_capital_price_ceiling,
+        )
+        weights = PRESETS.get(preset, PRESETS["balanced"])
+        if not self.warehouse.exists():
+            return None, [], {"mode": mode}, "数据仓库不存在 — 请先运行「更新数据」"
+
+        preferred = _expand_sector_terms(preferred_sectors or [])
+        excluded = _expand_sector_terms(excluded_sectors or [])
+        sector_map = _load_sector_map()
+        fundamental_map = {} if fast else _load_fundamental_map()
+        live_map: dict[str, dict[str, Any]] = {}
+        live_status: dict[str, Any] = {"mode": mode, "used": False}
+        if mode.lower() in ("live", "realtime", "intraday"):
+            live_map, live_status = _load_or_fetch_live_map(fast_only=True)
+
+        con = self._connect()
+        if as_of_date:
+            as_of = con.execute(
+                "SELECT max(trade_date) FROM daily_bars WHERE trade_date <= ?",
+                [as_of_date],
+            ).fetchone()[0]
+        else:
+            as_of = con.execute("SELECT max(trade_date) FROM daily_bars").fetchone()[0]
+        as_of_str = str(as_of) if as_of else None
+        if not as_of:
+            return None, [], live_status, "没有可用交易日数据"
+
+        disclosure_map = _load_disclosure_map(as_of_str)
+
+        rows = con.execute(
+            """
+            WITH recent AS (
+                SELECT ts_code, trade_date, close, pct_chg, amount,
+                       row_number() OVER (PARTITION BY ts_code ORDER BY trade_date DESC) AS rn
+                FROM daily_bars
+                WHERE trade_date <= ?
+                  AND trade_date >= (?::DATE - INTERVAL 140 DAY)
+            )
+            SELECT ts_code,
+                   max(CASE WHEN rn = 1 THEN close END)   AS last_close,
+                   max(CASE WHEN rn = 1 THEN pct_chg END) AS last_pct,
+                   max(CASE WHEN rn = 21 THEN close END)  AS close_20,
+                   max(CASE WHEN rn = 61 THEN close END)  AS close_60,
+                   avg(CASE WHEN rn <= 20 THEN close END) AS ma20,
+                   avg(CASE WHEN rn <= 20 THEN amount END) AS avg_amt20,
+                   stddev_samp(CASE WHEN rn <= 20 THEN pct_chg END) AS vol20,
+                   count(*) AS n
+            FROM recent
+            GROUP BY ts_code
+            HAVING n >= 61
+            """,
+            [as_of_str, as_of_str],
+        ).fetchall()
+
+        raw: list[dict[str, Any]] = []
+        is_live = _is_live_mode(mode)
+        for ts_code, last_close, last_pct, c20, c60, ma20, avg_amt, vol20, n in rows:
+            if not (last_close and c20 and c60 and ma20):
+                continue
+            avg_amount_yuan = float(avg_amt) * 1000.0 if avg_amt is not None else 0.0
+            if avg_amount_yuan < min_amount_cny:
+                continue
+            ref_price, ref_pct, live = _quote_ref(
+                ts_code, float(last_close), last_pct, live_map, is_live=is_live,
+            )
+            if ref_pct >= 9.8:
+                continue
+            if exclude_st and not _is_main_board(ts_code):
+                continue
+            sector = sector_map.get(ts_code, "")
+            if preferred and not _sector_matches(sector, preferred):
+                continue
+            if excluded and _sector_matches(sector, excluded):
+                continue
+            if not price_passes(ref_price, pmin=pmin, eff_max=eff_max):
+                continue
+            row = {
+                "symbol": ts_code,
+                "name": resolve_name(ts_code),
+                "last_close": float(last_close),
+                "last_pct": float(last_pct or 0.0),
+                "ret_20": float(last_close) / float(c20) - 1.0,
+                "ret_60": float(last_close) / float(c60) - 1.0,
+                "trend": float(last_close) / float(ma20) - 1.0,
+                "vol_20": float(vol20 or 0.0),
+                "avg_amount": avg_amount_yuan,
+                "sector": sector,
+            }
+            fund = fundamental_map.get(ts_code, {})
+            if fund:
+                row.update({
+                    "pe": _to_float(fund.get("pe")),
+                    "pb": _to_float(fund.get("pb")),
+                    "dividend_yield": _to_float(fund.get("dv_ttm")),
+                    "market_cap": _to_float(fund.get("total_mv")),
+                })
+            disc = disclosure_map.get(ts_code)
+            if disc:
+                row["disclosure_flag"] = disc.get("severity") or disc.get("category") or "DISCLOSURE"
+            if live:
+                row.update({
+                    "live_price": _to_float(live.get("price")),
+                    "live_pct": _to_float(live.get("change_pct")),
+                    "live_amount": _to_float(live.get("amount")),
+                })
+            raw.append(row)
+
+        if not raw:
+            return as_of_str, [], live_status, "无满足条件的标的"
+
+        z = _build_scoring_zmaps(raw)
+
+        from quant.application.scoring_helpers import assign_baseline_scores, finalize_with_ensemble
+        from quant.screener.alpha_blend import alpha158_lite_zscore, blend_with_alpha, factor_breakdown
+
+        assign_baseline_scores(
+            raw, z, weights,
+            preset=preset, mode=mode, preferred=preferred,
+            sector_matches=_sector_matches,
+            blend_with_alpha=blend_with_alpha,
+            alpha158_lite_zscore=alpha158_lite_zscore,
+            factor_breakdown=factor_breakdown,
+        )
+        finalize_with_ensemble(raw, as_of_date=as_of_str, z=z, mode=mode, fast=True)
+
+        raw.sort(key=lambda r: r["score"], reverse=True)
+        _UNIVERSE_SCORE_CACHE = (
+            now,
+            cache_key,
+            {"as_of": as_of_str, "raw": raw, "live_status": live_status, "blocker": None},
+        )
+        return as_of_str, raw, live_status, None
+
+    def analyze_symbol(
         self,
         symbol: str,
         *,
         preset: str = "balanced",
         as_of_date: str | None = None,
         mode: str = "eod",
+        capital_cny: float | None = None,
         preferred_sectors: list[str] | None = None,
         excluded_sectors: list[str] | None = None,
     ) -> dict[str, Any]:
-        """Return a user-readable explanation for one stock candidate."""
-        result = self.screen(
+        """Score one symbol against the full universe and return enriched analysis."""
+        from quant.scoring.enrichment import enrich_candidate
+        from quant.screener.beginner_guide import build_beginner_guide, build_detailed_reasons
+        from quant.screener.symbol_search import normalize_symbol_input
+        from quant.screener.trade_zones import compute_trade_zones
+
+        norm = normalize_symbol_input(symbol) or symbol.strip().upper()
+        if not norm or "." not in norm:
+            return {"blocked": True, "blocker_reason": "请输入有效的 A 股代码（如 600519 或 贵州茅台）", "query": symbol}
+
+        as_of_str, scored, live_status, blocker = self._score_universe(
             preset=preset,
-            top_n=500,
             as_of_date=as_of_date,
             mode=mode,
-            preferred_sectors=preferred_sectors,
-            excluded_sectors=excluded_sectors,
+            min_amount_cny=0.0,
+            exclude_st=False,
+            preferred_sectors=None,
+            excluded_sectors=None,
+            price_min_cny=0.0,
+            price_max_cny=None,
+            enforce_capital_price_ceiling=False,
+            capital_cny=capital_cny,
         )
-        candidate = next((c for c in result.candidates if c.symbol == symbol), None)
+        if blocker and not scored:
+            return {"blocked": True, "blocker_reason": blocker, "symbol": norm}
+
+        row = next((r for r in scored if r["symbol"] == norm), None)
+        if not row:
+            return {
+                "blocked": True,
+                "blocker_reason": f"未找到 {norm} 的足够历史数据，请先「更新数据」",
+                "symbol": norm,
+                "name": resolve_name(norm),
+            }
+
+        rank = scored.index(row) + 1
+        universe_size = len(scored)
+        percentile = round(100.0 * (1.0 - (rank - 1) / max(universe_size, 1)), 1)
+
         import duckdb
 
         con = duckdb.connect(str(self.warehouse), read_only=True)
-        date_filter = "AND trade_date <= ?" if result.as_of_date else ""
-        params = [symbol] + ([result.as_of_date] if result.as_of_date else [])
+        srows = con.execute(
+            """
+            SELECT close FROM (
+                SELECT trade_date, close,
+                       row_number() OVER (ORDER BY trade_date DESC) AS rn
+                FROM daily_bars WHERE ts_code = ?
+            ) WHERE rn <= 30 ORDER BY trade_date
+            """,
+            [norm],
+        ).fetchall()
         hist = con.execute(
-            f"""
+            """
             SELECT trade_date, open, high, low, close, pct_chg, amount
             FROM daily_bars
-            WHERE ts_code = ? {date_filter}
+            WHERE ts_code = ? AND trade_date <= ?
             ORDER BY trade_date DESC
             LIMIT 80
             """,
-            params,
+            [norm, as_of_str],
         ).fetchall()
         con.close()
+
+        spark = [float(r[0]) for r in srows]
+        name = row.get("name") or resolve_name(norm)
+        candidate = Candidate(
+            rank=rank,
+            symbol=norm,
+            name=name,
+            last_close=row["last_close"],
+            last_pct=row["last_pct"],
+            ret_20=row["ret_20"],
+            ret_60=row["ret_60"],
+            trend=row["trend"],
+            vol_20=row["vol_20"],
+            avg_amount=row["avg_amount"],
+            score=row["score"],
+            spark=spark,
+            reasons=_candidate_reasons(row),
+            sector=row.get("sector", ""),
+            live_price=row.get("live_price"),
+            live_pct=row.get("live_pct"),
+            live_amount=row.get("live_amount"),
+            pe=row.get("pe"),
+            pb=row.get("pb"),
+            dividend_yield=row.get("dividend_yield"),
+            market_cap=row.get("market_cap"),
+            disclosure_flag=row.get("disclosure_flag", ""),
+            alpha_score=float(row.get("alpha_score") or 0.0),
+            factor_breakdown=list(row.get("factor_breakdown") or []),
+        )
+
+        validation_status = _cached_validation_status()
+        regime = _cached_regime_label()
+        cap = float(capital_cny or 5000.0)
+        cand_dict = candidate.to_dict()
+        enriched = enrich_candidate(
+            cand_dict,
+            rank=rank,
+            preset=preset,
+            as_of_date=as_of_str or "",
+            capital_cny=cap,
+            validation_status=validation_status,
+            regime=regime,
+        )
+        trade_zones = compute_trade_zones(
+            symbol=norm,
+            price=float(row.get("live_price") or candidate.last_close),
+            trend_pct=float(candidate.trend) * 100,
+            vol_20=float(candidate.vol_20),
+            last_pct=float(row.get("live_pct") if row.get("live_pct") is not None else candidate.last_pct),
+        )
+        detailed_reasons = build_detailed_reasons(enriched, enriched.get("factor_breakdown") or candidate.factor_breakdown)
+        qty = int(enriched.get("suggested_qty") or 0)
+        beginner_guide = build_beginner_guide(
+            symbol=norm,
+            name=name,
+            price=float(row.get("live_price") or candidate.last_close),
+            qty=qty or 100,
+            notional=float(candidate.last_close) * (qty or 100),
+            zones=trade_zones,
+            reasons=detailed_reasons or candidate.reasons,
+            data_as_of=as_of_str or "",
+            data_tier=mode.upper(),
+            broker_handoff="券商 App 登录后预填订单，由你亲自确认",
+        )
         history = [
             {
                 "trade_date": str(d),
@@ -509,62 +812,27 @@ class ScreenerService:
             }
             for d, o, h, l, c, p, a in reversed(hist)
         ]
-        name = resolve_name(symbol)
-        enriched: dict[str, Any] | None = None
-        trade_zones: dict[str, Any] = {}
-        detailed_reasons: list[str] = []
-        beginner_guide: dict[str, Any] = {}
-        if candidate:
-            from quant.scoring.enrichment import enrich_candidate
-            from quant.screener.trade_zones import compute_trade_zones
-            from quant.screener.beginner_guide import build_beginner_guide, build_detailed_reasons
 
-            cand_dict = candidate.to_dict()
-            if not cand_dict.get("name"):
-                cand_dict["name"] = name
-            validation_status = _cached_validation_status()
-            regime = _cached_regime_label()
-            enriched = enrich_candidate(
-                cand_dict,
-                rank=candidate.rank,
-                preset=preset,
-                as_of_date=result.as_of_date or "",
-                validation_status=validation_status,
-                regime=regime,
-            )
-            trade_zones = compute_trade_zones(
-                symbol=symbol,
-                price=float(candidate.last_close),
-                trend_pct=float(candidate.trend) * 100,
-                vol_20=float(candidate.vol_20),
-                last_pct=float(candidate.last_pct),
-            )
-            detailed_reasons = build_detailed_reasons(enriched, enriched.get("factor_breakdown") or candidate.factor_breakdown)
-            qty = int(enriched.get("suggested_qty") or 0)
-            beginner_guide = build_beginner_guide(
-                symbol=symbol,
-                name=name or cand_dict.get("name", ""),
-                price=float(candidate.last_close),
-                qty=qty or 100,
-                notional=float(candidate.last_close) * (qty or 100),
-                zones=trade_zones,
-                reasons=detailed_reasons or candidate.reasons,
-                data_as_of=result.as_of_date or "",
-                data_tier=mode.upper(),
-                broker_handoff="券商 App 登录后预填订单，由你亲自确认",
-            )
         return {
-            "symbol": symbol,
+            "blocked": False,
+            "symbol": norm,
             "name": name,
-            "as_of_date": result.as_of_date,
-            "rank": candidate.rank if candidate else None,
-            "candidate": candidate.to_dict() if candidate else None,
+            "as_of_date": as_of_str,
+            "preset": preset,
+            "mode": mode,
+            "rank": rank,
+            "universe_size": universe_size,
+            "percentile_top": percentile,
+            "score": round(float(row["score"]), 3),
+            "alpha_score": round(float(row.get("alpha_score") or 0.0), 4),
+            "candidate": cand_dict,
             "enriched": enriched,
             "trade_zones": trade_zones,
             "detailed_reasons": detailed_reasons,
             "beginner_guide": beginner_guide,
             "plain_language": _plain_language(candidate),
             "institutional_report": _institutional_report(candidate, history),
+            "live_status": live_status,
             "risk_notes": [
                 "仅研究/模拟交易，不构成投资建议",
                 "A股 T+1：买入当日不可卖出",
@@ -572,6 +840,48 @@ class ScreenerService:
             ],
             "history": history,
         }
+
+    def dossier(
+        self,
+        symbol: str,
+        *,
+        preset: str = "balanced",
+        as_of_date: str | None = None,
+        mode: str = "eod",
+        preferred_sectors: list[str] | None = None,
+        excluded_sectors: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Return a user-readable explanation for one stock candidate."""
+        analysis = self.analyze_symbol(
+            symbol,
+            preset=preset,
+            as_of_date=as_of_date,
+            mode=mode,
+            preferred_sectors=preferred_sectors,
+            excluded_sectors=excluded_sectors,
+        )
+        if analysis.get("blocked"):
+            return {
+                "symbol": analysis.get("symbol") or symbol,
+                "name": analysis.get("name") or resolve_name(symbol),
+                "as_of_date": None,
+                "rank": None,
+                "candidate": None,
+                "enriched": None,
+                "trade_zones": {},
+                "detailed_reasons": [],
+                "beginner_guide": {},
+                "plain_language": analysis.get("blocker_reason", "无法生成个股解释"),
+                "institutional_report": None,
+                "risk_notes": [
+                    "仅研究/模拟交易，不构成投资建议",
+                    "A股 T+1：买入当日不可卖出",
+                ],
+                "history": [],
+            }
+        out = dict(analysis)
+        out.pop("blocked", None)
+        return out
 
     def prove_next_day(self, *, preset: str = "balanced", top_n: int = 25) -> dict[str, Any]:
         """Validate previous trade day's picks against the next available session."""
@@ -668,6 +978,23 @@ def _is_main_board(ts_code: str) -> bool:
     return code.startswith(("60", "00", "30", "688"))
 
 
+def _build_scoring_zmaps(raw: list[dict[str, Any]]) -> dict[str, dict[str, float]]:
+    """Size+industry neutral z for core factors; industry-neutral for fundamentals."""
+    from quant.features.neutralization import build_zscore_layers, industry_neutral_zscores, cross_section_zscores
+
+    layers = build_zscore_layers(raw)
+    z = dict(layers["size_industry"])
+    industries = {r["symbol"]: r.get("sector") or "未知" for r in raw}
+    if any(r.get("live_pct") is not None for r in raw):
+        z["live_pct"] = zscores_nullable(raw, "live_pct")
+        z["live_amount"] = zscores_nullable(raw, "live_amount")
+    for optional in ("pe", "pb", "dividend_yield", "market_cap"):
+        if any(r.get(optional) is not None for r in raw):
+            vals = {r["symbol"]: float(r[optional]) for r in raw if r.get(optional) is not None}
+            z[optional] = industry_neutral_zscores(vals, industries)
+    return z
+
+
 def zscores_nullable(rows: list[dict[str, Any]], key: str) -> dict[str, float]:
     import statistics
 
@@ -698,6 +1025,13 @@ def _to_float(val: Any) -> float | None:
 def _load_sector_map() -> dict[str, str]:
     import json
 
+    return _load_sector_map_cached()
+
+
+@lru_cache(maxsize=1)
+def _load_sector_map_cached() -> dict[str, str]:
+    import json
+
     path = ROOT / "data" / "sectors" / "sector_boards_tushare.json"
     if not path.exists():
         return {}
@@ -717,6 +1051,11 @@ def _load_sector_map() -> dict[str, str]:
 
 
 def _load_fundamental_map() -> dict[str, dict[str, Any]]:
+    return _load_fundamental_map_cached()
+
+
+@lru_cache(maxsize=1)
+def _load_fundamental_map_cached() -> dict[str, dict[str, Any]]:
     import json
 
     path = ROOT / "data" / "fundamentals" / "fundamentals_tushare.json"
@@ -730,15 +1069,24 @@ def _load_fundamental_map() -> dict[str, dict[str, Any]]:
     }
 
 
-def _load_disclosure_map() -> dict[str, dict[str, Any]]:
+def _load_disclosure_map(as_of_date: str | None = None) -> dict[str, dict[str, Any]]:
     import json
+
+    from quant.disclosures.pit_filter import filter_point_in_time
 
     path = ROOT / "data" / "disclosures" / "disclosures_cninfo_official.json"
     if not path.exists():
         return {}
     data = json.loads(path.read_text(encoding="utf-8"))
+    rows = list(data.get("rows", []))
+    cutoff = as_of_date
+    if not cutoff:
+        from datetime import datetime
+
+        cutoff = datetime.now().strftime("%Y-%m-%d")
+    pit = filter_point_in_time(rows, analysis_cutoff=cutoff)
     out: dict[str, dict[str, Any]] = {}
-    for row in data.get("rows", []):
+    for row in pit.passed:
         code = str(row.get("stock_code", "")).zfill(6)
         exchange = str(row.get("exchange", "")).upper()
         suffix = "SH" if exchange.startswith("SSE") or code.startswith("6") else "SZ"
@@ -746,27 +1094,34 @@ def _load_disclosure_map() -> dict[str, dict[str, Any]]:
     return out
 
 
-def _live_symbol(row: dict[str, Any]) -> str:
-    import re
+def _is_live_mode(mode: str) -> bool:
+    return str(mode or "").lower() in ("live", "realtime", "intraday")
 
-    raw = str(row.get("code", "")).strip()
-    digits = "".join(re.findall(r"\d+", raw))
-    code = digits[-6:].zfill(6) if digits else raw.zfill(6)
-    exchange = str(row.get("exchange") or row.get("market") or "").upper()
-    if raw.lower().startswith("sh"):
-        exchange = "SH"
-    elif raw.lower().startswith("sz"):
-        exchange = "SZ"
-    elif raw.lower().startswith("bj"):
-        exchange = "BJ"
-    if exchange not in ("SH", "SZ", "BJ"):
-        exchange = "SH" if code.startswith("6") else "SZ"
-    return f"{code}.{exchange}"
+
+def _quote_ref(
+    ts_code: str,
+    last_close: float,
+    last_pct: float | None,
+    live_map: dict[str, dict[str, Any]],
+    *,
+    is_live: bool,
+) -> tuple[float, float, dict[str, Any] | None]:
+    live = live_map.get(ts_code)
+    live_price = _to_float(live.get("price")) if live else None
+    live_pct = _to_float(live.get("change_pct")) if live and live.get("change_pct") is not None else None
+    if is_live and live_price:
+        return live_price, float(live_pct if live_pct is not None else (last_pct or 0.0)), live
+    return float(last_close), float(last_pct or 0.0), live
+
+
+def _live_symbol(row: dict[str, Any]) -> str:
+    from quant.application.live_market_service import normalize_ts_code
+
+    return normalize_ts_code(str(row.get("code", "")))
 
 
 def _load_or_fetch_live_map(*, fast_only: bool = False) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
-    """Load cached live quotes only. Never block screener HTTP on network fetches."""
-    import json
+    """Load cached live quotes; optional network fetch when cache empty."""
     import time
 
     global _LIVE_CACHE
@@ -777,52 +1132,41 @@ def _load_or_fetch_live_map(*, fast_only: bool = False) -> tuple[dict[str, dict[
         status["source"] = f"{status.get('source', 'fabric')}:cache"
         return live_map, status
 
+    from quant.application.live_market_service import ensure_live_quotes, snapshot_rows
+
     status: dict[str, Any] = {"mode": "live", "used": False, "source": "none"}
-    live_path = ROOT / "data" / "gateway" / "live_snapshot.json"
-    rows: list[dict[str, Any]] = []
-    if live_path.exists():
+    snap: dict[str, Any] = {}
+    snap = ensure_live_quotes(refresh=False, max_age_sec=900)
+    rows = snapshot_rows(snap)
+    if rows:
+        status.update({
+            "source": "persisted" if not snap.get("stale_fallback") else "persisted_stale",
+            "retrieved_at": snap.get("retrieved_at"),
+            "provider": snap.get("provider"),
+            "row_count": len(rows),
+            "success": snap.get("success"),
+            "freshness": snap.get("freshness"),
+            "stale_fallback": bool(snap.get("stale_fallback")),
+        })
+    elif not fast_only:
         try:
-            data = json.loads(live_path.read_text(encoding="utf-8"))
-            rows = data.get("rows", []) or []
-            status.update({
-                "source": "persisted",
-                "retrieved_at": data.get("retrieved_at"),
-                "provider": data.get("provider"),
-                "row_count": data.get("row_count") or len(rows),
-                "success": data.get("success"),
-            })
+            snap = ensure_live_quotes(refresh=True, max_age_sec=120)
+            rows = snapshot_rows(snap)
+            status.update({k: v for k, v in snap.items() if k != "rows"})
+            status["source"] = "refresh"
+            status["row_count"] = len(rows)
         except Exception as exc:
-            status.update({"error": str(exc)[:120]})
+            status.update({"blocked": True, "error": str(exc)[:160]})
 
     if not rows and not fast_only:
         try:
             from quant.application.live_market_service import fetch_live_snapshot
 
             snap = fetch_live_snapshot(require_live=False)
-            rows = snap.get("rows", []) or []
-            status.update(snap)
-        except Exception as exc:
-            status.update({"error": str(exc)[:160]})
-
-    if not rows and not fast_only:
-        try:
-            from quant.market_data_fabric import MarketDataFabric
-
-            fetched = MarketDataFabric().fetch("spot_quotes", live_only=True, require_live=False, min_rows=1000)
-            if fetched.ok and fetched.result:
-                payload = fetched.result.payload or {}
-                rows = payload.get("rows", []) or []
-                status = {
-                    "mode": "live",
-                    "used": True,
-                    "source": "fabric",
-                    "provider": fetched.result.provider,
-                    "retrieved_at": fetched.result.retrieved_at,
-                    "freshness": payload.get("freshness") or fetched.result.freshness,
-                    "row_count": len(rows),
-                }
-            else:
-                status.update({"blocked": True, "reason": fetched.selection_reason})
+            rows = snapshot_rows(snap)
+            status.update({k: v for k, v in snap.items() if k != "rows"})
+            status["source"] = "fabric_fetch"
+            status["row_count"] = len(rows)
         except Exception as exc:
             status.update({"blocked": True, "error": str(exc)[:160]})
 
@@ -830,7 +1174,7 @@ def _load_or_fetch_live_map(*, fast_only: bool = False) -> tuple[dict[str, dict[
         status.update({
             "used": False,
             "fallback": "eod_factors_only",
-            "hint": "实时行情未就绪：请用「收盘数据」模式（约 1 秒），或在「高级·数据」先刷新实时行情。",
+            "hint": snap.get("reason") or "实时行情未就绪：请用「收盘数据」模式（约 1 秒），或在「高级·数据」先刷新实时行情。",
         })
 
     live_map = {_live_symbol(row): row for row in rows if row.get("code")}

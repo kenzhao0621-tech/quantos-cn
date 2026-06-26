@@ -102,6 +102,13 @@ class HaltBody(BaseModel):
     reason: str = "operator_halt"
 
 
+class PaperOrderBody(BaseModel):
+    symbol: str
+    side: str = "BUY"
+    quantity: int = 100
+    limit_price: float = 0.0
+
+
 class BacktestBody(BaseModel):
     as_of_date: str = ""
     run_id: str = ""
@@ -293,7 +300,63 @@ def research_reports(principal: Optional[Principal] = Depends(get_principal)) ->
     _require(principal, "research:read")
     report_dir = ROOT / "docs" / "ai" / "gateway"
     reports = sorted(p.name for p in report_dir.glob("*.json")) if report_dir.exists() else []
-    return envelope_ok({"reports": reports})
+    daily = ROOT / "docs" / "ai" / "daily-trading" / "daily"
+    daily_pdfs = sorted(p.name for p in daily.glob("*_DAILY_QUANT_REPORT.pdf")) if daily.exists() else []
+    return envelope_ok({"reports": reports, "daily_pdfs": daily_pdfs})
+
+
+@app.get("/api/v1/research/reports/download")
+def research_report_download(
+    file: str,
+    principal: Optional[Principal] = Depends(get_principal),
+):
+    _require(principal, "research:read")
+    from fastapi import HTTPException
+    from fastapi.responses import FileResponse
+
+    daily = ROOT / "docs" / "ai" / "daily-trading" / "daily"
+    safe = Path(file).name
+    path = daily / safe
+    if not path.exists() or not safe.endswith(".pdf"):
+        raise HTTPException(status_code=404, detail="report not found")
+    return FileResponse(path, media_type="application/pdf", filename=safe)
+
+
+@app.get("/api/v1/gateway/capabilities")
+def gateway_capabilities(principal: Optional[Principal] = Depends(get_principal)) -> Dict[str, Any]:
+    _require(principal, "market:read")
+    from gateway import __version__
+    from gateway.monitoring.intraday_background import intraday_refresh_status
+    from gateway.learning.screener_learning import latest_learning_report
+
+    return envelope_ok({
+        "gateway_version": __version__,
+        "product": "QuantOS Gateway",
+        "alignment": "gateway-portal-requirements v2.1",
+        "capabilities": {
+            "unified_api": True,
+            "envelope_contract": True,
+            "rbac": True,
+            "audit_events": True,
+            "observability_traces": True,
+            "agent_framework": "TradingAgents-CN",
+            "screener_engine": "screener_v6_trading_agents_zh",
+            "live_quotes_intraday_refresh": intraday_refresh_status(),
+            "screener_learning": latest_learning_report() is not None,
+            "pdf_exports": ["daily_quant_report", "screener_symbol_analysis", "paper_close_report"],
+            "paper_autopilot": True,
+            "risk_engine": True,
+            "data_fabric": True,
+        },
+        "endpoints": {
+            "screener_run": "/api/v1/screener/run",
+            "screener_learn": "/api/v1/screener/learn",
+            "screener_report_pdf": "/api/v1/screener/report/{symbol}",
+            "daily_report_pdf": "/api/v1/research/reports/download",
+            "live_refresh": "/api/v1/market/live-refresh",
+            "gateway_capabilities": "/api/v1/gateway/capabilities",
+        },
+    })
 
 
 @app.get("/api/v1/risk/status")
@@ -340,6 +403,158 @@ def paper_positions(principal: Optional[Principal] = Depends(get_principal)) -> 
 def paper_pnl(principal: Optional[Principal] = Depends(get_principal)) -> Dict[str, Any]:
     _require(principal, "paper:read")
     return envelope_ok(_paper.pnl_summary())
+
+
+@app.get("/api/v1/paper/account")
+def paper_account(principal: Optional[Principal] = Depends(get_principal)) -> Dict[str, Any]:
+    _require(principal, "paper:read")
+    return envelope_ok(_paper.account_summary())
+
+
+@app.post("/api/v1/paper/mark-to-market")
+def paper_mark_to_market(principal: Optional[Principal] = Depends(get_principal)) -> Dict[str, Any]:
+    _require(principal, "paper:trade")
+    from quant.application.live_market_service import ensure_live_quotes, live_price_map
+
+    ensure_live_quotes(refresh=True, max_age_sec=120)
+    result = _paper.mark_to_market(prefer_live=True)
+    result["live_prices"] = len(live_price_map())
+    return envelope_ok({**result, "account": _paper.account_summary()})
+
+
+@app.post("/api/v1/paper/order")
+def paper_submit_order(
+    body: PaperOrderBody,
+    principal: Optional[Principal] = Depends(get_principal),
+) -> Dict[str, Any]:
+    p = _require(principal, "paper:trade")
+    if _state.mode != TradingMode.PAPER_TRADING:
+        return envelope_err("PAPER_NOT_STARTED", "请先点击「启动 Paper」再模拟下单")
+    sym = body.symbol.strip().upper()
+    if not sym.endswith((".SH", ".SZ", ".BJ")):
+        code = "".join(c for c in sym if c.isdigit())
+        if code.startswith("6"):
+            sym = f"{code.zfill(6)}.SH"
+        elif code.startswith(("4", "8")):
+            sym = f"{code.zfill(6)}.BJ"
+        else:
+            sym = f"{code.zfill(6)}.SZ"
+    qty = int(body.quantity)
+    if body.side.upper() == "BUY" and (qty < 100 or qty % 100 != 0):
+        return envelope_err("INVALID_LOT", "买入数量须为 100 的整数倍")
+    limit_px = float(body.limit_price or 0)
+    if limit_px <= 0:
+        from quant.application.live_market_service import live_price_map
+
+        limit_px = live_price_map().get(sym, 0.0)
+    if limit_px <= 0:
+        return envelope_err("NO_PRICE", "无法获取参考价 — 请先刷新实时行情或填写限价")
+    intent = OrderIntent(
+        client_order_id=str(uuid.uuid4()),
+        run_id=str(uuid.uuid4())[:8],
+        strategy_id="manual_desk",
+        model_id="paper_desk",
+        symbol=sym,
+        side=body.side.upper(),
+        quantity=qty,
+        limit_price=limit_px,
+        notional_cny=limit_px * qty,
+    )
+    order = _paper.submit(intent, data_fresh=True, market_price=limit_px)
+    _audit.emit("paper_manual_order", p.user_id, {
+        "symbol": sym,
+        "side": body.side.upper(),
+        "state": order.state.value,
+        "reject_reason": order.reject_reason,
+    })
+    if order.state.value == "REJECTED":
+        return envelope_err("ORDER_REJECTED", order.reject_reason or "订单被拒绝", order=order.to_dict())
+    return envelope_ok({"order": order.to_dict(), "account": _paper.account_summary()})
+
+
+@app.get("/api/v1/paper/monitor")
+def paper_monitor_status(principal: Optional[Principal] = Depends(get_principal)) -> Dict[str, Any]:
+    _require(principal, "paper:read")
+    from gateway.paper.autopilot_monitor import monitor_status
+
+    return envelope_ok(monitor_status(_paper))
+
+
+@app.post("/api/v1/paper/monitor/tick")
+def paper_monitor_tick(principal: Optional[Principal] = Depends(get_principal)) -> Dict[str, Any]:
+    p = _require(principal, "paper:trade")
+    if _state.mode != TradingMode.PAPER_TRADING:
+        return envelope_err("PAPER_NOT_STARTED", "请先启动 Paper")
+    from gateway.paper.autopilot_monitor import run_monitor_tick
+
+    result = run_monitor_tick(_paper, user_id=p.user_id, refresh_quotes=True)
+    if not result.get("ok"):
+        return envelope_err("MONITOR_BLOCKED", result.get("reason", "监控被阻断"), **result)
+    return envelope_ok(result)
+
+
+@app.post("/api/v1/paper/monitor/stop")
+def paper_monitor_stop(principal: Optional[Principal] = Depends(get_principal)) -> Dict[str, Any]:
+    _require(principal, "paper:trade")
+    from gateway.paper.autopilot_monitor import load_monitor_state, save_monitor_state
+
+    st = load_monitor_state()
+    st["enabled"] = False
+    save_monitor_state(st)
+    return envelope_ok(st)
+
+
+@app.get("/api/v1/paper/reports")
+def paper_reports_list(principal: Optional[Principal] = Depends(get_principal)) -> Dict[str, Any]:
+    _require(principal, "paper:read")
+    from gateway.config import ROOT
+
+    daily = ROOT / "docs" / "ai" / "daily-trading" / "daily"
+    reports = []
+    if daily.exists():
+        for pdf in sorted(daily.glob("*_PAPER_OPS.pdf"), reverse=True)[:30]:
+            d = pdf.name.split("_")[0]
+            reports.append({
+                "trade_date": d,
+                "path_pdf": str(pdf),
+                "download_url": f"/api/v1/paper/reports/download?file={pdf.name}",
+                "label": pdf.stem.replace("_", " "),
+            })
+    return envelope_ok({"reports": reports})
+
+
+@app.get("/api/v1/paper/reports/download")
+def paper_report_download(
+    file: str,
+    principal: Optional[Principal] = Depends(get_principal),
+):
+    _require(principal, "paper:read")
+    from gateway.config import ROOT
+
+    daily = ROOT / "docs" / "ai" / "daily-trading" / "daily"
+    safe = Path(file).name
+    path = daily / safe
+    if not path.exists() or not safe.endswith(".pdf"):
+        raise HTTPException(status_code=404, detail="report not found")
+    return FileResponse(path, media_type="application/pdf", filename=safe)
+
+
+@app.post("/api/v1/paper/reports/generate-close")
+def paper_report_generate_close(principal: Optional[Principal] = Depends(get_principal)) -> Dict[str, Any]:
+    p = _require(principal, "paper:trade")
+    from datetime import datetime
+
+    from quant.trading_ops_report import generate_trading_ops_reports
+
+    trade_date = datetime.now().strftime("%Y-%m-%d")
+    paths = generate_trading_ops_reports(trade_date, session="close")
+    paper_pdf = (paths.get("modes") or {}).get("paper", {}).get("pdf", "")
+    _audit.emit("paper_close_report", p.user_id, {"trade_date": trade_date, "pdf": paper_pdf})
+    return envelope_ok({
+        "trade_date": trade_date,
+        "paths": paths,
+        "download_url": f"/api/v1/paper/reports/download?file={Path(paper_pdf).name}" if paper_pdf else "",
+    })
 
 
 @app.get("/api/v1/audit/events")
@@ -432,3 +647,10 @@ if PORTAL_DIR.exists():
                 "X-Portal-Build": _PORTAL_BUILD,
             },
         )
+
+
+@app.on_event("startup")
+def _startup_intraday_refresh() -> None:
+    from gateway.monitoring.intraday_background import start_background_intraday_refresh
+
+    start_background_intraday_refresh()

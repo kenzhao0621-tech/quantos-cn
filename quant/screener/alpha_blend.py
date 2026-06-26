@@ -1,7 +1,8 @@
-"""Alpha158-lite factor blend for screener ranking.
+"""Alpha158-inspired lite factor blend for screener ranking.
 
-Combines transparent multi-factor z-scores with a lightweight supervised-style
-composite (MOM20/MOM60/TREND/VOL/LIQ) aligned with integrations.qlib alpha158_lite.
+Combines transparent multi-factor z-scores with a lightweight composite
+(MOM20/MOM60/TREND/VOL/LIQ) aligned with integrations.qlib price_momentum_lite.
+NOT full Microsoft Qlib Alpha158 (158 factors) — see quant/features/factor_library.py.
 Gated by purged K-fold validation stored in artifacts/model_validation.json.
 """
 
@@ -10,7 +11,7 @@ from __future__ import annotations
 from typing import Any
 
 # Research weights — momentum + trend dominate; volatility penalised (López de Prado style).
-ALPHA_WEIGHTS: dict[str, float] = {
+PRICE_MOMENTUM_WEIGHTS: dict[str, float] = {
     "ret_20": 0.32,
     "ret_60": 0.24,
     "trend": 0.22,
@@ -18,14 +19,17 @@ ALPHA_WEIGHTS: dict[str, float] = {
     "avg_amount": 0.08,
 }
 
-MODEL_BLEND_WEIGHT = 0.28  # 28% alpha158-lite, 72% preset multi-factor
+# Backward-compatible alias (deprecated name — do not call "full Alpha158")
+ALPHA_WEIGHTS = PRICE_MOMENTUM_WEIGHTS
+
+MODEL_BLEND_WEIGHT = 0.28  # 28% price_momentum_lite, 72% preset multi-factor
 
 
-def alpha158_lite_zscore(row: dict[str, Any], z: dict[str, dict[str, float]]) -> float:
-    """Cross-sectional alpha score from normalised factors."""
+def price_momentum_lite_zscore(row: dict[str, Any], z: dict[str, dict[str, float]]) -> float:
+    """Cross-sectional composite from normalised price/volume factors."""
     sym = row["symbol"]
     score = 0.0
-    for key, w in ALPHA_WEIGHTS.items():
+    for key, w in PRICE_MOMENTUM_WEIGHTS.items():
         if key == "vol_20":
             score += w * z.get("vol_20", {}).get(sym, 0.0)
         elif key == "avg_amount":
@@ -33,6 +37,11 @@ def alpha158_lite_zscore(row: dict[str, Any], z: dict[str, dict[str, float]]) ->
         else:
             score += w * z.get(key, {}).get(sym, 0.0)
     return score
+
+
+def alpha158_lite_zscore(row: dict[str, Any], z: dict[str, dict[str, float]]) -> float:
+    """Deprecated alias — use price_momentum_lite_zscore."""
+    return price_momentum_lite_zscore(row, z)
 
 
 def factor_breakdown(row: dict[str, Any], z: dict[str, dict[str, float]], weights: dict[str, float]) -> list[dict[str, Any]]:
@@ -53,8 +62,8 @@ def factor_breakdown(row: dict[str, Any], z: dict[str, dict[str, float]], weight
             contrib = w * z.get(key, {}).get(sym, 0.0)
             zval = z.get(key, {}).get(sym, 0.0)
             out.append({"factor": labels[key], "contribution": round(contrib, 4), "z_score": round(zval, 3)})
-    alpha = alpha158_lite_zscore(row, z)
-    out.append({"factor": "Alpha158-lite", "contribution": round(alpha * MODEL_BLEND_WEIGHT, 4), "z_score": round(alpha, 3)})
+    alpha = price_momentum_lite_zscore(row, z)
+    out.append({"factor": "price_momentum_lite", "contribution": round(alpha * MODEL_BLEND_WEIGHT, 4), "z_score": round(alpha, 3)})
     return sorted(out, key=lambda x: abs(x.get("contribution") or 0), reverse=True)
 
 

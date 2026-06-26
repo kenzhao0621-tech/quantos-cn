@@ -128,6 +128,40 @@ qlib-doctor:
 research-baseline:
 	$(PYTHON) -c "from integrations.qlib.workflow import run_baseline_workflow; import json; print(json.dumps(run_baseline_workflow(as_of='2026-06-16'), indent=2))"
 
+alpha158-cache:
+	$(PYTHON) scripts/build_alpha158_cache.py --mode sample --sample-size 300
+
+alpha158-cache-full:
+	$(PYTHON) scripts/build_alpha158_cache.py --mode full --force
+
+train-lgbm-sample:
+	$(PYTHON) scripts/train_lgbm_sample.py
+
+quant-upgrade:
+	$(PYTHON) scripts/run_quant_upgrade_pipeline.py
+
+quantos-closed-loop:
+	$(PYTHON) scripts/run_quantos_closed_loop.py
+
+audit: quantos-audit
+quantos-audit:
+	$(PYTHON) scripts/run_quantos_audit.py
+
+validate: quantos-validate
+quantos-validate:
+	$(PYTHON) scripts/run_quant_upgrade_pipeline.py
+	$(PYTHON) -c "from quant.validation.leakage_detector import persist_leakage_report; persist_leakage_report()"
+
+report: quantos-report
+quantos-report:
+	$(PYTHON) scripts/generate_final_quantos_report.py
+
+prelaunch:
+	$(PYTHON) scripts/run_prelaunch_maintenance.py
+
+test:
+	$(PYTHON) -m pytest tests/ -q
+
 reconcile:
 	$(PYTHON) -c "from services.vnpy_runtime.main import get_runtime; from integrations.vnpy.reconciliation import reconcile; import json; print(json.dumps(reconcile(get_runtime().paper.positions()).to_dict(), indent=2))"
 

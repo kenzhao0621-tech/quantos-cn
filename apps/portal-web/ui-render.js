@@ -202,6 +202,23 @@
     return `<svg class="sparkline" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.5" /></svg>`;
   }
 
+  function formatScreenerPrice(r, mode) {
+    const live = r.live_price;
+    const eod = r.last_close;
+    const isLive = String(mode || "").toLowerCase() === "live";
+    if (live != null && live !== "") {
+      const pct =
+        r.live_pct != null
+          ? ` <span class="${Number(r.live_pct) >= 0 ? "up" : "down"}">${Number(r.live_pct) >= 0 ? "+" : ""}${r.live_pct}%</span>`
+          : "";
+      return `<span class="badge badge-pass" style="font-size:0.65rem">实时</span> ${live}${pct}`;
+    }
+    if (isLive) {
+      return `<span class="muted">收 ${eod ?? "—"}</span> <span class="warn small">待挂价</span>`;
+    }
+    return String(eod ?? "—");
+  }
+
   function renderScreener(container, vm) {
     if (!container) return;
     container.innerHTML = "";
@@ -219,10 +236,11 @@
     table.innerHTML =
       "<thead><tr><th>#</th><th>代码</th><th>名称</th><th>板块</th><th>价格</th><th>收益区间%</th><th>下行%</th><th>可买</th><th>" +
       capLabel +
-      "</th><th>综合分</th><th>资格</th><th>专业说明</th><th>走势</th></tr></thead>";
+      "</th><th>综合分</th><th>资格</th><th>分析</th><th>走势</th></tr></thead>";
     const tb = el("tbody");
     vm.rows.forEach((r) => {
-      const tr = el("tr");
+      const sym = r.symbol;
+      const tr = el("tr", "");
       const barW = Math.max(6, Math.round(((r.final_score ?? r.score) / maxScore) * 60));
       const up = (r.ret_20 || 0) >= 0;
       const elig = r.eligibility || "—";
@@ -230,30 +248,244 @@
       const retRange = `${r.expected_return_lo_pct ?? "—"}~${r.expected_return_hi_pct ?? "—"}`;
       const afford = r.affordable_lots ? `${r.affordable_lots}手/${r.suggested_qty || 0}股` : "—";
       const displayName = r.name || "—";
-      const detailLines = (r.detailed_reasons || r.positive_factors || []).slice(0, 2);
-      const detailHtml = detailLines.length
-        ? `<ul class="screener-detail-list">${detailLines.map((x) => `<li>${x}</li>`).join("")}</ul>`
-        : `<span class="muted">点击代码查看完整解释</span>`;
       tr.innerHTML =
         `<td>${r.rank}</td>` +
-        `<td><button type="button" class="symbol-link" data-dossier-symbol="${r.symbol}" title="${(r.reasons_not_to_trade || []).join("；")}">${r.symbol}</button>
-          <button type="button" class="mini-btn" data-watchlist-add="${r.symbol}" data-watchlist-name="${r.name || ""}" title="收藏">★</button></td>` +
-        `<td class="stock-name">${displayName}</td>` +
+        `<td><button type="button" class="symbol-link" data-screener-detail="${sym}">${sym}</button>
+          <button type="button" class="mini-btn" data-watchlist-add="${sym}" data-watchlist-name="${r.name || ""}" title="收藏">★</button></td>` +
+        `<td class="stock-name"><button type="button" class="symbol-link" data-screener-detail="${sym}">${displayName}</button></td>` +
         `<td>${r.sector || "—"}</td>` +
-        `<td class="num">${r.live_price || r.last_close}</td>` +
+        `<td class="num">${formatScreenerPrice(r, vm.mode)}</td>` +
         `<td class="num">${retRange}</td>` +
         `<td class="num">${r.downside_risk_pct ?? "—"}</td>` +
         `<td>${r.valid_for_purchase ? "是" : "否"}</td>` +
         `<td class="num">${afford}</td>` +
         `<td><span class="score-bar" style="width:${barW}px"></span> ${(r.final_score ?? r.score).toFixed(2)}</td>` +
-        `<td class="${eligCls}">${elig}${r.valid_for_purchase && r.suggested_qty ? ` <button type="button" class="mini-btn" data-live-order="${r.symbol}" data-live-name="${r.name || ""}" data-live-qty="${r.suggested_qty}" data-live-price="${r.last_close}">实盘</button>` : ""}</td>` +
-        `<td class="screener-detail-cell">${detailHtml}</td>` +
+        `<td class="${eligCls}">${elig}${r.valid_for_purchase && r.suggested_qty ? ` <button type="button" class="mini-btn" data-live-order="${sym}" data-live-name="${r.name || ""}" data-live-qty="${r.suggested_qty}" data-live-price="${r.live_price ?? r.last_close}">实盘</button>` : ""}</td>` +
+        `<td><button type="button" class="mini-btn screener-expand-btn" data-screener-detail="${sym}">分析报告</button></td>` +
         `<td>${sparklineSvg(r.spark, up)}</td>`;
+      tr.dataset.screenerRow = sym;
       tb.appendChild(tr);
     });
     table.appendChild(tb);
     container.appendChild(table);
     renderScreenerInsights(container, vm);
+  }
+
+  function _mergeStockDetailPayload(payload) {
+    const p = payload || {};
+    const dossier = p.dossier?.data || p.dossier || {};
+    const row = p.row || dossier.candidate || dossier.enriched || dossier || {};
+    const enriched = dossier.enriched || row.enriched || row;
+    return { dossier, row, enriched };
+  }
+
+  function _appendFactorList(parent, title, items, cls) {
+    if (!items?.length) return;
+    const sec = el("div", "stock-modal-section");
+    sec.appendChild(el("h3", "", title));
+    const ul = el("ul", "checklist");
+    items.forEach((line) => ul.appendChild(el("li", cls || "", line)));
+    sec.appendChild(ul);
+    parent.appendChild(sec);
+  }
+
+  function renderStockDetailModal(bodyEl, payload) {
+    if (!bodyEl) return;
+    bodyEl.innerHTML = "";
+    const p = payload || {};
+    if (p.blocked) {
+      bodyEl.appendChild(renderEmpty("无法分析", p.blocker_reason || p.blockerReason || "未找到该股票", ""));
+      return;
+    }
+    if (p.loading && !p.row && !p.dossier) {
+      bodyEl.appendChild(el("div", "stock-modal-loading", "正在加载个股分析报告…"));
+      return;
+    }
+
+    const { dossier, row, enriched } = _mergeStockDetailPayload(p);
+    const sym = row.symbol || dossier.symbol || "—";
+    const name = row.name || dossier.name || "";
+    const display = name ? `${name}（${sym}）` : sym;
+    const score = row.final_score ?? row.score ?? dossier.score;
+    const scoreTxt = score != null ? Number(score).toFixed(2) : "—";
+
+    const head = el("div", "stock-modal-head");
+    const titleBlock = el("div", "stock-modal-title-block");
+    const h2 = el("h2", "", display);
+    h2.id = "stock-modal-title";
+    titleBlock.appendChild(h2);
+    const subParts = [];
+    if (row.rank != null) subParts.push(`排名 #${row.rank}`);
+    if (row.sector || dossier.sector) subParts.push(row.sector || dossier.sector);
+    if (row.validation_status || dossier.validation_status) subParts.push(`验证 ${row.validation_status || dossier.validation_status}`);
+    if (dossier.model_version || row.model_version) subParts.push(`模型 ${dossier.model_version || row.model_version}`);
+    titleBlock.appendChild(el("div", "stock-modal-sub", subParts.join(" · ") || "QuantOS 个股量化分析"));
+    head.appendChild(titleBlock);
+    const closeBtn = el("button", "stock-modal-close", "✕");
+    closeBtn.type = "button";
+    closeBtn.dataset.stockModalClose = "1";
+    closeBtn.setAttribute("aria-label", "关闭");
+    head.appendChild(closeBtn);
+    bodyEl.appendChild(head);
+
+    if (p.loading) {
+      bodyEl.appendChild(el("p", "muted small", "正在加载完整报告…"));
+    }
+
+    const hero = el("div", "stock-modal-hero");
+    const ring = el("div", "stock-modal-score-ring");
+    ring.innerHTML = `<span class="score-num">${scoreTxt}</span><span class="score-lbl">综合分</span>`;
+    hero.appendChild(ring);
+
+    const kpis = el("div", "stock-modal-kpis");
+    const price = row.live_price ?? row.last_close ?? dossier.candidate?.last_close;
+    const retLo = row.expected_return_lo_pct ?? dossier.expected_return_lo_pct;
+    const retHi = row.expected_return_hi_pct ?? dossier.expected_return_hi_pct;
+    const kpiData = [
+      ["最新价", price != null ? `¥${price}` : "—"],
+      ["收益区间", retLo != null ? `${retLo}% ~ ${retHi}%` : "—"],
+      ["下行风险", row.downside_risk_pct != null ? `${row.downside_risk_pct}%` : "—"],
+      ["Alpha158-lite", row.alpha_score != null ? Number(row.alpha_score).toFixed(3) : (enriched.alpha_score != null ? Number(enriched.alpha_score).toFixed(3) : "—")],
+      ["流动性", row.liquidity_score ?? enriched.liquidity_score ?? "—"],
+      ["可买整手", row.affordable_lots ? `${row.affordable_lots}手` : (row.valid_for_purchase ? "是" : "否")],
+      ["数据截止", row.data_cutoff || dossier.as_of_date || dossier.data_cutoff || "—"],
+    ];
+    kpiData.forEach(([k, v]) => {
+      const cell = el("div", "stock-modal-kpi");
+      cell.innerHTML = `<span class="k">${k}</span><span class="v">${v}</span>`;
+      kpis.appendChild(cell);
+    });
+    hero.appendChild(kpis);
+    bodyEl.appendChild(hero);
+
+    const summaryText =
+      dossier.plain_language ||
+      dossier.beginner_guide?.summary ||
+      row.plain_language ||
+      (row.detailed_reasons?.[0] ? `核心逻辑：${row.detailed_reasons[0]}` : "");
+    if (summaryText) {
+      const sec = el("div", "stock-modal-section");
+      sec.appendChild(el("h3", "", "一句话解读"));
+      sec.appendChild(el("p", "stock-modal-summary", summaryText));
+      bodyEl.appendChild(sec);
+    }
+
+    const zones = dossier.trade_zones || row.trade_zones;
+    if (zones?.buy_zone_low != null) {
+      const sec = el("div", "stock-modal-section");
+      sec.appendChild(el("h3", "", "买卖区间参考（非盈利承诺）"));
+      const grid = el("div", "stock-modal-zones");
+      [
+        ["buy", "建议买入", `¥${zones.buy_zone_low} – ¥${zones.buy_zone_high}`],
+        ["stop", "止损参考", `¥${zones.stop_loss}`],
+        ["sell", "止盈参考", `¥${zones.sell_zone_low} – ¥${zones.sell_zone_high}`],
+      ].forEach(([cls, label, val]) => {
+        const z = el("div", `stock-modal-zone ${cls}`);
+        z.innerHTML = `<div class="z-label">${label}</div><div class="z-val">${val}</div>`;
+        grid.appendChild(z);
+      });
+      sec.appendChild(grid);
+      if (zones.chase_warning) sec.appendChild(el("p", "warn", "接近涨停，不建议追入。"));
+      bodyEl.appendChild(sec);
+    }
+
+    const detailed =
+      enriched.detailed_reasons ||
+      dossier.detailed_reasons ||
+      row.detailed_reasons ||
+      [];
+    _appendFactorList(bodyEl, "专业因子说明", detailed);
+
+    const pos = enriched.positive_factors || row.positive_factors || dossier.positive_factors || [];
+    const neg = enriched.negative_factors || row.negative_factors || dossier.negative_factors || [];
+    if (pos.length || neg.length) {
+      const sec = el("div", "stock-modal-section");
+      sec.appendChild(el("h3", "", "多空因子"));
+      const ul = el("ul", "checklist");
+      pos.forEach((line) => ul.appendChild(el("li", "up", "✓ " + line)));
+      neg.forEach((line) => ul.appendChild(el("li", "down", "✗ " + line)));
+      sec.appendChild(ul);
+      bodyEl.appendChild(sec);
+    }
+
+    const invalid = row.invalidation_conditions || dossier.invalidation_conditions || enriched.invalidation_conditions;
+    if (invalid?.length) {
+      const sec = el("div", "stock-modal-section");
+      sec.appendChild(el("h3", "", "失效条件"));
+      sec.appendChild(el("p", "warn", invalid.join("；")));
+      bodyEl.appendChild(sec);
+    }
+
+    const notTrade = row.reasons_not_to_trade || dossier.reasons_not_to_trade;
+    if (notTrade?.length) {
+      const sec = el("div", "stock-modal-section");
+      sec.appendChild(el("h3", "", "不宜交易"));
+      sec.appendChild(el("p", "down", notTrade.join("；")));
+      bodyEl.appendChild(sec);
+    }
+
+    if (dossier.beginner_guide?.steps?.length) {
+      const sec = el("div", "stock-modal-section");
+      sec.appendChild(el("h3", "", "新手操作步骤"));
+      const ol = el("ol", "help-steps");
+      dossier.beginner_guide.steps.forEach((s) => ol.appendChild(el("li", "", s)));
+      sec.appendChild(ol);
+      bodyEl.appendChild(sec);
+    }
+
+    if (dossier.institutional_report?.factors?.length) {
+      const sec = el("div", "stock-modal-section");
+      sec.appendChild(el("h3", "", `机构因子报告 · ${dossier.institutional_report.weighted_score} / 100`));
+      const rows = dossier.institutional_report.factors.map((f) => [
+        f.name,
+        `${Math.round(f.weight * 100)}%`,
+        Math.round(f.score * 100),
+        f.evidence,
+      ]);
+      const sub = el("div", "");
+      sec.appendChild(sub);
+      renderTable(sub, ["因子", "权重", "评分", "证据"], rows, "暂无因子报告");
+      if (dossier.institutional_report.methodology) {
+        sec.appendChild(el("p", "muted small", dossier.institutional_report.methodology));
+      }
+      bodyEl.appendChild(sec);
+    }
+
+    const riskNotes = dossier.risk_notes || row.risk_notes;
+    if (riskNotes?.length) {
+      bodyEl.appendChild(el("div", "banner banner-warn stock-modal-section", "风险边界：" + riskNotes.join("；")));
+    }
+
+    bodyEl.appendChild(
+      el(
+        "p",
+        "stock-modal-footnote",
+        "以上内容为量化模型输出，不构成投资建议。真实交易请在券商官方平台由本人确认。",
+      ),
+    );
+
+    if (!p.loading && (dossier.symbol || row.symbol)) {
+      const actions = el("div", "stock-modal-actions");
+      const pdfBtn = el("button", "primary", "导出选股 PDF");
+      pdfBtn.type = "button";
+      pdfBtn.dataset.action = "screener-report-pdf";
+      actions.appendChild(pdfBtn);
+      bodyEl.appendChild(actions);
+    }
+  }
+
+  function openStockDetailModal() {
+    const modal = document.getElementById("stock-detail-modal");
+    if (!modal) return;
+    modal.classList.remove("hidden");
+    document.body.style.overflow = "hidden";
+  }
+
+  function closeStockDetailModal() {
+    const modal = document.getElementById("stock-detail-modal");
+    if (!modal) return;
+    modal.classList.add("hidden");
+    document.body.style.overflow = "";
   }
 
   function renderScreenerInsights(container, vm) {
@@ -286,6 +518,10 @@
     if (top.invalidation_conditions?.length) {
       box.appendChild(el("p", "warn small", "失效条件：" + top.invalidation_conditions.join("；")));
     }
+    const openBtn = el("button", "mini-btn screener-expand-btn", "查看完整分析报告");
+    openBtn.type = "button";
+    openBtn.dataset.screenerDetail = top.symbol;
+    box.appendChild(openBtn);
     container.appendChild(box);
   }
 
@@ -377,9 +613,22 @@
     container.innerHTML = "";
     const d = data?.data || data || {};
     if (d.checks) {
-      const banner = el("div", d.ready_for_order_ticket ? "banner banner-ok" : "banner banner-warn",
-        d.ready_for_order_ticket ? "准入检查通过：可生成订单票据" : "准入检查未通过");
+      const readyUnattended = !!d.ready_for_unattended_auto;
+      const banner = el("div", readyUnattended ? "banner banner-ok" : d.ready_for_order_ticket ? "banner banner-warn" : "banner banner-warn",
+        readyUnattended
+          ? "无人值守实盘已就绪 — 可一键执行组合或执行票据"
+          : d.ready_for_order_ticket
+            ? "准入检查通过：可生成订单票据（无人值守需开启门控）"
+            : "准入检查未通过");
       container.appendChild(banner);
+      if (d.real_auto_trade_reason && !readyUnattended) {
+        container.appendChild(el("p", "hint", `阻塞：${d.real_auto_trade_reason}`));
+      }
+      if (d.preflight?.warnings?.length) {
+        const w = el("ul", "checklist");
+        d.preflight.warnings.forEach((x) => w.appendChild(el("li", "", `⚠ ${x}`)));
+        container.appendChild(w);
+      }
       renderTable(
         container.appendChild(el("div", "")),
         ["检查项", "结果", "说明"],
@@ -391,6 +640,10 @@
     if (d.ticket_id) {
       container.appendChild(el("div", d.lines?.length ? "banner banner-ok" : "banner banner-warn",
         `订单票据 ${d.ticket_id} · ${d.status} · ${d.legal_boundary}`));
+      const execBtn = el("button", "primary", "无人值守执行此票据");
+      execBtn.dataset.action = "autopilot-execute-ticket";
+      execBtn.dataset.ticketId = d.ticket_id;
+      container.appendChild(execBtn);
       const rows = (d.lines || []).map((x) => [
         x.symbol,
         x.side,
@@ -484,36 +737,63 @@
     renderTable(container.appendChild(el("div", "")), ["#", "代码", "T+1收益", "跑赢中位数", "结果", "归因"], rows, "暂无验证明细");
   }
 
-  function renderDossier(container, dossier) {
+  function renderStockAnalysis(container, data) {
     if (!container) return;
     container.innerHTML = "";
-    const d = dossier?.data || dossier || {};
-    if (!d.symbol) {
-      container.appendChild(renderEmpty("暂无个股解释", "先运行选股并选择候选", ""));
+    const d = data || {};
+    if (d.blocked) {
+      container.appendChild(renderEmpty("无法分析", d.blocker_reason || "未找到该股票", ""));
       return;
     }
     const display = d.name ? `${d.name}（${d.symbol}）` : d.symbol;
-    const box = el("div", "dossier-card");
-    box.appendChild(el("h3", "", `${display} · 候选解释`));
-    box.appendChild(el("p", "", d.plain_language || d.beginner_guide?.summary || "暂无解释"));
-    const enriched = d.enriched || d.candidate || {};
-    if (enriched.detailed_reasons?.length) {
-      box.appendChild(el("h4", "", "专业因子说明"));
-      const ul = el("ul", "checklist");
-      enriched.detailed_reasons.forEach((r) => ul.appendChild(el("li", "", r)));
-      box.appendChild(ul);
-    } else if (d.detailed_reasons?.length) {
+    const box = el("div", "stock-analysis-card");
+    const head = el("div", "stock-analysis-head");
+    head.appendChild(el("h3", "", display));
+    const scoreRow = el("div", "stock-score-row");
+    const scoreVal = d.score != null ? Number(d.score).toFixed(3) : "—";
+    scoreRow.innerHTML = `<span class="stock-score-label">量化评分</span><span class="stock-score-value">${scoreVal}</span>`;
+    if (d.rank != null && d.universe_size) {
+      scoreRow.appendChild(el("span", "stock-rank", `全市场第 ${d.rank} / ${d.universe_size} · 前 ${d.percentile_top ?? "—"}%`));
+    }
+    if (d.alpha_score != null) {
+      scoreRow.appendChild(el("span", "stock-alpha", `Alpha158-lite ${Number(d.alpha_score).toFixed(4)}`));
+    }
+    head.appendChild(scoreRow);
+    box.appendChild(head);
+
+    const cand = d.candidate || {};
+    const meta = el("div", "stock-meta-grid");
+    const items = [
+      ["最新价", cand.last_close != null ? `¥${cand.last_close}` : "—"],
+      ["涨跌幅", cand.last_pct != null ? `${cand.last_pct}%` : "—"],
+      ["20日收益", cand.ret_20 != null ? `${(cand.ret_20 * 100).toFixed(1)}%` : "—"],
+      ["板块", cand.sector || "—"],
+      ["数据日期", d.as_of_date || "—"],
+    ];
+    items.forEach(([k, v]) => {
+      const cell = el("div", "stock-meta-item");
+      cell.innerHTML = `<span class="stock-meta-key">${k}</span><span class="stock-meta-val">${v}</span>`;
+      meta.appendChild(cell);
+    });
+    box.appendChild(meta);
+
+    if (d.plain_language) {
+      box.appendChild(el("p", "stock-summary", d.plain_language));
+    }
+
+    const enriched = d.enriched || {};
+    if (d.detailed_reasons?.length) {
       box.appendChild(el("h4", "", "专业因子说明"));
       const ul = el("ul", "checklist");
       d.detailed_reasons.forEach((r) => ul.appendChild(el("li", "", r)));
       box.appendChild(ul);
+    } else if (enriched.detailed_reasons?.length) {
+      box.appendChild(el("h4", "", "专业因子说明"));
+      const ul = el("ul", "checklist");
+      enriched.detailed_reasons.forEach((r) => ul.appendChild(el("li", "", r)));
+      box.appendChild(ul);
     }
-    if (d.trade_zones?.buy_zone_low) {
-      const z = d.trade_zones;
-      box.appendChild(el("h4", "", "买卖区间参考（非盈利承诺）"));
-      box.appendChild(el("p", "", `买入 ¥${z.buy_zone_low} – ¥${z.buy_zone_high} · 止损 ¥${z.stop_loss} · 止盈 ¥${z.sell_zone_low} – ¥${z.sell_zone_high}`));
-      if (z.chase_warning) box.appendChild(el("p", "warn", "接近涨停，不建议追入。"));
-    }
+
     if (enriched.positive_factors?.length || enriched.negative_factors?.length) {
       box.appendChild(el("h4", "", "多空因子"));
       const ul = el("ul", "checklist");
@@ -521,37 +801,45 @@
       (enriched.negative_factors || []).forEach((r) => ul.appendChild(el("li", "down", "✗ " + r)));
       box.appendChild(ul);
     }
-    if (d.candidate?.reasons?.length) {
-      const ul = el("ul", "checklist");
-      d.candidate.reasons.forEach((r) => ul.appendChild(el("li", "", r)));
-      box.appendChild(ul);
+
+    if (d.trade_zones?.buy_zone_low) {
+      const z = d.trade_zones;
+      box.appendChild(el("h4", "", "买卖区间参考（非盈利承诺）"));
+      box.appendChild(el("p", "", `买入 ¥${z.buy_zone_low} – ¥${z.buy_zone_high} · 止损 ¥${z.stop_loss} · 止盈 ¥${z.sell_zone_low} – ¥${z.sell_zone_high}`));
+      if (z.chase_warning) box.appendChild(el("p", "warn", "接近涨停，不建议追入。"));
     }
-    if (d.beginner_guide?.steps?.length) {
-      box.appendChild(el("h4", "", "新手操作步骤"));
-      const ol = el("ol", "help-steps");
-      d.beginner_guide.steps.forEach((s) => ol.appendChild(el("li", "", s)));
-      box.appendChild(ol);
-    }
-    if (d.institutional_report?.factors?.length) {
-      box.appendChild(el("h3", "", `机构因子报告 · ${d.institutional_report.weighted_score} / 100`));
-      const rows = d.institutional_report.factors.map((f) => [
-        f.name,
-        `${Math.round(f.weight * 100)}%`,
-        Math.round(f.score * 100),
-        f.evidence,
-      ]);
-      const sub = el("div", "");
-      box.appendChild(sub);
-      renderTable(sub, ["因子", "权重", "评分", "证据"], rows, "暂无因子报告");
-      if (d.institutional_report.methodology) {
-        box.appendChild(el("p", "muted", d.institutional_report.methodology));
-      }
-    }
+
     if (d.risk_notes?.length) {
-      const risk = el("div", "banner banner-warn", "风险边界：" + d.risk_notes.join("；"));
-      box.appendChild(risk);
+      box.appendChild(el("div", "banner banner-warn", "风险边界：" + d.risk_notes.join("；")));
     }
+
     container.appendChild(box);
+  }
+
+  function renderDossier(container, dossier) {
+    const d = dossier?.data || dossier || {};
+    if (d._closed) {
+      closeStockDetailModal();
+      if (container) {
+        container.innerHTML = "";
+        container.appendChild(renderEmpty("个股解释已收起", "点击表格中「分析报告」打开弹窗", ""));
+      }
+      return;
+    }
+    if (!d.symbol && !dossier?.row) {
+      if (container) {
+        container.innerHTML = "";
+        container.appendChild(renderEmpty("个股解释已收起", "点击表格中「分析报告」打开弹窗", ""));
+      }
+      return;
+    }
+    const body = document.getElementById("stock-detail-body");
+    renderStockDetailModal(body, { dossier: d, row: d.candidate || d });
+    openStockDetailModal();
+    if (container) {
+      container.innerHTML = "";
+      container.appendChild(el("p", "muted small", `已打开 ${d.name || d.symbol} 分析报告弹窗`));
+    }
   }
 
   function renderSetupCenter(container, data) {
@@ -752,6 +1040,28 @@
     if (b.order_hint) container.appendChild(el("p", "muted", b.order_hint));
   }
 
+  function renderWafRecovery(container, waf) {
+    if (!container || !waf) return;
+    container.innerHTML = "";
+    const box = el("div", "broker-app-guide");
+    box.appendChild(el("h3", "", `${waf.broker_label || "券商"} · WAF 拦截恢复`));
+    box.appendChild(el("p", "warn", waf.meaning || "页面显示 Nginx forbidden 时，是券商 WAF 拦截了你的公网 IP。"));
+    const ol = el("ol", "help-steps");
+    (waf.actions || []).forEach((step) => ol.appendChild(el("li", "", step)));
+    box.appendChild(ol);
+    const row = el("div", "broker-link-row");
+    (waf.fallback_urls || []).forEach((l) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "broker-link-btn primary";
+      btn.dataset.brokerUrl = l.url;
+      btn.textContent = l.label || l.url;
+      row.appendChild(btn);
+    });
+    box.appendChild(row);
+    container.appendChild(box);
+  }
+
   function renderHelpGuide(container, section) {
     if (!container) return;
     const sections = {
@@ -800,7 +1110,63 @@
     container.innerHTML = `<section class="help-section-focus"><h3>${s.title}</h3>${s.html}</section>`;
   }
 
+  function renderPaperMonitor(container, data) {
+    if (!container) return;
+    container.innerHTML = "";
+    const d = data?.data || data || {};
+    const banner = el("div", d.enabled ? "banner banner-ok" : "banner banner-warn",
+      d.enabled
+        ? "实时行情监控已开启 — 仅真实报价触发买卖（Paper 页每 15 分钟自动刷新）"
+        : "监控未开启 — 从选股导入组合后自动开启");
+    container.appendChild(banner);
+    if (d.last_error) {
+      container.appendChild(el("div", "banner banner-warn", d.last_error));
+    }
+    const qm = d.last_quote_meta || d.quote_meta || {};
+    if (qm.retrieved_at || qm.quote_count) {
+      const stale = qm.stale_fallback ? " · 缓存回落" : "";
+      container.appendChild(el("p", "muted", `行情源 ${qm.provider || "—"} · ${qm.quote_count || 0} 只 · ${qm.retrieved_at || "—"}${stale}`));
+    }
+    const rows = (d.watchlist_live || []).map((r) => [
+      r.symbol,
+      r.name || "—",
+      r.live_price ?? "—",
+      r.held ? `持仓 ${r.quantity}` : "观察",
+      r.trade_zones ? `买 ${r.trade_zones.buy_zone_low}–${r.trade_zones.buy_zone_high}` : "—",
+    ]);
+    renderTable(container.appendChild(el("div", "")), ["代码", "名称", "实时价", "状态", "买入区间"], rows, "暂无监控标的");
+    const sigs = (d.signals_recent || []).slice(-8).map((s) => [
+      (s.ts || "").slice(11, 19),
+      s.symbol,
+      s.side || s.action,
+      s.live_price ?? "—",
+      s.reason || "",
+    ]);
+    if (sigs.length) {
+      container.appendChild(el("h4", "", "最近信号"));
+      renderTable(container.appendChild(el("div", "")), ["时间", "代码", "动作", "价格", "原因"], sigs, "");
+    }
+  }
+
+  function renderPaperReports(container, data) {
+    if (!container) return;
+    container.innerHTML = "";
+    const reports = data?.data?.reports || data?.reports || [];
+    if (!reports.length) {
+      container.appendChild(renderEmpty("暂无收盘报告", "点击「生成今日收盘报告」", ""));
+      return;
+    }
+    const rows = reports.map((r) => [
+      r.trade_date,
+      r.label || "Paper 操作日报",
+      `<a href="${r.download_url}" target="_blank" rel="noopener">下载 PDF</a>`,
+    ]);
+    renderTable(container, ["日期", "报告", "下载"], rows, "");
+  }
+
   global.QuantOSUI = {
+    renderPaperMonitor,
+    renderPaperReports,
     renderCardGrid,
     renderTable,
     renderBadge,
@@ -821,11 +1187,16 @@
     renderBeginnerGuide,
     renderHelpGuide,
     renderBrokerOfficialLinks,
+    renderWafRecovery,
     renderAutopilot,
     renderModelValidation,
     renderGatewayReadiness,
     renderProof,
     renderDossier,
+    renderStockAnalysis,
+    renderStockDetailModal,
+    openStockDetailModal,
+    closeStockDetailModal,
     renderSetupCenter,
     toast,
     setLoading,

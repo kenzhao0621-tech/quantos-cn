@@ -1,5 +1,20 @@
 # Changelog — QuantOS CN
 
+## [4.1.0] — 2026-06-26
+
+### 仓库与品牌
+- GitHub 仓库正式更名为 **quantos-cn**（原 `netlify-demo`）
+- 历史 Netlify 静态演示移至 `legacy/netlify/`
+- 全新 README、项目结构文档、GitHub Actions CI
+
+### 实时选股与 Gateway 2.1
+- 一键实时智能选股（内置行情刷新）
+- 盘中 15 分钟后台自动刷新（`intraday_background`）
+- TradingAgents-CN 选股叠加、策略自验证学习循环
+- 选股分析 PDF + 日报 PDF 下载修复
+- Paper 买卖信号灵敏度提升
+- `GET /api/v1/gateway/capabilities`
+
 ## [4.1.0] — 2026-06-17
 
 ### Phase 1 — 基础设施

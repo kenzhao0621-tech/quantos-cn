@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
-LABEL = "com.netlify-demo.quant.intraday-refresh"
+LABEL = "com.quantos-cn.intraday-refresh"
 PLIST_DIR = ROOT / "config" / "launchd"
 PLIST_PATH = PLIST_DIR / f"{LABEL}.plist"
 WRAPPER = ROOT / "scripts" / "run-intraday-refresh-scheduled.sh"
@@ -40,32 +40,28 @@ def _python_bin() -> Path:
 
 
 def run_intraday_refresh(slot: str = "manual") -> dict[str, Any]:
-    from quant.market_data_fabric import MarketDataFabric
+    from quant.application.live_market_service import fetch_live_snapshot, persist_live_snapshot, snapshot_rows
 
-    fetched = MarketDataFabric().fetch("spot_quotes", live_only=True, require_live=False, min_rows=1000)
+    snap = fetch_live_snapshot(require_live=False)
+    if not snapshot_rows(snap):
+        snap = fetch_live_snapshot(require_live=True)
     record: dict[str, Any]
-    if fetched.ok and fetched.result:
-        payload = fetched.result.payload or {}
-        rows = payload.get("rows", [])
+    rows = snapshot_rows(snap)
+    if snap.get("success") and rows:
         record = {
-            "success": True,
+            **snap,
             "slot": slot,
-            "provider": fetched.result.provider,
             "row_count": len(rows),
-            "retrieved_at": fetched.result.retrieved_at,
-            "source_event_time": payload.get("source_event_time"),
-            "freshness": payload.get("freshness") or fetched.result.freshness,
-            "market_date": payload.get("market_date"),
-            "is_live": bool(payload.get("is_live") or fetched.result.is_live),
         }
-    else:
-        record = {
-            "success": False,
-            "slot": slot,
-            "retrieved_at": datetime.now().isoformat(timespec="seconds"),
-            "reason": fetched.selection_reason,
-            "attempts": [a.to_dict() for a in fetched.attempts],
-        }
+        persist_live_snapshot(record)
+        return record
+    record = {
+        "success": False,
+        "slot": slot,
+        "retrieved_at": datetime.now().isoformat(timespec="seconds"),
+        "reason": snap.get("reason") or "provider blocked",
+        "attempts": snap.get("attempts") or [],
+    }
     LIVE_STATE.parent.mkdir(parents=True, exist_ok=True)
     LIVE_STATE.write_text(json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8")
     return record
