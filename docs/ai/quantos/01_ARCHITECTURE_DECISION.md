@@ -1,6 +1,0 @@
-# 01_ARCHITECTURE_DECISION
-Generated: 2026-06-16T13:38:30.315963Z
-- **control_plane**: FastAPI Gateway + Portal
-- **research_plane**: Qlib adapter + DuckDB/Parquet
-- **execution_plane**: vn.py EventEngine shim + Paper/Shadow bridges
-- **real_execution**: MANUAL_CONFIRM_ONLY

@@ -17,8 +17,8 @@ jobs:
       - name: Install dependencies
         run: |
           python -m venv .venv-china-quant
-          .venv-china-quant/bin/pip install -r docs/ai/requirements-china-quant-pins.txt
-          .venv-china-quant/bin/pip install -r docs/ai/requirements-gateway-pins.txt
+          .venv-china-quant/bin/pip install -r requirements/requirements-china-quant-pins.txt
+          .venv-china-quant/bin/pip install -r requirements/requirements-gateway-pins.txt
           .venv-china-quant/bin/pip install -e .
       - name: Doctor
         run: .venv-china-quant/bin/python -c "import gateway; import quant; print(gateway.__version__)"

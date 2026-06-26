@@ -48,7 +48,7 @@ class GatewayConfig:
     gc_mgc_sidecar_isolated: bool = True
     demo_api_key: str = "demo-local-key-change-in-prod"
     service_accounts: list[dict[str, str]] = field(default_factory=list)
-    audit_log_path: Path = field(default_factory=lambda: ROOT / "docs/ai/gateway/audit/events.jsonl")
+    audit_log_path: Path = field(default_factory=lambda: ROOT / "data/gateway/audit/events.jsonl")
 
     @classmethod
     def load(cls, path: Path | None = None) -> GatewayConfig:
@@ -85,7 +85,7 @@ class GatewayConfig:
             gc_mgc_sidecar_isolated=bool(safety.get("gc_mgc_sidecar_isolated", True)),
             demo_api_key=str(auth.get("demo_api_key", "demo-local-key-change-in-prod")),
             service_accounts=list(auth.get("service_accounts", [])),
-            audit_log_path=ROOT / obs.get("audit_log_path", "docs/ai/gateway/audit/events.jsonl"),
+            audit_log_path=ROOT / obs.get("audit_log_path", "data/gateway/audit/events.jsonl"),
         )
 
 

@@ -18,9 +18,9 @@ GATEWAY_HOST := 127.0.0.1
 
 bootstrap:
 	python3 -m venv .venv-china-quant || true
-	$(PIP) install -r docs/ai/requirements-china-quant-pins.txt
-	$(PIP) install -r docs/ai/requirements-gateway-pins.txt
-	$(PIP) install -r docs/ai/requirements-quantos-pins.txt
+	$(PIP) install -r requirements/requirements-china-quant-pins.txt
+	$(PIP) install -r requirements/requirements-gateway-pins.txt
+	$(PIP) install -r requirements/requirements-quantos-pins.txt
 	$(MAKE) install-editable
 
 install-editable:

@@ -13,7 +13,7 @@ from typing import Any, Optional
 from quant.paths import PACKAGE_ROOT, desktop_reports_root
 
 ROOT = PACKAGE_ROOT
-DAILY_DIR = ROOT / "docs" / "ai" / "daily-trading" / "daily"
+DAILY_DIR = ROOT / "data" / "reports" / "daily"
 DESKTOP_ROOT = desktop_reports_root()
 WATERMARK = "PAPER_TRADING_ONLY — 仅供研究，非投资建议"
 

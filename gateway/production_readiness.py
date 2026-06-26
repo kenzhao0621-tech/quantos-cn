@@ -17,7 +17,7 @@ def gateway_readiness_report() -> dict[str, Any]:
     checks = [
         _check("portal_home", True, "统一 Portal 已运行在 /portal"),
         _check("rbac", (ROOT / "gateway/auth/rbac.py").exists(), "角色权限与 API key 已接入"),
-        _check("audit_log", (ROOT / "docs/ai/gateway/audit/events.jsonl").exists(), "审计事件 append-only JSONL"),
+        _check("audit_log", (ROOT / "data/gateway/audit/events.jsonl").exists(), "审计事件 append-only JSONL"),
         _check("broker_handoff", True, "东方财富/XTP/QMT/PTrade/TORA 官方路径已登记"),
         _check("order_ticket", bool(list((ROOT / "data/gateway/order_tickets").glob("*.json"))) if (ROOT / "data/gateway/order_tickets").exists() else False, "Safe Autopilot 订单票据"),
         _check("model_validation", (ROOT / "quant/application/model_validation_service.py").exists(), "样本外/滚动/成本/滑点/行业中性验收"),

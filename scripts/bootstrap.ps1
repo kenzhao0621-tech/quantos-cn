@@ -23,9 +23,9 @@ if (-not (Get-Command py -ErrorAction SilentlyContinue) -and -not (Get-Command p
 $PyLauncher = if (Get-Command py -ErrorAction SilentlyContinue) { "py" } else { "python" }
 & $PyLauncher -3 -m venv $Venv
 & $Pip install --upgrade pip
-& $Pip install -r (Join-Path $Root "docs\ai\requirements-china-quant-pins.txt")
-& $Pip install -r (Join-Path $Root "docs\ai\requirements-gateway-pins.txt")
-& $Pip install -r (Join-Path $Root "docs\ai\requirements-quantos-pins.txt")
+& $Pip install -r (Join-Path $Root "requirements\requirements-china-quant-pins.txt")
+& $Pip install -r (Join-Path $Root "requirements\requirements-gateway-pins.txt")
+& $Pip install -r (Join-Path $Root "requirements\requirements-quantos-pins.txt")
 & $Pip install -e $Root
 
 & $Python -c "import gateway, quant; print('gateway', gateway.__version__, 'quant', quant.__version__)"

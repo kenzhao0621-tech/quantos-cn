@@ -1,5 +1,0 @@
-# 04 HISTORICAL COVERAGE
-Generated: 2026-06-16T13:03:38.240233Z
-- **warehouse**: data/warehouse/quant.duckdb
-- **parquet_partitions**: 120
-- **indices_store**: data/indices

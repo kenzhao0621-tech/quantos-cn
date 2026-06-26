@@ -5,7 +5,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export PATH="${ROOT}/.venv-china-quant/bin:$PATH"
 SLOT="${1:-manual}"
-LOG_DIR="${ROOT}/docs/ai/logs"
+LOG_DIR="${ROOT}/data/gateway/logs"
 mkdir -p "${LOG_DIR}"
 
 "${ROOT}/.venv-china-quant/bin/python" - <<'PY' "$SLOT" >> "${LOG_DIR}/intraday-refresh.log" 2>&1

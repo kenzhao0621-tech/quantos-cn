@@ -60,8 +60,8 @@ make app
 
 ```bash
 python3 -m venv .venv-china-quant
-.venv-china-quant/bin/pip install -r docs/ai/requirements-china-quant-pins.txt
-.venv-china-quant/bin/pip install -r docs/ai/requirements-gateway-pins.txt
+.venv-china-quant/bin/pip install -r requirements/requirements-china-quant-pins.txt
+.venv-china-quant/bin/pip install -r requirements/requirements-gateway-pins.txt
 .venv-china-quant/bin/pip install -e .
 bash scripts/start-app.sh
 ```

@@ -1,6 +1,0 @@
-# 01 GATEWAY ARCHITECTURE
-Generated: 2026-06-16T13:03:38.240233Z
-- **gateway_version**: 2.0.0
-- **components**: ['gateway/api', 'gateway/risk', 'gateway/brokers', 'gateway/agents', 'apps/portal-web']
-- **default_mode**: RESEARCH_ONLY
-- **api_port**: 8787

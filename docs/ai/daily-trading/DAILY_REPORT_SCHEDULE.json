@@ -1,9 +1,0 @@
-{
-  "scheduled_at": "2026-06-16T21:39:13",
-  "plist": "config/launchd/com.netlify-demo.quant.daily-report.plist",
-  "wrapper": "scripts/run-daily-report-scheduled.sh",
-  "time": "15:20 Asia/Shanghai (trading-day check in wrapper)",
-  "dry_run": false,
-  "installed": true,
-  "launchctl_stderr": ""
-}

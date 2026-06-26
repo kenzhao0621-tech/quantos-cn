@@ -1,8 +1,14 @@
 node_modules/
 .netlify/
 .DS_Store
-.cursor/skill-sources/
+.cursor/
 .cursor-backups/
+data/gateway/audit/
+!data/gateway/audit/.gitkeep
+data/reports/
+!data/reports/.gitkeep
+docs/ai/
+!docs/ai/.gitkeep
 .env
 .env.*
 !.env.example

@@ -45,4 +45,4 @@ agents:
 
 observability:
   trace_sample_rate: 1.0
-  audit_log_path: docs/ai/gateway/audit/events.jsonl
+  audit_log_path: data/gateway/audit/events.jsonl

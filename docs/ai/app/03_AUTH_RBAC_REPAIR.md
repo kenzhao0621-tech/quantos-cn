@@ -1,3 +1,0 @@
-# Auth RBAC
-
-- login roles: admin, researcher, viewer, service_risk, service_research

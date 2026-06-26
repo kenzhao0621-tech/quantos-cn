@@ -1,4 +1,0 @@
-# 13 DAILY QUANT REPORT
-Generated: 2026-06-16T13:03:38.240233Z
-- **pipeline**: scripts/run-daily-quant-pipeline.py
-- **report_dir**: docs/ai/daily-trading

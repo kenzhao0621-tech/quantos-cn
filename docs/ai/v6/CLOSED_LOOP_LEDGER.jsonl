@@ -1,7 +1,0 @@
-{"step": "phase0_runtime_audit", "goal": "stop stale procs, verify commit/module paths", "root_cause": "stale PID 40199 ran old code", "fix": "killed stale, restarted managed uvicorn", "result": "PASS", "ts": "2026-06-17T01:38:11.434967+00:00"}
-{"step": "phase1_import_contract", "goal": "repair fetch_spot_snapshot", "root_cause": "app.py imported non-existent fn; module exposes MarketDataFabric class", "fix": "typed MarketDataService + deprecated compat adapter", "test": "16/16 contract", "result": "PASS", "ts": "2026-06-17T01:38:11.434967+00:00"}
-{"step": "phase2_canonical_service", "goal": "single typed market boundary on canonical DuckDB", "fix": "CanonicalMarketDataService reads index_bars/daily_bars", "result": "PASS", "ts": "2026-06-17T01:38:11.434967+00:00"}
-{"step": "phase5_bff", "goal": "BFF market+jobs viewmodels, no raw JSON", "fix": "bff_market.py overview/refresh/providers/coverage", "result": "PASS", "ts": "2026-06-17T01:38:11.434967+00:00"}
-{"step": "phase6_jobs", "goal": "async job system w/ progress", "fix": "gateway/jobs/manager.py threads+events+persist", "result": "PASS", "ts": "2026-06-17T01:38:11.434967+00:00"}
-{"step": "phase13_slices", "goal": "vertical slice business E2E", "fix": "run-v6-fresh-browser-e2e.py", "test": "14/14", "result": "PASS", "ts": "2026-06-17T01:38:11.434967+00:00"}
-{"step": "phase14_failure_injection", "goal": "honest blockers", "fix": "missing warehouse + bad job_type", "result": "PASS", "ts": "2026-06-17T01:38:11.434967+00:00"}

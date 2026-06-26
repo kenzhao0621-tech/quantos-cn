@@ -29,9 +29,7 @@ fi
 
 TRACKED_RUNTIME=(
   memory/documents/fts.sqlite
-  docs/ai/gateway/audit/events.jsonl
-  docs/ai/daily-trading/PAPER_SIGNAL_LEDGER.jsonl
-  config/launchd/com.netlify-demo.quant.daily-report.plist
+  data/gateway/audit/events.jsonl
 )
 
 for f in "${TRACKED_RUNTIME[@]}"; do

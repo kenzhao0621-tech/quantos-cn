@@ -5,7 +5,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export PATH="${ROOT}/.venv-china-quant/bin:$PATH"
 PYTHON="${ROOT}/.venv-china-quant/bin/python"
-LOG_DIR="${ROOT}/docs/ai/logs"
+LOG_DIR="${ROOT}/data/gateway/logs"
 mkdir -p "${LOG_DIR}"
 
 "${PYTHON}" -m quant freshness-watchdog > "${LOG_DIR}/live-test-watchdog.log" 2>&1 &
