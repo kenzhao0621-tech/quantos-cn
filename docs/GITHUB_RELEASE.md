@@ -1,6 +1,8 @@
 # GitHub 发布指南 — QuantOS CN
 
-本地已完成 **v4.1.0** 提交。请在你本机终端执行以下步骤完成上传。
+**状态（2026-06-26）：** 代码已推送到  
+https://github.com/kenzhao0621-tech/netlify-demo/tree/fix/a-share-quant-reliability-paper-validation  
+标签 `v4.1.0` 已推送。下一步请在 GitHub 将仓库重命名为 `quantos-cn`。
 
 ## 1. 重命名 GitHub 仓库（推荐）
 
