@@ -25,7 +25,7 @@
 完整安装见 **[INSTALL.md](INSTALL.md)**（含 Windows）。
 
 ```bash
-git clone https://github.com/kenzhao0621-tech/netlify-demo.git quantos-cn
+git clone https://github.com/kenzhao0621-tech/quantos-cn.git
 cd quantos-cn
 make bootstrap && cp .env.example .env
 make app
@@ -137,6 +137,6 @@ make app
 
 ## 7. 获取帮助
 
-- [GitHub Issues](https://github.com/kenzhao0621-tech/netlify-demo/issues) — Bug 与功能建议
+- [GitHub Issues](https://github.com/kenzhao0621-tech/quantos-cn/issues) — Bug 与功能建议
 - [INSTALL.md](INSTALL.md) — 安装与跨平台问题
 - [OPEN_SOURCE_MANIFEST.md](OPEN_SOURCE_MANIFEST.md) — 隐私与开源范围

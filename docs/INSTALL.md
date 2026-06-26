@@ -25,11 +25,11 @@
 ## 2. 获取代码
 
 ```bash
-git clone https://github.com/kenzhao0621-tech/netlify-demo.git quantos-cn
+git clone https://github.com/kenzhao0621-tech/quantos-cn.git
 cd quantos-cn
 ```
 
-> 仓库 GitHub 名仍为 `netlify-demo`，产品品牌为 **QuantOS CN**。可在 GitHub Settings 中将仓库 Display name 改为 `quantos-cn`。
+> 仓库名：**quantos-cn** · 克隆后目录可任意命名（如 `quantos-cn`）。
 
 ---
 

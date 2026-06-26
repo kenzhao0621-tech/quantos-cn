@@ -154,7 +154,7 @@ flowchart TB
 ### macOS / Linux
 
 ```bash
-git clone https://github.com/kenzhao0621-tech/netlify-demo.git quantos-cn
+git clone https://github.com/kenzhao0621-tech/quantos-cn.git
 cd quantos-cn
 
 make bootstrap
@@ -167,7 +167,7 @@ make app
 ### Windows 安装
 
 ```powershell
-git clone https://github.com/kenzhao0621-tech/netlify-demo.git quantos-cn
+git clone https://github.com/kenzhao0621-tech/quantos-cn.git
 cd quantos-cn
 
 powershell -ExecutionPolicy Bypass -File scripts\bootstrap.ps1
@@ -333,7 +333,7 @@ make test-gateway
 **QuantOS CN** is a local-first China A-share quant platform: multi-factor screener, live quotes, paper trading with T+1 rules, and broker-assist handoff (manual confirm only).
 
 ```bash
-git clone https://github.com/kenzhao0621-tech/netlify-demo.git quantos-cn
+git clone https://github.com/kenzhao0621-tech/quantos-cn.git
 cd quantos-cn
 make bootstrap && cp .env.example .env
 make app
