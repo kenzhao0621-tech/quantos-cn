@@ -29,7 +29,15 @@ if [[ -f "${PID_FILE}" ]]; then
 fi
 
 if lsof -i ":${PORT}" -sTCP:LISTEN -t >/dev/null 2>&1; then
-  echo "ERROR: port ${PORT} already in use"
+  if curl -sf "http://${HOST}:${PORT}/health" >/dev/null; then
+    LISTEN_PID="$(lsof -i ":${PORT}" -sTCP:LISTEN -t 2>/dev/null | head -1)"
+    if [[ -n "${LISTEN_PID}" ]]; then
+      echo "${LISTEN_PID}" > "${PID_FILE}"
+    fi
+    echo "Portal already running on port ${PORT} — http://${HOST}:${PORT}/portal"
+    exit 0
+  fi
+  echo "ERROR: port ${PORT} already in use (health check failed)"
   echo "FIX: make portal-stop  OR  lsof -i :${PORT}"
   exit 1
 fi

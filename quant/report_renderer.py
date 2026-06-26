@@ -10,9 +10,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
 
-ROOT = Path(__file__).resolve().parents[1]
+from quant.paths import PACKAGE_ROOT, desktop_reports_root
+
+ROOT = PACKAGE_ROOT
 DAILY_DIR = ROOT / "docs" / "ai" / "daily-trading" / "daily"
-DESKTOP_ROOT = Path("/Users/kenzhao/Desktop/China_A_Share_Daily_Reports")
+DESKTOP_ROOT = desktop_reports_root()
 WATERMARK = "PAPER_TRADING_ONLY — 仅供研究，非投资建议"
 
 

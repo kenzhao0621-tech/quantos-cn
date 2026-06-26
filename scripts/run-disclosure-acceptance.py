@@ -91,7 +91,9 @@ def main() -> int:
         from quant.report_renderer import qa_pdf
         rep = json.loads(json_files[-1].read_text(encoding="utf-8"))
         pdf_qa = qa_pdf(pdf_files[-1], rep)
-        desktop_path = Path("/Users/kenzhao/Desktop/China_A_Share_Daily_Reports")
+        from quant.paths import desktop_reports_root
+
+        desktop_path = desktop_reports_root()
         if desktop_path.exists():
             desktop = {"desktop_root": str(desktop_path), "files": [str(p) for p in desktop_path.rglob("*")][:20]}
 

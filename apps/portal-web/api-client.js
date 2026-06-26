@@ -5,16 +5,13 @@
 
   const DEV_KEYS = {
     admin: "demo-local-key-change-in-prod",
-    investor: "dev-investor-key",
-    researcher: "dev-researcher-key",
-    viewer: "svc-portal-read",
-    service_risk: "dev-service-risk-key",
-    service_research: "svc-quant-pipeline",
   };
+
+  const DEFAULT_ROLE = "admin";
 
   function friendlyApiError(res) {
     if (res.httpStatus === 403) {
-      return "权限不足：请选择「新手投资者」或 admin 角色登录";
+      return "权限不足：请重新进入平台";
     }
     if (res.httpStatus === 404) {
       return "接口不存在：请重启门户（终端执行 bash scripts/start-portal.sh）";
@@ -69,8 +66,9 @@
       return res.ok || res.httpStatus === 200;
     }
 
-    async login(role) {
-      const apiKey = DEV_KEYS[role];
+    async login(role = DEFAULT_ROLE) {
+      const effectiveRole = DEV_KEYS[role] ? role : DEFAULT_ROLE;
+      const apiKey = DEV_KEYS[effectiveRole];
       if (!apiKey) throw new Error(`未知角色: ${role}`);
       const up = await this.ping();
       if (!up) {
@@ -80,11 +78,11 @@
       }
       const res = await this.request("/api/v1/auth/login", {
         method: "POST",
-        body: JSON.stringify({ role }),
+        body: JSON.stringify({ role: effectiveRole }),
         skipAuth: true,
       });
       if (!res.ok) throw new Error(res.error?.message || "登录失败");
-      this.setSession(role, apiKey);
+      this.setSession(effectiveRole, apiKey);
       return res;
     }
 
@@ -93,7 +91,7 @@
       const trace_id = crypto.randomUUID();
       const timeoutMs = options.timeoutMs || (
         path.includes("/market/sync-all") ? 240000
-        : path.includes("/market/live-refresh") ? 180000
+        : path.includes("/market/live-refresh") ? 300000
         : path.includes("/autopilot/order-ticket") ? 45000
         : path.includes("/screener/run") ? 120000
         : 90000

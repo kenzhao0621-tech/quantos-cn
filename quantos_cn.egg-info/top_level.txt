@@ -1,4 +1,0 @@
-gateway
-integrations
-quant
-services

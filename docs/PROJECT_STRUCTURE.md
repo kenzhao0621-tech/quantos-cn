@@ -41,6 +41,7 @@ gateway/paper/                ← Paper 模拟（T+1、真实行情盯盘）
 
 | 路径 | 职责 |
 |------|------|
+| `quant/paths.py` | 跨平台路径（桌面日报目录等） |
 | `quant/application/live_market_service.py` | 全市场实时行情刷新与就绪检测 |
 | `quant/application/screener_service.py` | 智能选股主引擎 |
 | `gateway/agents/cn_research/` | TradingAgents-CN 研究智能体桥接 |
@@ -72,7 +73,8 @@ gateway/paper/                ← Paper 模拟（T+1、真实行情盯盘）
 | 文档 | 读者 |
 |------|------|
 | [README.md](../README.md) | 所有人 — 快速开始 |
-| [USER_GUIDE.md](USER_GUIDE.md) | 用户 — 页面与流程 |
+| [OPEN_SOURCE_MANIFEST.md](OPEN_SOURCE_MANIFEST.md) | 维护者 — 开源范围与隐私 |
+| [INSTALL.md](INSTALL.md) | 所有人 — macOS / Windows 安装 |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | 开发者 — 架构 |
 | [COMPARISON.md](COMPARISON.md) | 选型 — 与同类产品对比 |
 | [CONTRIBUTING.md](../CONTRIBUTING.md) | 贡献者 |

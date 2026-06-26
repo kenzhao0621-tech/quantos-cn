@@ -200,11 +200,27 @@ class AkshareSinaProvider:
                 is_live=True, is_end_of_day=False,
             )
         if self._last_fetch and (now - self._last_fetch) < self._min_interval:
-            return ProviderResult(
-                provider=self.name, dataset="spot_quotes", status=ProviderStatus.FAILED,
-                error="rate limit: minimum interval not elapsed",
-                retrieved_at=datetime.now().isoformat(timespec="seconds"),
-            )
+            if not kwargs.get("force_refresh"):
+                if self._cache:
+                    payload = self._cache
+                    raw = json.dumps(payload, sort_keys=True, default=str)
+                    return ProviderResult(
+                        provider=self.name, dataset="spot_quotes", status=ProviderStatus.SUCCESS,
+                        payload=payload, elapsed_ms=0.0,
+                        retrieved_at=datetime.now().isoformat(timespec="seconds"),
+                        data_hash=hashlib.sha256(raw.encode()).hexdigest()[:16],
+                        row_count=len(payload.get("rows", [])),
+                        freshness=payload.get("freshness", ""),
+                        endpoint="ak.stock_zh_a_spot", source_dataset="stock_zh_a_spot",
+                        market_date=payload.get("market_date") or "",
+                        is_live=True, is_end_of_day=False,
+                        limitations=("rate_limit: served in-process cache",),
+                    )
+                return ProviderResult(
+                    provider=self.name, dataset="spot_quotes", status=ProviderStatus.FAILED,
+                    error="rate limit: minimum interval not elapsed",
+                    retrieved_at=datetime.now().isoformat(timespec="seconds"),
+                )
         start = _time.perf_counter()
         try:
             import akshare as ak

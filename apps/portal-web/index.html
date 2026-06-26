@@ -27,27 +27,20 @@
     </div>
   </div>
 
-  <div id="login-overlay" class="login-overlay">
+  <div id="login-overlay" class="login-overlay hidden">
     <div class="login-card">
-      <h1>欢迎 · 入门量化</h1>
-      <p class="muted">面向 A 股新投资者 · 选股 · 模拟 · 券商辅助</p>
-      <label for="login-role">选择身份</label>
-      <select id="login-role">
-        <option value="investor" selected>新手投资者（推荐）</option>
-        <option value="admin">管理员</option>
-        <option value="researcher">研究者</option>
-        <option value="viewer">只读</option>
-      </select>
-      <button id="btn-login" type="button">登录</button>
+      <h1>QuantOS CN</h1>
+      <p class="muted">中国 A 股智能量化选股 · 本地运行 · 先模拟后实盘</p>
+      <button id="btn-login" type="button" class="primary">进入平台</button>
       <p id="login-error" class="error hidden"></p>
     </div>
   </div>
 
   <header class="top-bar" role="banner">
-    <div class="brand">QuantOS · A股入门量化</div>
+    <div class="brand">QuantOS · A股智能选股</div>
     <div id="gateway-offline-banner" class="gateway-offline-banner hidden" role="alert"></div>
     <div class="status-grid beginner-header" id="header-status" aria-live="polite">
-      <span class="pill" id="role-pill">身份: —</span>
+      <span class="pill hidden" id="role-pill" aria-hidden="true">管理员</span>
       <span class="pill" id="mode-pill">模式: —</span>
       <span class="pill" id="freshness-pill">数据: —</span>
       <span class="pill" id="live-quote-pill" title="全市场实时报价">实时: —</span>
@@ -57,8 +50,8 @@
   </header>
 
   <nav class="nav-tabs" aria-label="主导航">
-    <button class="tab active" data-page="guide" type="button">新手入门</button>
-    <button class="tab" data-page="screener" type="button">智能选股</button>
+    <button class="tab active" data-page="screener" type="button">智能选股</button>
+    <button class="tab" data-page="models" type="button">策略验证</button>
     <button class="tab" data-page="paper" type="button">模拟练习</button>
     <button class="tab" data-page="brokers" type="button">券商助手</button>
     <button class="tab" data-page="help" type="button">使用指南</button>
@@ -70,21 +63,6 @@
     <strong>最近操作</strong>
     <div id="action-log-body" class="action-log-body">—</div>
   </section>
-
-  <main class="layout" id="page-guide">
-    <section class="panel full beginner-panel">
-      <h2>四步开始（新投资者）</h2>
-      <div id="beginner-steps" class="beginner-steps"></div>
-      <div id="daily-learning" class="sub-panel"></div>
-      <div class="actions wrap beginner-actions">
-        <button data-action="market-update" type="button" class="primary">① 更新数据</button>
-        <button data-action="screener-run" type="button" class="primary">② 运行选股</button>
-        <button data-action="paper-start" type="button">③ 启动模拟</button>
-        <button data-action="broker-connect" type="button">④ 连接券商</button>
-      </div>
-      <p class="muted">真实买卖：选股后点「实盘辅助」→ 在券商 App 亲自确认。系统不自动下单。</p>
-    </section>
-  </main>
 
   <main class="layout hidden" id="page-help">
     <section class="panel full help-panel">
@@ -167,10 +145,10 @@
     </section>
   </main>
 
-  <main class="layout hidden" id="page-screener">
+  <main class="layout" id="page-screener">
     <section class="panel full">
       <h2>智能选股 · 今日机会</h2>
-      <p class="muted">推荐新手用<strong>收盘数据</strong>（约 1 秒出结果）。实时模式需先刷新行情。</p>
+      <p class="muted">收盘模式约 1 秒出结果；实时模式一键刷新行情并选股。<strong>运行后点击表格任意行</strong>查看该股的选股原因与评分明细。</p>
       <div class="dossier-card">
         <h3>用户资金与风险偏好</h3>
         <div class="screener-controls">
@@ -228,18 +206,14 @@
             <option value="300000000">3.0</option>
           </select>
         </label>
-        <button data-action="screener-run" type="button" class="primary">运行实时智能选股</button>
-        <button data-action="screener-proof" type="button">验证昨日选股</button>
-        <button data-action="screener-learn" type="button">策略自验证学习</button>
-        <button data-action="screener-report-pdf" type="button">导出选股 PDF</button>
-        <button data-action="screener-dossier-top" type="button">解释第一名</button>
+        <button data-action="market-update" type="button">更新数据</button>
+        <button data-action="screener-run" type="button" class="primary">运行智能选股</button>
         <button data-action="paper-from-screener" type="button">加入 Paper 模拟组合</button>
-        <button data-action="execute-allocation" type="button" class="primary">一键执行组合（实盘/无人值守）</button>
+        <button data-action="execute-allocation" type="button">一键执行组合（实盘/无人值守）</button>
       </div>
       <div id="screener-meta" class="metric-row"></div>
       <div id="screener-guide" class="sub-panel"></div>
-      <div id="screener-proof" class="sub-panel"></div>
-      <div id="screener-dossier" class="sub-panel muted small">实时模式：一键选股含行情刷新；后台盘中每 15 分钟自动刷新。弹窗分析后可导出 PDF。Esc / 遮罩 / ✕ 关闭</div>
+      <div id="screener-dossier" class="sub-panel muted small">点击表格中任意股票行，查看量化评分、因子说明与买卖区间。Esc / 遮罩 / ✕ 关闭弹窗。</div>
       <div id="screener-table" class="primary-view" data-primary-view="screener"></div>
       <div class="dossier-card">
         <h3>Safe Autopilot · 订单票据</h3>
@@ -269,7 +243,33 @@
 
   <main class="layout hidden" id="page-models">
     <section class="panel full">
-      <h2>模型实验室</h2>
+      <h2>策略验证 · 模型实验室</h2>
+      <p class="muted">用历史交易日检验选股策略是否有效，并由 TradingAgents 给出参数调整建议（科研向，非收益承诺）。</p>
+      <div class="dossier-card">
+        <h3>选股策略 T+1 自验证</h3>
+        <p class="muted">用<strong>上一交易日</strong>的选股结果对照<strong>下一交易日</strong>真实涨跌，评估命中率与超额收益。</p>
+        <div class="screener-controls">
+          <label>策略预设
+            <select id="strategy-preset">
+              <option value="balanced">均衡</option>
+              <option value="momentum">动量优先</option>
+              <option value="trend">趋势优先</option>
+              <option value="low_vol">低波动</option>
+            </select>
+          </label>
+          <label>验证 Top N
+            <select id="strategy-topn">
+              <option value="15">15</option>
+              <option value="25" selected>25</option>
+              <option value="50">50</option>
+            </select>
+          </label>
+          <button data-action="screener-proof" type="button">运行 T+1 验证</button>
+          <button data-action="screener-learn" type="button" class="primary">完整自验证 + 智能体学习</button>
+          <button data-action="strategy-learn-latest" type="button">加载最近学习报告</button>
+        </div>
+        <div id="model-strategy-learning" class="sub-panel"></div>
+      </div>
       <div id="model-registry" class="primary-view" data-primary-view="models"></div>
       <div class="dossier-card">
         <h3>生产前模型验收</h3>

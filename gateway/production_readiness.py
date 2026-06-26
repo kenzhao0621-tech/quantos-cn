@@ -7,10 +7,10 @@ observability, cost/risk budgets, and high-risk action confirmation.
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any
 
 from gateway.config import ROOT
+from quant.paths import desktop_reports_root
 
 
 def gateway_readiness_report() -> dict[str, Any]:
@@ -22,7 +22,11 @@ def gateway_readiness_report() -> dict[str, Any]:
         _check("order_ticket", bool(list((ROOT / "data/gateway/order_tickets").glob("*.json"))) if (ROOT / "data/gateway/order_tickets").exists() else False, "Safe Autopilot 订单票据"),
         _check("model_validation", (ROOT / "quant/application/model_validation_service.py").exists(), "样本外/滚动/成本/滑点/行业中性验收"),
         _check("live_data", (ROOT / "quant/application/live_market_service.py").exists(), "实时/近实时行情服务"),
-        _check("desktop_report_delivery", Path("/Users/kenzhao/Desktop/China_A_Share_Daily_Reports").exists(), "日报桌面导出目录"),
+        _check(
+            "desktop_report_delivery",
+            desktop_reports_root().exists(),
+            "日报桌面导出目录",
+        ),
         _check("secret_storage", False, "生产级密钥加密/KMS 尚未接入"),
         _check("sso", False, "企业 SSO 尚未接入；当前为本地开发登录"),
         _check("cost_dashboard", False, "AI/券商调用成本 Dashboard 尚未完整实现"),

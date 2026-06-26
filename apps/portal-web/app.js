@@ -122,7 +122,7 @@
     "screener-proof": (btn) => runScreenerProof(btn),
     "screener-learn": (btn) => runScreenerLearn(btn),
     "screener-report-pdf": (btn) => exportScreenerReportPdf(btn),
-    "screener-dossier-top": (btn) => runTopDossier(btn),
+    "strategy-learn-latest": (btn) => loadLatestStrategyLearning(btn),
     "screener-stock-search": (btn) => runStockSearch(btn),
     "paper-from-screener": (btn) => paperFromScreener(btn),
     "execute-allocation": (btn) => executeAllocation(btn),
@@ -205,6 +205,11 @@
       showStockDetail(detailBtn.dataset.screenerDetail);
       return;
     }
+    const screenerRow = ev.target?.closest?.("tr[data-screener-row]");
+    if (screenerRow && !ev.target?.closest?.("button")) {
+      showStockDetail(screenerRow.dataset.screenerRow);
+      return;
+    }
     const setupBtn = ev.target?.closest?.("[data-setup-action]");
     if (setupBtn) {
       await handleSetupAction(setupBtn.dataset.setupAction);
@@ -233,7 +238,7 @@
       const hint = $("screener-dossier");
       if (hint) {
         hint.innerHTML = "";
-        hint.appendChild(document.createTextNode("点击表格「分析报告」打开个股弹窗；支持 Esc / 点击遮罩 / ✕ 关闭"));
+        hint.appendChild(document.createTextNode("点击表格任意行打开个股详情；支持 Esc / 点击遮罩 / ✕ 关闭"));
       }
     }
   });
@@ -246,7 +251,7 @@
     const hint = $("screener-dossier");
     if (hint) {
       hint.innerHTML = "";
-      hint.appendChild(document.createTextNode("点击表格「分析报告」打开个股弹窗；支持 Esc / 点击遮罩 / ✕ 关闭"));
+      hint.appendChild(document.createTextNode("点击表格任意行打开个股详情；支持 Esc / 点击遮罩 / ✕ 关闭"));
     }
   });
 
@@ -263,6 +268,16 @@
         refreshPaper();
       } else if (tab.dataset.page === "screener") {
         stopPaperMonitorLoop();
+      } else if (tab.dataset.page === "models") {
+        stopPaperMonitorLoop();
+        const panel = $("model-strategy-learning");
+        if (panel && !panel.children.length) {
+          api.request("/api/v1/screener/learn/latest").then((res) => {
+            if (res.ok && res.data?.status !== "NOT_RUN") {
+              UI.renderStrategyLearning(panel, res.data);
+            }
+          }).catch(() => {});
+        }
       } else {
         stopPaperMonitorLoop();
       }
@@ -271,7 +286,6 @@
 
   function applyHeader(vm) {
     if (!vm) return;
-    setPill("role-pill", `身份: ${api.role === "investor" ? "新手投资者" : api.role}`);
     setPill("mode-pill", `模式: ${vm.modeLabel}`);
     if ($("session-pill")) setPill("session-pill", `时段: ${vm.sessionLabel}`);
     setPill("freshness-pill", `数据: ${vm.dataStatusLabel}`);
@@ -281,12 +295,6 @@
     if ($("native-pill")) setPill("native-pill", `${vm.vnpyShort} · ${vm.qlibShort}`);
     if ($("vnpy-mode-tag")) $("vnpy-mode-tag").textContent = vm.vnpyShort;
     if ($("qlib-mode-tag")) $("qlib-mode-tag").textContent = vm.qlibShort;
-  }
-
-  async function refreshBeginnerGuide() {
-    const res = await api.request("/api/v1/onboarding/beginner");
-    if (res.ok) UI.renderBeginnerGuide($("beginner-steps"), $("daily-learning"), res.data);
-    return res;
   }
 
   function refreshHelpPage(section) {
@@ -469,7 +477,7 @@
     liveRefreshPromise = (async () => {
       try {
         if (!silent) UI.toast("刷新实时行情", "正在获取全市场真实报价…", "ok");
-        const res = await api.request("/api/v1/market/live-refresh", { method: "POST", timeoutMs: 180000 });
+        const res = await api.request("/api/v1/market/live-refresh", { method: "POST", timeoutMs: 300000 });
         const d = res.data || res.meta?.live_status || {};
         const rowCount = d.row_count || 0;
         const quotesReady = d.quotes_ready !== false && rowCount >= 100 && !d.blocked;
@@ -669,14 +677,41 @@
     return String(value || "").replaceAll("，", ",").split(",").map((x) => x.trim()).filter(Boolean);
   }
 
+  function strategyParams() {
+    return {
+      preset: $("strategy-preset")?.value || $("screener-preset")?.value || "balanced",
+      topN: $("strategy-topn")?.value || $("screener-topn")?.value || "25",
+    };
+  }
+
+  function goStrategyTab() {
+    document.querySelector('.tab[data-page="models"]')?.click();
+  }
+
+  async function loadLatestStrategyLearning(btn) {
+    if (btn) UI.setLoading(btn, true, "加载中…");
+    try {
+      const res = await api.request("/api/v1/screener/learn/latest");
+      if (res.ok && res.data?.status !== "NOT_RUN") {
+        UI.renderStrategyLearning($("model-strategy-learning"), res.data);
+        if (btn) goStrategyTab();
+      } else if (btn) {
+        UI.toast("暂无报告", "请先运行「完整自验证 + 智能体学习」", "warn");
+      }
+      return res;
+    } finally {
+      if (btn) UI.setLoading(btn, false);
+    }
+  }
+
   async function runScreenerLearn(btn) {
     UI.setLoading(btn, true, "自验证学习中…");
     try {
-      const preset = $("screener-preset")?.value || "balanced";
-      const topN = $("screener-topn")?.value || "25";
+      const { preset, topN } = strategyParams();
       const res = await api.request(`/api/v1/screener/learn?preset=${preset}&top_n=${topN}`, { method: "POST", timeoutMs: 120000 });
       if (res.ok) {
-        UI.renderProof($("screener-proof"), { data: res.data?.proof || res.data, learning: res.data });
+        UI.renderStrategyLearning($("model-strategy-learning"), res.data);
+        goStrategyTab();
         const agent = res.data?.agent_overlay || {};
         const rec = res.data?.recommended_preset;
         UI.toast(
@@ -726,34 +761,18 @@
   async function runScreenerProof(btn) {
     UI.setLoading(btn, true, "验证中…");
     try {
-      const preset = $("screener-preset")?.value || "balanced";
-      const topN = $("screener-topn")?.value || "25";
+      const { preset, topN } = strategyParams();
       const res = await api.request(`/api/v1/screener/proof?preset=${preset}&top_n=${topN}`);
-      UI.renderProof($("screener-proof"), res);
+      UI.renderStrategyLearning($("model-strategy-learning"), res.data || res);
+      goStrategyTab();
       const d = res.data || {};
       UI.toast(
-        d.verdict === "PASS" ? "昨日选股验证通过" : "昨日选股需要复盘",
+        d.verdict === "PASS" ? "T+1 验证通过" : "T+1 验证需复盘",
         d.blocked ? (d.blocker_reason || "无法验证") : `平均收益 ${d.avg_return}% / 市场中位数 ${d.benchmark_median}%`,
-        d.verdict === "PASS" ? "ok" : "fail",
+        d.verdict === "PASS" ? "ok" : "warn",
       );
+      logAction("T+1 选股验证", res);
       return res;
-    } finally {
-      UI.setLoading(btn, false);
-    }
-  }
-
-  async function runTopDossier(btn) {
-    UI.setLoading(btn, true, "解释中…");
-    try {
-      if (!lastScreenerVm?.rows?.length) {
-        await runScreener(document.querySelector('[data-action="screener-run"]'));
-      }
-      const top = lastScreenerVm?.rows?.[0];
-      if (!top?.symbol) {
-        UI.toast("暂无候选", "请先运行选股", "fail");
-        return { ok: false };
-      }
-      return runDossier(top.symbol, btn);
     } finally {
       UI.setLoading(btn, false);
     }
@@ -765,11 +784,11 @@
     if (ev.target?.value === "live") {
       if (runBtn) runBtn.textContent = "运行实时智能选股";
       if (hint) {
-        hint.textContent = "实时模式：点击「运行实时智能选股」将自动刷新行情并选股，无需先去其他页面。后台在盘中每 15 分钟自动刷新行情。";
+        hint.textContent = "实时模式一键刷新并选股。点击表格任意行查看选股原因与评分。";
       }
     } else {
       if (runBtn) runBtn.textContent = "运行收盘选股（快速）";
-      if (hint) hint.textContent = "收盘模式使用昨收价，速度更快。弹窗分析后可导出 PDF。Esc / 遮罩 / ✕ 关闭";
+      if (hint) hint.textContent = "收盘模式使用昨收价。点击表格任意行查看选股原因与评分明细。";
     }
   });
 
@@ -1796,12 +1815,10 @@
     if (!localStorage.getItem("quantos_legal_ack")) {
       $("legal-overlay")?.classList.remove("hidden");
     }
-    setPill("role-pill", `身份: ${api.role === "investor" ? "新手投资者" : api.role}`);
     try {
       await loadBrokerEcosystem();
       await refreshFooterVersion();
       await refresh();
-      await safeSection("beginner", refreshBeginnerGuide);
       refreshHelpPage();
       await checkBuildSync();
       await safeSection("overview-live", refreshOverviewLive);
@@ -1817,17 +1834,22 @@
     }
   }
 
-  $("btn-login")?.addEventListener("click", async () => {
-    const role = $("login-role").value;
+  async function enterPlatform() {
     try {
-      await api.login(role);
+      await api.login("admin");
       await showApp();
-      $("login-error").classList.add("hidden");
+      $("login-error")?.classList.add("hidden");
     } catch (e) {
-      $("login-error").textContent = e.message;
-      $("login-error").classList.remove("hidden");
+      $("login-overlay")?.classList.remove("hidden");
+      const err = $("login-error");
+      if (err) {
+        err.textContent = e.message;
+        err.classList.remove("hidden");
+      }
     }
-  });
+  }
+
+  $("btn-login")?.addEventListener("click", () => enterPlatform());
 
   $("btn-legal-accept")?.addEventListener("click", () => {
     localStorage.setItem("quantos_legal_ack", "1");
@@ -1839,7 +1861,7 @@
     location.reload();
   });
 
-  if (api.apiKey) showApp();
+  enterPlatform();
 
   window.QuantOSPortal = { refresh, logAction, ACTIONS };
 })();

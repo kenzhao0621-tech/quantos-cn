@@ -1,7 +1,0 @@
-Metadata-Version: 2.4
-Name: quantos-cn
-Version: 4.0.0
-Summary: QuantOS CN — China A-share quant gateway (paper/shadow only)
-Requires-Python: >=3.9
-License-File: LICENSE
-Dynamic: license-file

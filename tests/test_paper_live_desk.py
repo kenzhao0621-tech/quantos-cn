@@ -43,7 +43,7 @@ def test_ensure_live_quotes_persists_rows(tmp_path, monkeypatch):
         "retrieved_at": "2026-06-18T10:00:00+00:00",
         "provider": "test",
     }
-    monkeypatch.setattr(lms, "fetch_live_snapshot", lambda require_live=False: snap)
+    monkeypatch.setattr(lms, "fetch_live_snapshot", lambda require_live=False, force_refresh=False: snap)
     live_path = tmp_path / "live_snapshot.json"
     monkeypatch.setattr(lms, "LIVE_STATE_PATH", live_path)
     out = lms.ensure_live_quotes(refresh=True)

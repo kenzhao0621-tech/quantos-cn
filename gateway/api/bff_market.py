@@ -254,7 +254,9 @@ def screener_run(
     if mode.lower() in ("live", "realtime", "intraday"):
         from quant.application.live_market_service import ensure_live_quotes, live_quotes_ready, snapshot_rows
 
-        live_snap = ensure_live_quotes(refresh=True, max_age_sec=90)
+        live_snap = ensure_live_quotes(refresh=False, max_age_sec=120)
+        if not live_quotes_ready(live_snap):
+            live_snap = ensure_live_quotes(refresh=True, max_age_sec=120)
         if not live_quotes_ready(live_snap):
             return envelope_err(
                 "LIVE_QUOTES_UNAVAILABLE",

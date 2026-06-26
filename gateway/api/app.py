@@ -1,8 +1,6 @@
 """Gateway FastAPI application."""
 
-import uuid
-from pathlib import Path
-from typing import Any, Dict, Optional
+from quant.paths import desktop_reports_root
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -248,7 +246,7 @@ def research_daily_run(principal: Optional[Principal] = Depends(get_principal)) 
             "status": "RUNNING",
             "mode": _state.mode.value,
             "message": "????????????????? China_A_Share_Daily_Reports ???",
-            "desktop_root": str(Path("/Users/kenzhao/Desktop/China_A_Share_Daily_Reports")),
+            "desktop_root": str(desktop_reports_root()),
         },
         run_id=run_id,
     )

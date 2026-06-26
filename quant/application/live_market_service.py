@@ -94,10 +94,10 @@ def normalize_snapshot_for_persist(snap: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
-def fetch_live_snapshot(*, require_live: bool) -> dict[str, Any]:
+def fetch_live_snapshot(*, require_live: bool, force_refresh: bool = False) -> dict[str, Any]:
     global _SNAPSHOT_CACHE
     now = _time.time()
-    if _SNAPSHOT_CACHE and now - _SNAPSHOT_CACHE[0] < 20:
+    if not force_refresh and _SNAPSHOT_CACHE and now - _SNAPSHOT_CACHE[0] < 20:
         snap = dict(_SNAPSHOT_CACHE[1])
         snap["cache_hit"] = True
         return snap
@@ -108,7 +108,9 @@ def fetch_live_snapshot(*, require_live: bool) -> dict[str, Any]:
         "spot_quotes",
         live_only=True,
         require_live=require_live,
-        min_rows=1000,
+        min_rows=100,
+        force_refresh=force_refresh,
+        provider_filter="akshare_sina",
     )
     attempts = [a.to_dict() for a in fetched.attempts]
     if not fetched.ok or not fetched.result:
@@ -204,11 +206,18 @@ def ensure_live_quotes(*, refresh: bool = False, max_age_sec: int = 120) -> dict
                 cached["row_count"] = len(rows)
                 return cached
 
-    snap = fetch_live_snapshot(require_live=True)
-    if not snap.get("success") or len(snapshot_rows(snap)) < 100:
-        snap = fetch_live_snapshot(require_live=False)
+    from quant.freshness_contract import market_session_status
 
+    _, is_open = market_session_status()
+    # Outside session, strict live freshness always fails — skip doomed require_live pass.
+    require_live = bool(is_open)
+
+    snap = fetch_live_snapshot(require_live=require_live, force_refresh=refresh)
     rows = snapshot_rows(snap)
+    if (not snap.get("success") or len(rows) < 100) and require_live:
+        snap = fetch_live_snapshot(require_live=False, force_refresh=refresh)
+        rows = snapshot_rows(snap)
+
     if rows:
         snap = normalize_snapshot_for_persist(snap)
         persist_live_snapshot(snap)

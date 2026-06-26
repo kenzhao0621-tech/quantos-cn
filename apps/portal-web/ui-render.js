@@ -236,11 +236,11 @@
     table.innerHTML =
       "<thead><tr><th>#</th><th>代码</th><th>名称</th><th>板块</th><th>价格</th><th>收益区间%</th><th>下行%</th><th>可买</th><th>" +
       capLabel +
-      "</th><th>综合分</th><th>资格</th><th>分析</th><th>走势</th></tr></thead>";
+      "</th><th>综合分</th><th>资格</th><th>走势</th></tr></thead>";
     const tb = el("tbody");
     vm.rows.forEach((r) => {
       const sym = r.symbol;
-      const tr = el("tr", "");
+      const tr = el("tr", "screener-row-clickable");
       const barW = Math.max(6, Math.round(((r.final_score ?? r.score) / maxScore) * 60));
       const up = (r.ret_20 || 0) >= 0;
       const elig = r.eligibility || "—";
@@ -261,14 +261,14 @@
         `<td class="num">${afford}</td>` +
         `<td><span class="score-bar" style="width:${barW}px"></span> ${(r.final_score ?? r.score).toFixed(2)}</td>` +
         `<td class="${eligCls}">${elig}${r.valid_for_purchase && r.suggested_qty ? ` <button type="button" class="mini-btn" data-live-order="${sym}" data-live-name="${r.name || ""}" data-live-qty="${r.suggested_qty}" data-live-price="${r.live_price ?? r.last_close}">实盘</button>` : ""}</td>` +
-        `<td><button type="button" class="mini-btn screener-expand-btn" data-screener-detail="${sym}">分析报告</button></td>` +
         `<td>${sparklineSvg(r.spark, up)}</td>`;
+      tr.title = "点击查看选股原因与评分明细";
       tr.dataset.screenerRow = sym;
       tb.appendChild(tr);
     });
     table.appendChild(tb);
     container.appendChild(table);
-    renderScreenerInsights(container, vm);
+    container.appendChild(el("p", "muted small screener-row-hint", "提示：点击任意股票行打开详情弹窗，查看因子说明、评分与买卖区间。"));
   }
 
   function _mergeStockDetailPayload(payload) {
@@ -706,27 +706,57 @@
     );
   }
 
-  function renderProof(container, proof) {
+  function renderStrategyLearning(container, payload) {
     if (!container) return;
     container.innerHTML = "";
-    const d = proof?.data || proof || {};
+    const learning = payload?.learning || payload;
+    const d = payload?.proof || payload?.data || learning?.proof || learning || {};
     if (!d || d.blocked) {
-      container.appendChild(renderEmpty("暂无验证", d.blocker_reason || "需要至少两个交易日数据", "先更新数据，再点击「验证昨日选股」"));
+      container.appendChild(renderEmpty("暂无验证", d.blocker_reason || "需要至少两个交易日数据", "先在「高级·数据」更新行情，再运行验证"));
       return;
     }
     const banner = el("div", d.verdict === "PASS" ? "banner banner-ok" : "banner banner-warn");
     banner.innerHTML =
-      `T+1 验证：${d.signal_date} 选股 → ${d.proof_date} 收盘。` +
-      `平均收益 <b>${d.avg_return}%</b>，市场中位数 <b>${d.benchmark_median}%</b>，` +
-      `正收益率 <b>${d.hit_rate}%</b>，跑赢率 <b>${d.win_rate_vs_median}%</b>。` +
-      `结论：<b>${d.verdict}</b>`;
+      `<strong>T+1 验证</strong> ${d.signal_date || "—"} 选股 → ${d.proof_date || "—"} 收盘 · ` +
+      `平均收益 <b>${d.avg_return ?? "—"}%</b> · 市场中位数 <b>${d.benchmark_median ?? "—"}%</b> · ` +
+      `命中率 <b>${d.hit_rate ?? "—"}%</b> · 跑赢率 <b>${d.win_rate_vs_median ?? "—"}%</b> · ` +
+      `结论 <b>${d.verdict || "—"}</b>`;
     container.appendChild(banner);
+
+    const agent = learning?.agent_overlay;
+    if (agent) {
+      const card = el("div", "dossier-card strategy-agent-card");
+      card.appendChild(el("h4", "", `TradingAgents 评审 · ${agent.risk_verdict || "—"}`));
+      if (agent.reasoning_notes?.length) {
+        const ul = el("ul", "checklist");
+        agent.reasoning_notes.forEach((n) => ul.appendChild(el("li", "", n)));
+        card.appendChild(ul);
+      }
+      if (agent.suggested_adjustments?.length) {
+        const adjRows = agent.suggested_adjustments.map((a) => [
+          a.param || "—",
+          a.action || "—",
+          a.target || a.delta_pct || "—",
+          a.reason || "—",
+        ]);
+        renderTable(card.appendChild(el("div", "")), ["参数", "动作", "建议值", "原因"], adjRows, "无调整建议");
+      }
+      if (learning.recommended_preset) {
+        card.appendChild(el("p", "muted", `推荐策略预设：<strong>${learning.recommended_preset}</strong>`));
+      }
+      container.appendChild(card);
+    }
+
     if (d.what_to_adjust?.length) {
+      const sec = el("div", "strategy-adjust-block");
+      sec.appendChild(el("h4", "", "系统复盘建议"));
       const notes = el("ul", "checklist");
       d.what_to_adjust.forEach((n) => notes.appendChild(el("li", "", n)));
-      container.appendChild(notes);
+      sec.appendChild(notes);
+      container.appendChild(sec);
     }
-    const rows = (d.proofs || []).slice(0, 10).map((p) => [
+
+    const rows = (d.proofs || []).slice(0, 15).map((p) => [
       p.rank,
       p.symbol,
       p.next_day_return >= 0 ? `+${p.next_day_return}%` : `${p.next_day_return}%`,
@@ -734,7 +764,16 @@
       p.passed ? "达标" : "复盘",
       p.diagnosis,
     ]);
-    renderTable(container.appendChild(el("div", "")), ["#", "代码", "T+1收益", "跑赢中位数", "结果", "归因"], rows, "暂无验证明细");
+    renderTable(
+      container.appendChild(el("div", "")),
+      ["#", "代码", "T+1收益", "跑赢中位数", "结果", "归因"],
+      rows,
+      "暂无逐股验证明细",
+    );
+  }
+
+  function renderProof(container, proof) {
+    renderStrategyLearning(container, proof?.learning ? proof : { data: proof?.data || proof });
   }
 
   function renderStockAnalysis(container, data) {
@@ -1069,9 +1108,11 @@
         title: "三步上手（新投资者）",
         html: `
           <ol class="help-steps">
-            <li><strong>更新数据</strong> — 新手入门 → ① 更新数据</li>
-            <li><strong>智能选股</strong> — 设 5000 元 → 运行选股 → 先看模拟结果</li>
-            <li><strong>券商辅助</strong> — 连接券商 → 选股页点「实盘」→ 在券商 App 亲自确认</li>
+            <li><strong>更新数据</strong> — 智能选股页 →「更新数据」</li>
+            <li><strong>运行选股</strong> —「运行智能选股」，点击表格行查看原因与评分</li>
+            <li><strong>模拟练习</strong> — 启动 Paper，用真实行情验证策略</li>
+            <li><strong>策略验证</strong> —「策略验证」页运行 T+1 自验证与学习</li>
+            <li><strong>券商辅助</strong> — 连接券商 → 在官方 App 亲自确认下单</li>
           </ol>
           <p class="help-callout">核心原则：系统只<strong>预填</strong>，不自动扣款。</p>`,
       },
@@ -1192,6 +1233,7 @@
     renderModelValidation,
     renderGatewayReadiness,
     renderProof,
+    renderStrategyLearning,
     renderDossier,
     renderStockAnalysis,
     renderStockDetailModal,

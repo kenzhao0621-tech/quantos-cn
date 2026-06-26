@@ -1,5 +1,27 @@
 # Changelog — QuantOS CN
 
+## [4.2.0] — 2026-06-26
+
+### 开源发布与文档
+- 完整图文并茂 README、跨平台 [docs/INSTALL.md](docs/INSTALL.md)
+- [docs/OPEN_SOURCE_MANIFEST.md](docs/OPEN_SOURCE_MANIFEST.md) 开源范围清单
+- `scripts/validate-open-source.sh` 推送前隐私扫描
+- Windows：`bootstrap.ps1`、`start-app.ps1`、`start-portal.ps1`
+
+### 隐私与路径脱敏
+- `quant/paths.py` 跨平台桌面日报目录（`QUANTOS_DESKTOP_REPORTS`）
+- 移除源码中硬编码 `/Users/...` 路径
+- `.gitignore` 排除运行时账本、审计、memory SQLite
+
+### 实时行情修复
+- 休市单次拉取，避免双倍 AKShare 超时
+- 门户 live-refresh 超时延长至 300s
+- `start-portal.sh` 健康实例复用
+
+### 门户 UX
+- 默认管理员；移除角色选择
+- 新增「策略验证」页；选股行点击查看详情
+
 ## [4.1.0] — 2026-06-26
 
 ### 仓库与品牌

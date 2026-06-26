@@ -45,7 +45,9 @@ def main() -> int:
         from quant.report_renderer import qa_pdf
         pdf_qa = qa_pdf(pdf_files[-1], json.loads(json_files[-1].read_text()))
 
-    desktop = Path("/Users/kenzhao/Desktop/China_A_Share_Daily_Reports")
+    from quant.paths import desktop_reports_root
+
+    desktop = desktop_reports_root()
     desktop_files = [str(p) for p in desktop.rglob("*") if p.is_file()][:30] if desktop.exists() else []
 
     _write("01_DISCLOSURE_PROVIDER_REPORT", {"generated_at": ts, "providers": ["cninfo_official", "sse_official", "szse_official", "bse_official"], **disc_cov})

@@ -56,13 +56,13 @@ class Principal:
         return permission in PERMISSIONS.get(self.role, set())
 
 
-# Dev portal keys (must match apps/portal-web/api-client.js when config omits service_accounts)
+# Dev portal keys — local dev treats all keys as admin (open full access for demos/验收)
 _DEV_API_KEYS: dict[str, Role] = {
-    "dev-investor-key": Role.INVESTOR,
-    "dev-researcher-key": Role.RESEARCHER,
-    "dev-service-risk-key": Role.SERVICE_RISK,
-    "svc-quant-pipeline": Role.SERVICE_RESEARCH,
-    "svc-portal-read": Role.VIEWER,
+    "dev-investor-key": Role.ADMIN,
+    "dev-researcher-key": Role.ADMIN,
+    "dev-service-risk-key": Role.ADMIN,
+    "svc-quant-pipeline": Role.ADMIN,
+    "svc-portal-read": Role.ADMIN,
 }
 
 
