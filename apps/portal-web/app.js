@@ -626,11 +626,20 @@
       UI.renderSelectionGuide($("screener-guide"), vm);
       const meta = $("screener-meta");
       if (meta) {
+        const df = vm.dataFreshness || {};
+        const eodChip = df.expected_latest_completed
+          ? `<span class="metric-chip">期望收盘 <b>${df.expected_latest_completed}</b></span>`
+          : "";
+        const staleChip = df.is_current === false
+          ? `<span class="metric-chip warn">仓库 ${df.warehouse_max_trade_date || "—"} · ${df.user_hint || vm.dataStatusNote || "数据可能滞后"}</span>`
+          : (df.sync_attempted && df.sync_ok
+            ? `<span class="metric-chip">已同步至 <b>${df.warehouse_max_trade_date || vm.dataCutoff}</b></span>`
+            : "");
         const liveNote = vm.mode === "live"
           ? (vm.liveStatus?.used
-            ? `行情匹配 ${vm.liveStatus.matched_in_universe ?? vm.rows.filter((r) => r.live_price != null).length}/${vm.universeSize} · ${vm.liveStatus.provider || vm.liveProvider || ""} · ${vm.liveRetrievedAt || lastLiveRefresh || "—"}`
-            : vm.liveStatus?.hint || "（行情未挂价 — 请重试一键选股）")
-          : (lastLiveRefresh ? `最近行情刷新 ${lastLiveRefresh}（收盘模式用昨收价）` : "");
+            ? `实时 · 匹配 ${vm.liveStatus.matched_in_universe ?? vm.rows.filter((r) => r.live_price != null).length}/${vm.universeSize} · ${vm.liveStatus.provider || vm.liveProvider || ""}`
+            : `实时降级为收盘因子 · 截止 ${vm.dataCutoff}${vm.liveStatus?.hint ? " · " + vm.liveStatus.hint : ""}`)
+          : `收盘因子 · 数据截止 ${vm.dataCutoff}`;
         const pf = vm.priceFilters || {};
         const priceChip =
           pf.effective_price_max_cny || pf.price_min_cny
@@ -646,7 +655,9 @@
             priceChip +
             `<span class="metric-chip">候选池 <b>${vm.universeSize}</b> 只</span>` +
             `<span class="metric-chip">入选 <b>${vm.rows.length}</b> 只</span>` +
-            (liveNote ? `<span class="metric-chip warn">${liveNote}</span>` : "") +
+            eodChip +
+            staleChip +
+            `<span class="metric-chip">${liveNote}</span>` +
             (vm.agentOverlay?.framework ? `<span class="metric-chip">智能体 <b>${vm.agentOverlay.framework}</b> · ${vm.agentOverlay.risk_verdict || "—"}</span>` : "");
       }
       logAction("智能选股", res);

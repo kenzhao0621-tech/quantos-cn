@@ -300,6 +300,9 @@ def screener_run(
         fast=use_fast,
     )
     payload = result.to_dict()
+    payload["data_freshness"] = result.data_freshness or payload.get("data_freshness") or {}
+    if payload["data_freshness"].get("user_hint") and not payload.get("blocker_reason"):
+        payload.setdefault("data_status_note", payload["data_freshness"]["user_hint"])
     # Learning loop: record run outcomes for forward-return tracking
     # (refactor audit MODEL_AUDIT §3: record_screener_run was never wired).
     try:

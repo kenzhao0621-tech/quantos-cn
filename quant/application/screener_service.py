@@ -96,6 +96,7 @@ class ScreenResult:
     candidates: list[Candidate]
     mode: str = "eod"
     live_status: dict[str, Any] = field(default_factory=dict)
+    data_freshness: dict[str, Any] = field(default_factory=dict)
     blocked: bool = False
     blocker_reason: str = ""
     diversity_notes: list[str] = field(default_factory=list)
@@ -174,6 +175,7 @@ class ScreenResult:
             "portfolio_allocation": allocation,
             "portfolio_allocation_5000": allocation.get("positions") or allocation,
             "live_status": self.live_status,
+            "data_freshness": self.data_freshness,
             "blocked": self.blocked,
             "blocker_reason": self.blocker_reason,
             "validation_status": validation_status.get("verdict", "NOT_RUN"),
@@ -229,11 +231,18 @@ class ScreenerService:
         from quant.screener.selection_guide import build_selection_guide, price_passes, resolve_price_filters
         import time
 
+        from quant.application.warehouse_eod_service import ensure_warehouse_eod_fresh
+
+        data_freshness = ensure_warehouse_eod_fresh(auto_sync=True)
+        if data_freshness.get("sync_attempted"):
+            self._db = None  # warehouse view may have changed
+
         global _SCREEN_CACHE
+        wh_tag = data_freshness.get("warehouse_max_trade_date") or "none"
         cache_key = (
             f"{preset}|{top_n}|{min_amount_cny}|{mode}|{as_of_date or ''}|"
             f"{','.join(preferred_sectors or [])}|{','.join(excluded_sectors or [])}|"
-            f"{price_min_cny}|{price_max_cny}|{capital_cny}|{enforce_capital_price_ceiling}|{fast}"
+            f"{price_min_cny}|{price_max_cny}|{capital_cny}|{enforce_capital_price_ceiling}|{fast}|{wh_tag}"
         )
         now = time.time()
         if fast and _SCREEN_CACHE and now - _SCREEN_CACHE[0] < 90 and _SCREEN_CACHE[1] == cache_key:
@@ -261,12 +270,14 @@ class ScreenerService:
         weights = PRESETS.get(preset, PRESETS["balanced"])
         if not self.warehouse.exists():
             return ScreenResult(None, preset, 0, [], blocked=True,
-                                blocker_reason="数据仓库不存在 — 请先运行「更新数据」")
+                                blocker_reason="数据仓库不存在 — 请先运行「更新数据」",
+                                data_freshness=data_freshness)
         try:
             import duckdb
             import statistics
         except Exception as exc:  # pragma: no cover
-            return ScreenResult(None, preset, 0, [], blocked=True, blocker_reason=str(exc)[:120])
+            return ScreenResult(None, preset, 0, [], blocked=True, blocker_reason=str(exc)[:120],
+                                data_freshness=data_freshness)
 
         preferred = _expand_sector_terms(preferred_sectors or [])
         excluded = _expand_sector_terms(excluded_sectors or [])
@@ -392,6 +403,7 @@ class ScreenerService:
                 as_of_str, preset, 0, [], blocked=True,
                 blocker_reason="无满足流动性/股价区间的标的",
                 mode=mode, price_filters=price_filters, selection_guide=guide, capital_cny=cap,
+                data_freshness=data_freshness,
             )
 
         z = _build_scoring_zmaps(raw)
@@ -492,11 +504,20 @@ class ScreenerService:
             validation_status=_cached_validation_status().get("verdict", "NOT_RUN"),
             as_of_date=as_of_str,
         )
+        if is_live and not live_status.get("used"):
+            live_status["data_tier"] = "EOD_WAREHOUSE"
+            live_status["warehouse_as_of"] = as_of_str
+            if data_freshness.get("user_hint"):
+                live_status["hint"] = data_freshness["user_hint"]
+        elif not is_live:
+            live_status["data_tier"] = "EOD_WAREHOUSE"
+            live_status["warehouse_as_of"] = as_of_str
+
         result = ScreenResult(
             as_of_str, preset, universe, candidates, mode=mode, live_status=live_status,
             diversity_notes=diversity_notes, price_filters=price_filters,
             selection_guide=guide, capital_cny=cap, ensemble_meta=ensemble_meta,
-            agent_overlay=agent_overlay,
+            agent_overlay=agent_overlay, data_freshness=data_freshness,
         )
         if fast:
             _SCREEN_CACHE = (now, cache_key, result)

@@ -1,5 +1,19 @@
 # Changelog — QuantOS CN
 
+## [2.3.1] — 2026-07-02
+
+### 收盘数据新鲜度 + 选股体验
+
+- **warehouse_eod_service**：选股前检测 DuckDB 是否落后最新交易日，自动 `update-daily-bars` + 仓库 sync
+- 选股响应增加 `data_freshness`（仓库截止日、期望收盘日、同步状态）
+- 门户 meta chip 展示「数据截止 / 期望收盘 / 实时降级」说明
+- 实时模式行情不可用时明确标注「降级为收盘因子」，不再静默展示过时数据
+- README 重写：竞品对比（东方财富 / WorkBuddy 类）、Mermaid 逻辑树、优势说明
+
+### 选股修复（2.3.0 后续）
+
+- 移除 live 模式 `LIVE_QUOTES_UNAVAILABLE` 硬拦截，允许 EOD 降级
+
 ## [2.3.0] — 2026-07-02
 
 ### v2.3 统一集成（feat/quantos-v23-merge-datatruth-integration）
