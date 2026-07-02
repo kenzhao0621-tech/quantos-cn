@@ -1,5 +1,23 @@
 # Changelog — QuantOS CN
 
+## [2.3.0] — 2026-07-02
+
+### v2.3 统一集成（feat/quantos-v23-merge-datatruth-integration）
+
+- **DataTruthOS**：国内数据 provenance 契约（`source_url`、`updated_at`、`fetched_at`、`data_version`、`quality_level`）
+- **CacheOS / ComputeOS / ScoringOS / ExplainOS**：从 cache 分支选择性迁入，保留 Kronos/Agents 模块
+- **Advisory API**：`GET /api/v1/advisory/analyze` + `cache-status`；v2.3 响应信封
+- **固定评分公式**：`v2.3_integrated_conservative_ashare`；Agents 不能覆盖公式，RiskManager 可 BLOCK
+- **KronosOS**：可选 live 推理 + PredictionCache；降级置信度封顶 0.35
+- **门户**：个股弹窗 v2.3 可复现评分卡
+- **交付文档**：`docs/integration_audit/` 七份集成报告
+- **安全不变**：`PAPER_TRADING_ONLY` / `REAL_MONEY_EXECUTION_DISABLED` 默认关闭实盘
+
+### Kronos / Agents 重构（同分支基线）
+
+- Phase 0–8：数据真实性修复、Kronos sidecar、真实验证基准、九角色 Agents、研究报告门户
+- 详见 `docs/refactor_audit/` 与 `docs/delivery/`
+
 ## [4.2.0] — 2026-06-26
 
 ### 开源发布与文档

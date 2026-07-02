@@ -2,7 +2,7 @@
 # trading_ttl_seconds applies during A-share regular sessions (09:30-11:30 /
 # 13:00-15:00 Asia/Shanghai); non_trading_ttl_seconds applies otherwise.
 # Data types with a single ttl_seconds ignore the session.
-cache_policy_version: v2.2_cache_policy_default
+cache_policy_version: v2.3_integrated_cache_policy
 cache_policy:
   realtime_quote:
     trading_ttl_seconds: 20

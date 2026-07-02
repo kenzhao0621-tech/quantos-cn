@@ -8,7 +8,7 @@ from typing import Any, Dict
 ROOT = Path(__file__).resolve().parents[2]
 WEIGHTS_CONFIG = ROOT / "config" / "score_weights.yaml"
 
-SCORE_WEIGHT_VERSION = "v2.2_default_conservative_ashare"
+SCORE_WEIGHT_VERSION = "v2.3_integrated_conservative_ashare"
 
 # v2.2 §5.2 BaseOpportunityScore weights — must sum to 1.0.
 BASE_WEIGHTS: Dict[str, float] = {

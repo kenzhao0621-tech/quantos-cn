@@ -780,6 +780,30 @@
     }
   });
 
+  async function loadAdvisoryCard(symbol) {
+    const body = $("stock-detail-body");
+    if (!body || !symbol) return;
+    let slot = body.querySelector("#advisory-card-slot");
+    if (!slot) {
+      slot = document.createElement("div");
+      slot.id = "advisory-card-slot";
+      body.appendChild(slot);
+    }
+    slot.innerHTML = '<p class="muted small">正在加载 v2.3 可复现评分卡…</p>';
+    try {
+      const capital = Number($("pref-capital")?.value || 10000);
+      const res = await api.request(
+        `/api/v1/advisory/analyze?symbol=${encodeURIComponent(symbol)}&capital_cny=${capital}`,
+        { timeoutMs: 45000 },
+      );
+      const card = res.data?.explain || res.data;
+      if (res.ok) UI.renderAdvisoryCard(slot, card);
+      else UI.renderAdvisoryCard(slot, { blocked: true, blocker_reason: res.error?.message });
+    } catch (err) {
+      UI.renderAdvisoryCard(slot, { blocked: true, blocker_reason: err?.message || "网络错误" });
+    }
+  }
+
   async function showStockDetail(symbol) {
     if (!symbol) return false;
     lastScreenerDetailSymbol = symbol;
@@ -798,6 +822,7 @@
       );
       if (res.ok) {
         UI.renderStockDetailModal(body, { row, dossier: res.data, loading: false });
+        loadAdvisoryCard(symbol);
         const hint = $("screener-dossier");
         if (hint) {
           hint.innerHTML = "";
@@ -897,6 +922,7 @@
       const modalBody = $("stock-detail-body");
       UI.renderStockDetailModal(modalBody, { dossier: res.data, row: res.data?.candidate || res.data, loading: false });
       UI.openStockDetailModal();
+      loadAdvisoryCard(res.data?.symbol || symbol);
       const hint = $("screener-dossier");
       if (hint) {
         hint.innerHTML = "";

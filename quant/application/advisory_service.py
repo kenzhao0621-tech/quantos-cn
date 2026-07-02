@@ -1,18 +1,11 @@
-"""AdvisoryService — v2.2 advisory pipeline over real warehouse data.
+"""AdvisoryService — v2.3 integrated advisory pipeline over real warehouse data.
 
-Flow (all through CacheOS, honest degradation everywhere):
+Flow:
+  DataOS → DataTruthOS → CacheOS → ComputeOS → FeatureOS →
+  KronosOS (optional) → AgentsOS (optional) → ScoringOS → RiskOS → ExplainOS
 
-  warehouse daily_bars (real Tushare EOD)
-    → universe factor snapshot   [feature_vector cache, keyed by data_version]
-    → v2.2 fixed formula scores  [ScoringOS]
-    → trade plan from price structure
-    → four-panel advice card     [ExplainOS]
-  all wrapped in an advisory_result cache entry + DataAuditReport.
-
-Factors with no real data source on this branch (money flow, sentiment,
-policy news, Kronos predictions) are reported as missing and down-weighted —
-they are NEVER fabricated. When KronosOS lands, its predictions enter through
-the generic PredictionCache and the kronos_forecast factor lights up.
+All domestic data passes DataTruthOS validation (source_url, updated_at,
+fetched_at, data_version, quality_level). Missing sources are degraded, never fabricated.
 """
 
 from __future__ import annotations
@@ -59,8 +52,11 @@ class AdvisoryService:
         capital_cny: float = 10000.0,
         position_weight: float = 0.30,
         force_refresh: bool = False,
+        include_agents: bool = True,
+        include_kronos: bool = True,
+        risk_level: str = "medium",
     ) -> Dict[str, Any]:
-        """Return the cached-or-computed advice card for one symbol."""
+        """Return cached-or-computed v2.3 integrated advice for one symbol."""
         started = time.perf_counter()
         data_version = warehouse_data_version(symbol=symbol, warehouse=self.warehouse)
         key = CacheKey(
@@ -72,11 +68,18 @@ class AdvisoryService:
                 "capital_cny": capital_cny,
                 "position_weight": position_weight,
                 "score_weight_version": SCORE_WEIGHT_VERSION,
+                "include_agents": include_agents,
+                "include_kronos": include_kronos,
+                "risk_level": risk_level,
             },
         )
         result = self.cache.get_or_compute(
             key,
-            lambda: self._compute(symbol, capital_cny=capital_cny, position_weight=position_weight),
+            lambda: self._compute(
+                symbol, capital_cny=capital_cny, position_weight=position_weight,
+                include_agents=include_agents, include_kronos=include_kronos,
+                risk_level=risk_level,
+            ),
             persist=True,
             force_refresh=force_refresh,
         )
@@ -99,7 +102,57 @@ class AdvisoryService:
             "force_refresh": "force_refresh", "stale_allowed": "stale_allowed",
         }.get(result.cache_status, result.cache_status)
         card["headline"]["data_freshness"] = result.freshness.label_zh
-        return card
+        return self._wrap_v23_response(
+            card, symbol=symbol, cache=result.explain(),
+            compute_time_ms=(time.perf_counter() - started) * 1000,
+        )
+
+    def _wrap_v23_response(
+        self, card: Dict[str, Any], *, symbol: str, cache: Dict[str, Any],
+        compute_time_ms: float,
+    ) -> Dict[str, Any]:
+        """Envelope per v2.3 §6.3 — preserves explain card + adds meta/data_truth."""
+        from quant.data_truth_os import gate_for_advisory, wrap_derived
+
+        dv = card.get("as_of_date", "")
+        truth_records = [
+            wrap_derived(source_id="tushare_pro", field_name="daily_bars",
+                         value=symbol, data_version=dv, updated_at=dv),
+            wrap_derived(source_id="warehouse_derived", field_name="factors",
+                         value=card.get("headline", {}).get("final_score"),
+                         data_version=dv, updated_at=dv),
+        ]
+        if card.get("kronos"):
+            k = card["kronos"]
+            truth_records.append(wrap_derived(
+                source_id="kronos_mini", field_name="kronos_forecast",
+                value=k.get("expected_return"), data_version=dv,
+                updated_at=dv, degraded_reason=k.get("reason", "") if k.get("degraded") else "",
+            ))
+        data_truth = gate_for_advisory(truth_records)
+        warnings = list(card.get("warnings") or [])
+        if data_truth.get("degraded_count", 0):
+            warnings.append("部分数据已降级，请查看 data_truth 详情")
+        warnings.append("模型预测不保证发生；本输出不构成投资建议")
+        return {
+            "meta": {
+                "formula_version": SCORE_WEIGHT_VERSION,
+                "data_version": dv,
+                "cache_status": cache.get("cache_status", "unknown"),
+                "compute_time_ms": round(compute_time_ms, 1),
+                "generated_at": datetime.now().isoformat(timespec="seconds"),
+                "symbol": symbol,
+            },
+            "data_truth": data_truth,
+            "score": card.get("score_breakdown") or card.get("headline", {}),
+            "risk": card.get("risk") or {},
+            "kronos": card.get("kronos"),
+            "agents": card.get("agents"),
+            "advisory": card.get("advisory") or card.get("trade_plan") or {},
+            "explain": card,
+            "warnings": warnings,
+            "cache": cache,
+        }
 
     def cache_status(self) -> Dict[str, Any]:
         return {
@@ -202,7 +255,9 @@ class AdvisoryService:
                           "updated_at": as_of_str}
 
     # ------------------------------------------------------------------
-    def _compute(self, symbol: str, *, capital_cny: float, position_weight: float) -> Any:
+    def _compute(self, symbol: str, *, capital_cny: float, position_weight: float,
+                 include_agents: bool = True, include_kronos: bool = True,
+                 risk_level: str = "medium") -> Any:
         snapshot = self.universe_snapshot()
         symbols: Dict[str, Dict[str, Any]] = snapshot["symbols"]
         rec = symbols.get(symbol)
@@ -220,27 +275,50 @@ class AdvisoryService:
         factors, source_tiers, facts = self._build_factors(
             symbol, rec, cross, sector, sector_peers, fundamentals, as_of)
 
-        # Kronos / generic model prediction — only if a real cached prediction exists.
+        # KronosOS — live inference or cached prediction; never fabricate.
         prediction_payloads: List[Dict[str, Any]] = []
-        pred = self.predictions.peek(model="kronos-mini", symbol=symbol, horizon="5d",
-                                     data_version=warehouse_data_version(symbol=symbol,
-                                                                         warehouse=self.warehouse))
-        if pred is not None and pred.value and pred.freshness.usable_for_recommendation:
-            p = dict(pred.value)
-            sub = compose_factor("kronos_forecast", {
-                "direction_probability": _prob_to_score(p.get("direction_prob")),
-                "expected_return": _ret_to_score(p.get("expected_return")),
-                "volatility_risk_adjusted": _prob_to_score(p.get("risk_adjusted")),
-                "forecast_stability": _prob_to_score(p.get("stability")),
-            })
-            factors["kronos_forecast"] = FactorScore(
-                name="kronos_forecast", score=sub["score"], source="kronos-mini",
-                source_url="cache://prediction", updated_at=pred.updated_at or as_of,
-                freshness=pred.freshness.status.value, normalization="model_output_mapped_0_100",
-                detail=sub)
-            source_tiers["kronos_forecast"] = "A_public_data_vendor"
-            prediction_payloads.append(dict(p, model="kronos-mini", horizon="5d",
-                                            cache=pred.explain()))
+        kronos_payload: Dict[str, Any] | None = None
+        dv = warehouse_data_version(symbol=symbol, warehouse=self.warehouse)
+        if include_kronos:
+            kronos_payload = self._fetch_kronos(symbol, as_of=as_of, data_version=dv)
+            if kronos_payload:
+                prediction_payloads.append(kronos_payload)
+                p = kronos_payload
+                conf = p.get("confidence")
+                if p.get("degraded") and conf is not None:
+                    conf = min(float(conf), 0.35)
+                sub = compose_factor("kronos_forecast", {
+                    "direction_probability": _prob_to_score(p.get("direction_probability")),
+                    "expected_return": _ret_to_score(p.get("expected_return")),
+                    "volatility_risk_adjusted": _prob_to_score(
+                        1.0 - min(1.0, (p.get("volatility_forecast") or p.get("volatility") or 0) * 5)),
+                    "forecast_stability": _prob_to_score(conf),
+                })
+                factors["kronos_forecast"] = FactorScore(
+                    name="kronos_forecast", score=sub["score"], source="kronos-mini",
+                    source_url="https://huggingface.co/NeoQuasar/Kronos-mini",
+                    updated_at=as_of,
+                    freshness="degraded" if p.get("degraded") else "fresh",
+                    normalization="model_output_mapped_0_100", detail=sub)
+                source_tiers["kronos_forecast"] = (
+                    "C_unverified" if p.get("degraded") else "A_public_data_vendor")
+                pkey = CacheKey(
+                    data_type="kronos_prediction", symbol=symbol, source="kronos-mini",
+                    frequency="5d", as_of_date=dv, params={"horizon": "5d"},
+                )
+                payload = dict(kronos_payload)
+                self.cache.get_or_compute(
+                    pkey,
+                    lambda: (payload, {"degraded": bool(p.get("degraded"))}),
+                    persist=True,
+                    force_refresh=True,
+                )
+        else:
+            pred = self.predictions.peek(model="kronos-mini", symbol=symbol, horizon="5d",
+                                         data_version=dv)
+            if pred is not None and pred.value and pred.freshness.usable_for_recommendation:
+                kronos_payload = dict(pred.value, cache=pred.explain())
+                prediction_payloads.append(kronos_payload)
 
         regime = _current_regime()
         risk_inputs, execution_inputs, overheat_inputs = self._penalty_inputs(
@@ -278,9 +356,75 @@ class AdvisoryService:
         card["as_of_date"] = as_of
         card["regime"] = regime
         card["capital_cny"] = capital_cny
+        card["kronos"] = kronos_payload
+        card["score_breakdown"] = score_result
+        card["risk"] = {
+            "penalties": {
+                "risk": score_result.get("risk_penalty"),
+                "execution": score_result.get("execution_penalty"),
+                "overheat": score_result.get("overheat_penalty"),
+            },
+            "hard_blocked": score_result.get("hard_blocked"),
+            "hard_block_reasons": score_result.get("hard_block_reasons", []),
+        }
+        card["trade_plan"] = trade_plan
+        card["advisory"] = {
+            "action": trade_plan.get("action", "观察"),
+            "rating": trade_plan.get("rating", "C"),
+            "buy_zone": trade_plan.get("buy_zone"),
+            "stop_loss": trade_plan.get("stop_loss"),
+            "take_profit_1": trade_plan.get("take_profit_1"),
+            "take_profit_2": trade_plan.get("take_profit_2"),
+            "invalid_buy_conditions": trade_plan.get("invalid_buy_conditions", []),
+            "position_size": trade_plan.get("position_size"),
+            "not_financial_advice_disclaimer": True,
+        }
+        if include_agents:
+            try:
+                from gateway.agents.quantos.pipeline import run_agents_analysis
+                agents_result = run_agents_analysis(symbol, as_of_date=as_of, persist=False)
+                card["agents"] = agents_result
+                final = agents_result.get("final") or {}
+                if final.get("must_not_trade"):
+                    card["advisory"]["action"] = "BLOCKED_BY_RISK"
+                    card["advisory"]["rating"] = "BLOCKED"
+            except Exception as exc:
+                card["agents"] = {"error": str(exc)[:120], "degraded": True}
         audit = self._write_audit(symbol, score_result)
         card["audit"] = {"run_id": audit["run_id"], "path": audit["path"]}
         return card, {"source": "tushare/duckdb", "source_url": TUSHARE_URL, "updated_at": as_of}
+
+    def _fetch_kronos(self, symbol: str, *, as_of: str, data_version: str) -> Dict[str, Any] | None:
+        """Run KronosOS inference; degraded bootstrap fallback is honestly labeled."""
+        try:
+            from quant.models.kronos.predictor import KronosSignalProvider
+            provider = KronosSignalProvider()
+            dist = provider.predict_distribution(symbol, horizon=5, as_of_date=as_of)
+            signal = provider.generate_signal(dist)
+            return {
+                "symbol": symbol,
+                "model_name": "Kronos",
+                "model_version": dist.get("model", "kronos-mini"),
+                "horizon": "5d",
+                "direction_probability": max(0.0, min(1.0, 0.5 + signal.get("score", 0) * 0.5)),
+                "expected_return": dist.get("expected_return"),
+                "volatility_forecast": dist.get("volatility"),
+                "drawdown_probability": dist.get("downside_risk"),
+                "trend_continuation_probability": signal.get("rank_score"),
+                "confidence": dist.get("confidence"),
+                "data_version": data_version,
+                "source_quality": "A" if not dist.get("degraded") else "degraded",
+                "cache_status": "miss",
+                "degraded": dist.get("degraded", False),
+                "reason": dist.get("reason", ""),
+                "warning": "模型预测不保证发生",
+            }
+        except Exception as exc:
+            return {
+                "symbol": symbol, "model_name": "Kronos", "degraded": True,
+                "reason": f"kronos_error:{exc}", "warning": "模型预测不保证发生",
+                "confidence": 0.0,
+            }
 
     # ------------------------------------------------------------------
     def _build_factors(self, symbol, rec, cross, sector, sector_peers, fundamentals, as_of):

@@ -8,7 +8,7 @@ from quant.explain_os.language_guard import check_text, scrub_payload
 from quant.explain_os.score_breakdown import build_score_breakdown
 from quant.scoring_os.confidence import compute_confidence
 from quant.scoring_os.formulas import FactorScore, ScoreInputs, compute_final_score
-from quant.scoring_os.weights import BASE_WEIGHTS
+from quant.scoring_os.weights import BASE_WEIGHTS, SCORE_WEIGHT_VERSION
 
 
 def _score_result(**risk):
@@ -68,7 +68,7 @@ def test_facts_without_provenance_are_quarantined():
 
 def test_headline_shows_version_cache_freshness_time():
     h = _card()["headline"]
-    assert h["score_weight_version"] == "v2.2_default_conservative_ashare"
+    assert h["score_weight_version"] == SCORE_WEIGHT_VERSION
     assert h["cache_status"] == "cache_hit"
     assert h["data_freshness"] == "最新"
     assert h["updated_at"]

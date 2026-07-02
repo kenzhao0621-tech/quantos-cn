@@ -19,9 +19,16 @@ from quant.cache_os.policy import CachePolicyRegistry
 from quant.cache_os.registry import CacheRegistry
 from quant.explain_os.language_guard import FORBIDDEN_PHRASES
 
+from quant.scoring_os.weights import SCORE_WEIGHT_VERSION
+
 N_DAYS = 80
 SYMBOLS = [f"6{i:05d}.SH" for i in range(30)]
 TARGET = SYMBOLS[0]
+
+
+def _unwrap(card):
+    """v2.3 advise() returns envelope; tests target the explain card."""
+    return card.get("explain") or card
 
 
 def _build_warehouse(path, extra_day=False):
@@ -84,10 +91,10 @@ def service(tmp_path):
 
 
 def test_card_contract(service):
-    card = service.advise(TARGET, capital_cny=20000)
+    card = _unwrap(service.advise(TARGET, capital_cny=20000, include_kronos=False))
     assert not card.get("blocked")
     h = card["headline"]
-    assert h["score_weight_version"] == "v2.2_default_conservative_ashare"
+    assert h["score_weight_version"] == SCORE_WEIGHT_VERSION
     assert h["cache_status"] in ("cache_miss", "cache_hit", "force_refresh")
     assert h["data_freshness"]
     assert h["updated_at"]
@@ -96,7 +103,7 @@ def test_card_contract(service):
     for f in card["panel_a_verified_facts"]:
         assert f["source_url"] and f["updated_at"]
     bd = card["panel_b_quant_computation"]
-    assert bd["score_weight_version"] == "v2.2_default_conservative_ashare"
+    assert bd["score_weight_version"] == SCORE_WEIGHT_VERSION
     assert len(bd["factors"]) == 8
     plan = card["panel_d_conditional_advice"]["trade_plan"]
     assert plan["recommendation"] in ("buy_zone", "watch", "avoid", "insufficient_structure")
@@ -106,7 +113,7 @@ def test_card_contract(service):
 
 
 def test_missing_sources_reported_not_fabricated(service):
-    card = service.advise(TARGET)
+    card = _unwrap(service.advise(TARGET, include_kronos=False, include_agents=False))
     missing = card["panel_b_quant_computation"]["missing_factors"]
     # no kronos model and no sentiment source on this branch
     assert "kronos_forecast" in missing
@@ -116,8 +123,8 @@ def test_missing_sources_reported_not_fabricated(service):
 
 
 def test_second_call_hits_cache(service):
-    a = service.advise(TARGET)
-    b = service.advise(TARGET)
+    a = _unwrap(service.advise(TARGET, include_kronos=False, include_agents=False))
+    b = _unwrap(service.advise(TARGET, include_kronos=False, include_agents=False))
     assert a["headline"]["cache_status"] in ("cache_miss",)
     assert b["headline"]["cache_status"] == "cache_hit"
     snap = service.cache.metrics.snapshot()
@@ -125,22 +132,22 @@ def test_second_call_hits_cache(service):
 
 
 def test_force_refresh_bypasses(service):
-    service.advise(TARGET)
-    c = service.advise(TARGET, force_refresh=True)
+    service.advise(TARGET, include_kronos=False, include_agents=False)
+    c = _unwrap(service.advise(TARGET, force_refresh=True, include_kronos=False, include_agents=False))
     assert c["headline"]["cache_status"] == "force_refresh"
 
 
 def test_new_bar_invalidates_advisory(service, tmp_path):
-    a = service.advise(TARGET)
+    a = _unwrap(service.advise(TARGET, include_kronos=False, include_agents=False))
     _build_warehouse(service.warehouse, extra_day=True)  # a new trading day lands
-    b = service.advise(TARGET)
+    b = _unwrap(service.advise(TARGET, include_kronos=False, include_agents=False))
     assert b["headline"]["cache_status"] == "cache_miss"  # data_version changed
     assert b["as_of_date"] >= a["as_of_date"]
 
 
 def test_different_capital_different_cache_entry(service):
-    a = service.advise(TARGET, capital_cny=5000)
-    b = service.advise(TARGET, capital_cny=100000)
+    a = _unwrap(service.advise(TARGET, capital_cny=5000, include_kronos=False, include_agents=False))
+    b = _unwrap(service.advise(TARGET, capital_cny=100000, include_kronos=False, include_agents=False))
     assert a["headline"]["cache_status"] == "cache_miss"
     assert b["headline"]["cache_status"] == "cache_miss"  # params in key
 
@@ -152,20 +159,20 @@ def test_unknown_symbol_blocked_honestly(service):
 
 
 def test_card_language_clean(service):
-    card = service.advise(TARGET)
+    card = _unwrap(service.advise(TARGET, include_kronos=False, include_agents=False))
     card.pop("language_guard_violations", None)
     blob = json.dumps(card, ensure_ascii=False, default=str)
     assert not any(p in blob for p in FORBIDDEN_PHRASES)
 
 
 def test_audit_report_written(service):
-    card = service.advise(TARGET)
+    card = _unwrap(service.advise(TARGET, include_kronos=False, include_agents=False))
     audit = card.get("audit") or {}
     assert audit.get("run_id")
 
 
 def test_reproducible_same_inputs(service):
-    a = service.advise(TARGET, force_refresh=True)
-    b = service.advise(TARGET, force_refresh=True)
+    a = _unwrap(service.advise(TARGET, force_refresh=True, include_kronos=False, include_agents=False))
+    b = _unwrap(service.advise(TARGET, force_refresh=True, include_kronos=False, include_agents=False))
     assert a["panel_b_quant_computation"]["final_score"] == b["panel_b_quant_computation"]["final_score"]
     assert a["panel_b_quant_computation"]["factors"] == b["panel_b_quant_computation"]["factors"]

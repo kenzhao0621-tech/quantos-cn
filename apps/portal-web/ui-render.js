@@ -1322,7 +1322,92 @@
     renderTable(container, ["日期", "报告", "下载"], rows, "");
   }
 
+  // v2.3 advisory card — cache status / formula version / per-weight contributions
+  function renderAdvisoryCard(container, card) {
+    if (!container) return;
+    container.innerHTML = "";
+    if (!card || card.blocked) {
+      container.appendChild(
+        el("p", "muted small", card?.blocker_reason || "v2.3 评分卡暂不可用"));
+      return;
+    }
+    const h = card.headline || {};
+    const sec = el("div", "stock-modal-section advisory-card");
+    sec.appendChild(el("h3", "", "v2.3 可复现评分卡（公式固定 · 全程可追溯）"));
+
+    const chips = el("div", "advisory-chips");
+    const cacheLabel = { cache_hit: "缓存命中", cache_miss: "重新计算",
+      force_refresh: "强制刷新", stale_allowed: "稍旧缓存" }[h.cache_status] || h.cache_status || "—";
+    [
+      ["结论", h.conclusion || "—"],
+      ["数据状态", h.data_freshness || "—"],
+      ["缓存", cacheLabel],
+      ["公式版本", h.score_weight_version || "—"],
+      ["更新时间", (h.updated_at || "").slice(0, 19) || "—"],
+      ["置信度", h.confidence != null ? `${h.confidence}（${h.confidence_band || ""}）` : "—"],
+    ].forEach(([k, v]) => {
+      const chip = el("span", "advisory-chip");
+      chip.innerHTML = `<b>${k}</b> ${v}`;
+      chips.appendChild(chip);
+    });
+    sec.appendChild(chips);
+
+    const bd = card.panel_b_quant_computation || {};
+    if (bd.factors?.length) {
+      const rows = bd.factors.map((f) => [
+        f.label_zh + (f.missing ? "（缺失·降权）" : ""),
+        `${Math.round(f.weight * 100)}%`,
+        f.score != null ? Number(f.score).toFixed(0) : "—",
+        f.contribution != null ? `+${Number(f.contribution).toFixed(1)}` : "—",
+        f.source_url
+          ? `<a href="${f.source_url}" target="_blank" rel="noopener">${f.source || "来源"}</a>`
+          : (f.source || "—"),
+        (f.updated_at || "").slice(0, 10) || "—",
+      ]);
+      const wrap = el("div", "");
+      sec.appendChild(wrap);
+      renderTable(wrap, ["因子", "权重", "得分", "贡献", "来源", "数据时间"], rows, "");
+      sec.appendChild(el("p", "muted small",
+        `基础机会分 ${bd.base_opportunity_score} × 市场环境 ${bd.regime_multiplier} × 数据质量 ${bd.data_quality_multiplier}` +
+        ` − 风险 ${bd.risk_penalty_points} − 执行 ${bd.execution_penalty_points} − 过热 ${bd.overheat_penalty_points}` +
+        ` = 最终分 ${bd.final_score}`));
+    }
+
+    const plan = card.panel_d_conditional_advice?.trade_plan || card.trade_plan || {};
+    if (plan.buy_zone) {
+      const grid = el("div", "stock-modal-zones");
+      [
+        ["buy", "买入区间（条件触发）", `¥${plan.buy_zone[0]} – ¥${plan.buy_zone[1]}`],
+        ["stop", "止损", plan.stop_loss != null ? `¥${plan.stop_loss}` : "—"],
+        ["sell", "目标 1 / 2", `¥${plan.target_1} / ¥${plan.target_2}（盈亏比 ${plan.risk_reward_ratio}）`],
+      ].forEach(([cls, label, val]) => {
+        const z = el("div", `stock-modal-zone ${cls}`);
+        z.innerHTML = `<div class="z-label">${label}</div><div class="z-val">${val}</div>`;
+        grid.appendChild(z);
+      });
+      sec.appendChild(grid);
+    } else if (plan.reason) {
+      sec.appendChild(el("p", "warn", plan.reason));
+    }
+    const dnb = card.panel_d_conditional_advice?.do_not_buy_conditions || [];
+    if (dnb.length) {
+      sec.appendChild(el("p", "down", "禁买条件：" + dnb.join("；")));
+    }
+    if (plan.minimum_lot_warning) {
+      sec.appendChild(el("p", "warn", plan.minimum_lot_warning));
+    }
+    if ((card.panel_c_model_predictions || []).length) {
+      sec.appendChild(el("p", "muted small",
+        "模型预测：" + card.panel_c_model_predictions
+          .map((p) => `${p.model || "模型"} ${p.horizon || ""}`).join("、") +
+        " — 预测不保证发生"));
+    }
+    if (card.disclaimer) sec.appendChild(el("p", "muted small", card.disclaimer));
+    container.appendChild(sec);
+  }
+
   global.QuantOSUI = {
+    renderAdvisoryCard,
     renderPaperMonitor,
     renderPaperReports,
     renderCardGrid,

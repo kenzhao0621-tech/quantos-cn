@@ -656,6 +656,10 @@ def sidecar_features(principal: Optional[Principal] = Depends(get_principal)) ->
 from gateway.api.quantos import router as quantos_router
 app.include_router(quantos_router)
 
+# v2.3 Advisory API (CacheOS + ScoringOS + DataTruthOS)
+from gateway.api.advisory import router as advisory_router
+app.include_router(advisory_router)
+
 # V4 operational routes
 from gateway.api import operations as ops_module
 ops_module.configure(state=_state, kill=_kill, risk=_risk, paper=_paper, shadow=_shadow, audit=_audit)
