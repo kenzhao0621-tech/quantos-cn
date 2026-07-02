@@ -28,6 +28,18 @@ class TradabilityMask:
         }
 
 
+def board_limit_pct(symbol: str, *, is_st: bool = False) -> float:
+    """Per-board price limit (%): STAR/ChiNext 20, BSE 30, ST 5, main 10."""
+    code = symbol.split(".")[0] if symbol else ""
+    if code.startswith(("688", "689")):
+        return 20.0
+    if code.startswith(("300", "301", "302")):
+        return 20.0
+    if code.startswith(("4", "8")) or symbol.upper().endswith(".BJ"):
+        return 30.0
+    return 5.0 if is_st else 10.0
+
+
 def evaluate_tradability(
     *,
     symbol: str,
@@ -44,9 +56,10 @@ def evaluate_tradability(
         blockers.append("SUSPENDED")
     if is_st or (symbol and ("ST" in symbol.upper() or symbol.startswith("8") or symbol.startswith("4"))):
         blockers.append("ST_OR_RISKY_BOARD")
-    if last_pct >= 9.8:
+    limit = board_limit_pct(symbol, is_st=is_st)
+    if last_pct >= limit - 0.2:
         blockers.append("LIMIT_UP_NO_ENTRY")
-    if last_pct <= -9.8:
+    if last_pct <= -(limit - 0.2):
         blockers.append("LIMIT_DOWN")
     if avg_amount < min_amount_cny:
         blockers.append("LOW_LIQUIDITY")

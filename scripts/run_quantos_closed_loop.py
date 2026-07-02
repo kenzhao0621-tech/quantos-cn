@@ -295,7 +295,7 @@ def _model_health_report() -> dict[str, Any]:
         "generated_at": datetime.now().isoformat(timespec="seconds"),
         "ml_gate": gate,
         "validation_verdict": mv.get("verdict"),
-        "model_version": "screener_v5_ensemble_lgbm_2026-06-17",
+        "model_version": __import__("quant.version", fromlist=["SCREENER_MODEL_VERSION"]).SCREENER_MODEL_VERSION,
         "status": "HEALTHY" if gate.get("passed") and leak_ok() else "DEGRADED",
         "passed": gate.get("passed") and mv.get("verdict") not in ("REJECTED",),
     }

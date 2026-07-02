@@ -151,6 +151,97 @@ def update_daily_bars(*, target_days: int = 120, max_new: int = 80) -> dict[str,
     }
 
 
+def update_trade_calendar(*, years_back: int = 8) -> dict[str, Any]:
+    """Persist the BaoStock trading calendar to Parquet for the trade_calendar view."""
+    out_dir = ROOT / "data" / "parquet" / "calendar"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        import baostock as bs
+        import pandas as pd
+
+        end = datetime.now().strftime("%Y-%m-%d")
+        start = f"{datetime.now().year - years_back}-01-01"
+        bs.login()
+        rs = bs.query_trade_dates(start_date=start, end_date=end)
+        rows = []
+        while rs.error_code == "0" and rs.next():
+            r = rs.get_row_data()
+            rows.append({"cal_date": r[0].replace("-", ""), "is_open": int(r[1] == "1")})
+        bs.logout()
+        if not rows:
+            return {"error": "empty calendar", "degraded": True}
+        pd.DataFrame(rows).to_parquet(out_dir / "trade_calendar.parquet", index=False)
+        open_days = sum(r["is_open"] for r in rows)
+        rep = {"rows": len(rows), "open_days": open_days, "start": rows[0]["cal_date"], "end": rows[-1]["cal_date"]}
+        _save_checkpoint("trade_calendar", rep)
+        return rep
+    except Exception as e:
+        return {"error": str(e)[:120], "degraded": True}
+
+
+def update_adj_factors(*, target_days: int = 130, max_new: int = 200) -> dict[str, Any]:
+    """Backfill Tushare adj_factor per trade date into Parquet partitions.
+
+    Refactor audit DATA_SOURCE_AUDIT §5: warehouse prices are unadjusted and
+    no adj_factor pipeline existed. Factors land in data/parquet/adj_factors/
+    and are exposed as the `adj_factors` DuckDB view.
+    """
+    from quant.providers.tushare_provider import TushareProvider
+
+    out_dir = ROOT / "data" / "parquet" / "adj_factors"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    cp = _checkpoint("adj_factors")
+    done = set(cp.get("completed_dates", []))
+    tp = TushareProvider()
+    if not tp.configured():
+        return {"error": "TUSHARE_TOKEN not configured", "status": "PERMISSION_UNAVAILABLE"}
+
+    dates = _trade_dates_baostock(days=target_days + 30)
+    dates = sorted(dates)[-target_days:]
+    pending = [d for d in dates if d not in done][-max_new:]
+
+    written = 0
+    errors: list[str] = []
+    try:
+        import pandas as pd
+
+        pro = tp._pro()
+        for i, td in enumerate(pending):
+            try:
+                df = pro.adj_factor(trade_date=td)
+            except Exception as e:
+                err = str(e)
+                errors.append(f"{td}: {err[:80]}")
+                if "频率" in err or "limit" in err.lower():
+                    time.sleep(65)
+                    try:
+                        df = pro.adj_factor(trade_date=td)
+                    except Exception:
+                        continue
+                else:
+                    continue
+            if df is None or df.empty:
+                continue
+            df.to_parquet(out_dir / f"adj_{td}.parquet", index=False)
+            done.add(td)
+            written += 1
+            if i and i % 10 == 0:
+                time.sleep(1.0)
+    except Exception as e:
+        errors.append(str(e)[:120])
+
+    cp["completed_dates"] = sorted(done)
+    cp["last_run"] = datetime.now().isoformat(timespec="seconds")
+    _save_checkpoint("adj_factors", cp)
+    return {
+        "new_partitions": written,
+        "pending_attempted": len(pending),
+        "completed_dates": len(done),
+        "errors": errors[:10],
+        "degraded": bool(errors) and written == 0,
+    }
+
+
 def update_sectors() -> dict[str, Any]:
     from quant.sector_store import persist_sector_boards, sector_coverage_report
     from quant.providers.tushare_provider import TushareProvider

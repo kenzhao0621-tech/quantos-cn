@@ -1,0 +1,32 @@
+# ScoringOS versioned weights — v2.2 §5.2. The authoritative copy is
+# quant/scoring_os/weights.py; this file documents/audits the active version.
+score_weight_version: v2.3_integrated_conservative_ashare
+weights:
+  trend: 0.20
+  momentum: 0.15
+  volume_money_flow: 0.15
+  fundamental_quality: 0.15
+  announcement_policy: 0.10
+  sector_theme: 0.10
+  kronos_forecast: 0.10
+  sentiment: 0.05
+rationale:
+  - 技术面与趋势合计 35%，用于避免纯消息驱动
+  - 资金量价 15%，用于识别是否有真实交易支持
+  - 基本面 15%，用于过滤垃圾股与高风险公司
+  - 公告政策 + 板块主题 20%，用于适配国内政策和主题行情
+  - Kronos 10%，只能作为预测辅助，不能单独决定买卖
+  - 情绪 5%，只做边际修正，防止被股吧/微博噪声带偏
+regime_multipliers:
+  strong_bull: 1.15
+  structural_bull: 1.05
+  range_bound: 1.00
+  weak_range: 0.85
+  bear: 0.65
+  unknown: 0.85
+source_quality_score:
+  S_official_exchange: 1.00
+  A_public_data_vendor: 0.90
+  B_news_sentiment: 0.70
+  C_unverified: 0.40
+  D_forbidden_or_missing: 0.00

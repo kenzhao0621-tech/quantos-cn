@@ -11,6 +11,7 @@ from gateway.config import ROOT
 from gateway.execution.preflight import execution_preflight
 from gateway.preferences import load_preferences
 from quant.portfolio.unified import build_portfolio_allocation
+from quant.version import SCREENER_ENGINE
 
 
 def run_screener_with_allocation(
@@ -154,7 +155,7 @@ def execute_paper_allocation(
             client_order_id=str(uuid.uuid4()),
             run_id=run_id,
             strategy_id=strategy_id,
-            model_id="screener_v5_ensemble_lgbm",
+            model_id=SCREENER_ENGINE,
             symbol=pos["symbol"],
             side="BUY",
             quantity=int(pos["quantity"]),

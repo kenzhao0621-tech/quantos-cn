@@ -1,0 +1,54 @@
+# CacheOS default TTL policy — v2.2 §3.3 (seconds).
+# trading_ttl_seconds applies during A-share regular sessions (09:30-11:30 /
+# 13:00-15:00 Asia/Shanghai); non_trading_ttl_seconds applies otherwise.
+# Data types with a single ttl_seconds ignore the session.
+cache_policy_version: v2.3_integrated_cache_policy
+cache_policy:
+  realtime_quote:
+    trading_ttl_seconds: 20
+    non_trading_ttl_seconds: 900
+  intraday_bar:
+    trading_ttl_seconds: 45
+    non_trading_ttl_seconds: 1800
+  ohlcv_daily:
+    trading_ttl_seconds: 600
+    non_trading_ttl_seconds: 21600
+  adjustment_factor:
+    ttl_seconds: 86400
+  financial_statement:
+    ttl_seconds: 86400
+  announcement:
+    trading_ttl_seconds: 600
+    non_trading_ttl_seconds: 3600
+  policy_news:
+    trading_ttl_seconds: 3600
+    non_trading_ttl_seconds: 21600
+  sector_strength:
+    trading_ttl_seconds: 120
+    non_trading_ttl_seconds: 1800
+  money_flow:
+    trading_ttl_seconds: 180
+    non_trading_ttl_seconds: 3600
+  sentiment_news:
+    trading_ttl_seconds: 600
+    non_trading_ttl_seconds: 3600
+  feature_vector:
+    invalidate_on_underlying_change: true
+    trading_ttl_seconds: 600
+    non_trading_ttl_seconds: 21600
+  prediction:
+    trading_ttl_seconds: 600
+    non_trading_ttl_seconds: 3600
+  kronos_prediction:
+    trading_ttl_seconds: 600
+    non_trading_ttl_seconds: 3600
+  agents_research:
+    trading_ttl_seconds: 1800
+    non_trading_ttl_seconds: 21600
+  advisory_result:
+    trading_ttl_seconds: 600
+    non_trading_ttl_seconds: 7200
+  backtest_result:
+    cache_by_params_hash: true
+  report_artifact:
+    cache_by_report_date_and_params_hash: true

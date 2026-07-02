@@ -46,7 +46,8 @@ class TestScreenerNamesAndAlgo(unittest.TestCase):
         cands = body["data"]["candidates"]
         self.assertGreater(len(cands), 0)
         self.assertTrue(cands[0].get("name"))
-        self.assertEqual(body["data"]["model_version"], "screener_v4_industry_neutral_2026-06-17")
+        from quant.version import SCREENER_MODEL_VERSION
+        self.assertEqual(body["data"]["model_version"], SCREENER_MODEL_VERSION)
 
     def test_dossier_includes_trade_zones(self) -> None:
         svc = get_screener_service()

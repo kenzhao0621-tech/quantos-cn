@@ -332,6 +332,14 @@ button.danger { background: var(--danger); }
   color: var(--muted);
 }
 .stock-modal-footnote { font-size: 0.78rem; color: var(--muted); margin-top: 1rem; }
+
+/* v2.3 advisory card (ExplainOS) */
+.advisory-card { border-top: 2px solid var(--border-soft, #ddd); margin-top: 0.8rem; padding-top: 0.6rem; }
+.advisory-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.4rem 0 0.7rem; }
+.advisory-chip { font-size: 0.78rem; padding: 0.22rem 0.55rem; border-radius: 999px;
+  background: var(--bg-soft, #f2f4f8); border: 1px solid var(--border-soft, #dde1e8); }
+.advisory-chip b { margin-right: 0.3rem; color: var(--text-muted, #667); font-weight: 600; }
+
 .dossier-head { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
 .paper-report-row { margin: 0.35rem 0; }
 .paper-report-row a { color: var(--accent); }

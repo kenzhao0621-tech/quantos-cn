@@ -151,7 +151,8 @@ def _run_validation_pipeline() -> dict:
 
     buckets = _compute_score_buckets()
     out["score_buckets"] = buckets
-    out["model_version"] = "screener_v4_industry_neutral_2026-06-17"
+    from quant.version import SCREENER_MODEL_VERSION
+    out["model_version"] = SCREENER_MODEL_VERSION
     return out
 
 

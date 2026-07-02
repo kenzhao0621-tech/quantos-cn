@@ -21,6 +21,7 @@ from gateway.auth.rbac import Principal, authenticate, require_permission
 from gateway.config import GatewayConfig
 from gateway.jobs.manager import get_job_manager
 from quant.application.live_market_service import fetch_live_snapshot, intraday_slots
+from quant.version import SCREENER_ENGINE
 from quant.application.market_data_service import get_market_data_service
 from quant.domain.market_models import DataMode
 
@@ -172,22 +173,28 @@ def market_sync_all(principal: Optional[Principal] = Depends(_principal)) -> Dic
 
     run_id = str(uuid.uuid4())[:8]
     py = ROOT / ".venv-china-quant" / "bin" / "python"
-    results: list[dict[str, Any]] = []
-    for target, cmd in (
+    targets = (
         ("indices", [str(py), "-m", "quant", "update-indices"]),
         ("bars", [str(py), "-m", "quant", "update-daily-bars"]),
-    ):
+        ("adj_factors", [str(py), "-m", "quant", "update-adj-factors"]),
+        ("sectors", [str(py), "-m", "quant", "update-sectors"]),
+        ("fundamentals", [str(py), "-m", "quant", "update-fundamentals"]),
+        ("disclosures", [str(py), "-m", "quant", "update-disclosures"]),
+    )
+
+    def _run_target(target: str, cmd: list[str]) -> dict[str, Any]:
         try:
-            r = subprocess.run(cmd, cwd=str(ROOT), capture_output=True, text=True, timeout=300)
-            results.append({
-                "target": target,
-                "ok": r.returncode == 0,
-                "tail": (r.stdout + r.stderr)[-500:],
-            })
+            r = subprocess.run(cmd, cwd=str(ROOT), capture_output=True, text=True, timeout=180)
+            return {"target": target, "ok": r.returncode == 0, "tail": (r.stdout + r.stderr)[-500:]}
         except subprocess.TimeoutExpired:
-            results.append({"target": target, "ok": False, "error": "timeout after 300s"})
+            return {"target": target, "ok": False, "error": "timeout after 180s"}
         except Exception as exc:
-            results.append({"target": target, "ok": False, "error": str(exc)[:120]})
+            return {"target": target, "ok": False, "error": str(exc)[:120]}
+
+    from concurrent.futures import ThreadPoolExecutor
+
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        results = list(pool.map(lambda tc: _run_target(*tc), targets))
 
     warehouse_sync: dict[str, Any] = {}
     try:
@@ -251,19 +258,19 @@ def screener_run(
     from gateway.preferences import load_preferences
     from quant.application.screener_service import get_screener_service
 
+    live_prefetch: dict[str, Any] | None = None
     if mode.lower() in ("live", "realtime", "intraday"):
         from quant.application.live_market_service import ensure_live_quotes, live_quotes_ready, snapshot_rows
 
         live_snap = ensure_live_quotes(refresh=False, max_age_sec=120)
         if not live_quotes_ready(live_snap):
             live_snap = ensure_live_quotes(refresh=True, max_age_sec=120)
-        if not live_quotes_ready(live_snap):
-            return envelope_err(
-                "LIVE_QUOTES_UNAVAILABLE",
-                live_snap.get("reason") or "实时行情未就绪 — 请稍后重试或检查行情源连接",
-                live_status={k: v for k, v in live_snap.items() if k != "rows"},
-                row_count=len(snapshot_rows(live_snap)),
-            )
+        live_prefetch = {
+            k: v for k, v in live_snap.items() if k != "rows"
+        }
+        live_prefetch["quotes_ready"] = live_quotes_ready(live_snap)
+        live_prefetch["row_count"] = len(snapshot_rows(live_snap))
+        # Do not hard-block: screener_service falls back to EOD factors with honest live_status.
 
     prefs = load_preferences()
     pref_sectors = _split_csv(preferred_sectors) or prefs.preferred_sectors
@@ -277,7 +284,7 @@ def screener_run(
         if enforce_capital_price_ceiling is not None
         else prefs.enforce_capital_price_ceiling
     )
-    use_fast = fast if mode.lower() not in ("live", "realtime", "intraday") else False
+    use_fast = bool(fast)
     result = get_screener_service().screen(
         preset=preset or prefs.strategy_preset,
         top_n=top_n,
@@ -293,11 +300,22 @@ def screener_run(
         fast=use_fast,
     )
     payload = result.to_dict()
+    payload["data_freshness"] = result.data_freshness or payload.get("data_freshness") or {}
+    if payload["data_freshness"].get("user_hint") and not payload.get("blocker_reason"):
+        payload.setdefault("data_status_note", payload["data_freshness"]["user_hint"])
+    # Learning loop: record run outcomes for forward-return tracking
+    # (refactor audit MODEL_AUDIT §3: record_screener_run was never wired).
+    try:
+        from quant.learning.outcome_tracker import record_screener_run
+
+        record_screener_run(payload)
+    except Exception:
+        pass
     return envelope_ok(
         payload,
         provenance={
             "source": "canonical_duckdb",
-            "engine": payload.get("screener_engine", "screener_v6_trading_agents_zh"),
+            "engine": payload.get("screener_engine", SCREENER_ENGINE),
             "agent_framework": "TradingAgents-CN",
             "fast_path": use_fast,
         },
@@ -308,7 +326,7 @@ def screener_run(
 def screener_capabilities(principal: Optional[Principal] = Depends(_principal)) -> Dict[str, Any]:
     _require(principal, "market:read")
     return envelope_ok({
-        "engine": "screener_v6_trading_agents_zh",
+        "engine": SCREENER_ENGINE,
         "agent_framework": "TradingAgents-CN",
         "modes": ["eod", "live"],
         "fast_default": True,

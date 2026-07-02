@@ -110,10 +110,8 @@
     }, btn),
     "reset-request": (btn) => act("申请解除停机", "/api/v1/risk/reset-request", { method: "POST" }, btn),
     "reset-confirm": (btn) => act("确认解除停机", "/api/v1/risk/reset-confirm", { method: "POST" }, btn),
-    backtest: (btn) => act("运行回测", "/api/v1/research/backtest", {
-      method: "POST",
-      body: JSON.stringify({ as_of_date: "2026-06-16" }),
-    }, btn),
+    backtest: (btn) => runBacktestWithCurves(btn),
+    "agents-analyze": (btn) => runAgentsAnalyze(btn),
     "candidate-gate": (btn) => act("候选门", "/api/v1/research/candidate", { method: "POST" }, btn),
     "market-refresh": () => refreshMarket(),
     "market-live-refresh": (btn) => refreshLiveMarket(btn),
@@ -150,7 +148,7 @@
     "agents-run": async (btn) => {
       const res = await act("多智能体研究", "/api/v1/research/agents/run", {
         method: "POST",
-        body: JSON.stringify({ as_of: "2026-06-16" }),
+        body: JSON.stringify({}),
       }, btn);
       if (res.ok) {
         lastAgentRun = res.data;
@@ -589,23 +587,14 @@
 
   async function runScreener(btn) {
     const mode = $("screener-mode")?.value || "eod";
-    const liveLabel = mode === "live" ? "刷新行情并选股…" : "计算中…";
+    const liveLabel = mode === "live" ? "实时选股（约 1–2 分钟）…" : "计算中…";
     UI.setLoading(btn, true, liveLabel);
     try {
       const preset = $("screener-preset")?.value || "balanced";
       if (mode === "live") {
         $("screener-table")?.replaceChildren(
-          UI.renderEmpty("一键实时选股", "正在刷新全市场真实行情，完成后自动运行选股…", ""),
+          UI.renderEmpty("实时智能选股", "后端正在刷新行情并计算因子，首次约需 1–2 分钟，请勿重复点击…", ""),
         );
-        const liveRes = await ensureLiveQuotesFresh({ force: true, silent: true, updateMarket: true });
-        const ld = liveRes.data || {};
-        if (!liveRes.quotesReady && !(ld.row_count >= 100 && !ld.blocked)) {
-          const hint = ld.reason || liveRes.error?.message || "实时行情未就绪";
-          UI.renderScreener($("screener-table"), { blocked: true, blockerReason: hint, rows: [] });
-          UI.toast("选股失败", hint, "fail");
-          return liveRes;
-        }
-        UI.setLoading(btn, true, `实时选股 · ${ld.row_count || 0} 只行情已就绪…`);
       }
       const topN = $("screener-topn")?.value || "25";
       const minAmt = $("screener-minamt")?.value || "50000000";
@@ -620,10 +609,9 @@
         `&capital_cny=${capital}&price_min_cny=${priceMin}` +
         (priceMax !== "" ? `&price_max_cny=${priceMax}` : "") +
         `&enforce_capital_price_ceiling=${priceCeiling}`;
-      const fastQ = mode === "eod" ? "&fast=true" : "&fast=false";
+      const fastQ = "&fast=true";
       const res = await api.request(
         `/api/v1/screener/run?preset=${preset}&top_n=${topN}&min_amount_cny=${minAmt}&mode=${mode}&preferred_sectors=${sectors}&excluded_sectors=${excluded}${priceQ}${fastQ}`,
-        { timeoutMs: mode === "live" ? 45000 : 20000 },
       );
       if (!res.ok) {
         const hint = window.QuantOSFriendlyError?.(res) || res.error?.message || "选股请求失败";
@@ -638,11 +626,20 @@
       UI.renderSelectionGuide($("screener-guide"), vm);
       const meta = $("screener-meta");
       if (meta) {
+        const df = vm.dataFreshness || {};
+        const eodChip = df.expected_latest_completed
+          ? `<span class="metric-chip">期望收盘 <b>${df.expected_latest_completed}</b></span>`
+          : "";
+        const staleChip = df.is_current === false
+          ? `<span class="metric-chip warn">仓库 ${df.warehouse_max_trade_date || "—"} · ${df.user_hint || vm.dataStatusNote || "数据可能滞后"}</span>`
+          : (df.sync_attempted && df.sync_ok
+            ? `<span class="metric-chip">已同步至 <b>${df.warehouse_max_trade_date || vm.dataCutoff}</b></span>`
+            : "");
         const liveNote = vm.mode === "live"
           ? (vm.liveStatus?.used
-            ? `行情匹配 ${vm.liveStatus.matched_in_universe ?? vm.rows.filter((r) => r.live_price != null).length}/${vm.universeSize} · ${vm.liveStatus.provider || vm.liveProvider || ""} · ${vm.liveRetrievedAt || lastLiveRefresh || "—"}`
-            : vm.liveStatus?.hint || "（行情未挂价 — 请重试一键选股）")
-          : (lastLiveRefresh ? `最近行情刷新 ${lastLiveRefresh}（收盘模式用昨收价）` : "");
+            ? `实时 · 匹配 ${vm.liveStatus.matched_in_universe ?? vm.rows.filter((r) => r.live_price != null).length}/${vm.universeSize} · ${vm.liveStatus.provider || vm.liveProvider || ""}`
+            : `实时降级为收盘因子 · 截止 ${vm.dataCutoff}${vm.liveStatus?.hint ? " · " + vm.liveStatus.hint : ""}`)
+          : `收盘因子 · 数据截止 ${vm.dataCutoff}`;
         const pf = vm.priceFilters || {};
         const priceChip =
           pf.effective_price_max_cny || pf.price_min_cny
@@ -658,7 +655,9 @@
             priceChip +
             `<span class="metric-chip">候选池 <b>${vm.universeSize}</b> 只</span>` +
             `<span class="metric-chip">入选 <b>${vm.rows.length}</b> 只</span>` +
-            (liveNote ? `<span class="metric-chip warn">${liveNote}</span>` : "") +
+            eodChip +
+            staleChip +
+            `<span class="metric-chip">${liveNote}</span>` +
             (vm.agentOverlay?.framework ? `<span class="metric-chip">智能体 <b>${vm.agentOverlay.framework}</b> · ${vm.agentOverlay.risk_verdict || "—"}</span>` : "");
       }
       logAction("智能选股", res);
@@ -792,6 +791,30 @@
     }
   });
 
+  async function loadAdvisoryCard(symbol) {
+    const body = $("stock-detail-body");
+    if (!body || !symbol) return;
+    let slot = body.querySelector("#advisory-card-slot");
+    if (!slot) {
+      slot = document.createElement("div");
+      slot.id = "advisory-card-slot";
+      body.appendChild(slot);
+    }
+    slot.innerHTML = '<p class="muted small">正在加载 v2.3 可复现评分卡…</p>';
+    try {
+      const capital = Number($("pref-capital")?.value || 10000);
+      const res = await api.request(
+        `/api/v1/advisory/analyze?symbol=${encodeURIComponent(symbol)}&capital_cny=${capital}`,
+        { timeoutMs: 45000 },
+      );
+      const card = res.data?.explain || res.data;
+      if (res.ok) UI.renderAdvisoryCard(slot, card);
+      else UI.renderAdvisoryCard(slot, { blocked: true, blocker_reason: res.error?.message });
+    } catch (err) {
+      UI.renderAdvisoryCard(slot, { blocked: true, blocker_reason: err?.message || "网络错误" });
+    }
+  }
+
   async function showStockDetail(symbol) {
     if (!symbol) return false;
     lastScreenerDetailSymbol = symbol;
@@ -810,6 +833,7 @@
       );
       if (res.ok) {
         UI.renderStockDetailModal(body, { row, dossier: res.data, loading: false });
+        loadAdvisoryCard(symbol);
         const hint = $("screener-dossier");
         if (hint) {
           hint.innerHTML = "";
@@ -909,6 +933,7 @@
       const modalBody = $("stock-detail-body");
       UI.renderStockDetailModal(modalBody, { dossier: res.data, row: res.data?.candidate || res.data, loading: false });
       UI.openStockDetailModal();
+      loadAdvisoryCard(res.data?.symbol || symbol);
       const hint = $("screener-dossier");
       if (hint) {
         hint.innerHTML = "";
@@ -1089,6 +1114,59 @@
       UI.renderModelValidation($("model-validation"), res);
       UI.toast("模型验收完成", res.data?.verdict || "完成", res.data?.verdict === "READY_FOR_EXTENDED_PAPER" ? "ok" : "fail");
       return res;
+    } finally {
+      UI.setLoading(btn, false);
+    }
+  }
+
+  async function runBacktestWithCurves(btn) {
+    UI.setLoading(btn, true, "回测中（约 10–15 分钟）…");
+    const box = $("backtest-result");
+    if (box) box.replaceChildren(UI.renderEmpty("组合回测", "逐日运行历史信号并模拟 T+1 组合，请耐心等待…", ""));
+    try {
+      const body = {
+        engine: "screener_portfolio",
+        preset: $("strategy-preset")?.value || "balanced",
+        lookback_days: Number($("backtest-lookback")?.value || 40),
+        top_n: Number($("backtest-topn")?.value || 5),
+      };
+      const res = await api.request("/api/v1/research/backtest", {
+        method: "POST",
+        body: JSON.stringify(body),
+        timeoutMs: 1200000,
+      });
+      if (box) UI.renderBacktestReport(box, res.data || {});
+      const st = res.data?.status || "完成";
+      UI.toast("回测完成", st, st === "OK" ? "ok" : "fail");
+      return res;
+    } catch (e) {
+      if (box) box.replaceChildren(UI.renderEmpty("回测失败", String(e?.message || e), ""));
+      throw e;
+    } finally {
+      UI.setLoading(btn, false);
+    }
+  }
+
+  async function runAgentsAnalyze(btn) {
+    const symbol = ($("agents-symbol")?.value || "").trim();
+    if (!symbol) {
+      UI.toast("请输入股票代码", "如 600000.SH / 000001.SZ", "fail");
+      return;
+    }
+    UI.setLoading(btn, true, "9 个智能体分析中…");
+    const box = $("agents-analyze-result");
+    try {
+      const res = await api.request(
+        `/api/v1/agents/analyze?symbol=${encodeURIComponent(symbol)}`,
+        { timeoutMs: 300000 },
+      );
+      if (box) UI.renderAgentsAnalysis(box, res.data || {});
+      const grade = res.data?.final?.rating || "?";
+      UI.toast("研究完成", `评级 ${grade}`, grade === "BLOCKED" ? "fail" : "ok");
+      return res;
+    } catch (e) {
+      if (box) box.replaceChildren(UI.renderEmpty("分析失败", String(e?.message || e), ""));
+      throw e;
     } finally {
       UI.setLoading(btn, false);
     }

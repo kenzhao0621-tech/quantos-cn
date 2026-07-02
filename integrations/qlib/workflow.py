@@ -30,8 +30,22 @@ def run_baseline_workflow(*, as_of: str, run_id: str = "") -> dict[str, Any]:
 
     reg = TrialRegistry()
     trial = reg.register("alpha158_lite_baseline", "momentum_rank", {"as_of": as_of})
-    sharpe_proxy = 0.5 if scored else 0.0
-    done = reg.complete(trial, sharpe=sharpe_proxy, num_trials=1)
+    # Real sharpe from the ResearchOS panel (refactor audit MODEL_AUDIT §5:
+    # previously hardcoded 0.5). Degraded (None) when the panel is unavailable.
+    sharpe_real = None
+    try:
+        from quant.research.panel import load_research_panel
+        from quant.research.strategies import momentum_rank_strategy
+        from quant.validation.performance import sharpe_ratio
+
+        panel = load_research_panel(max_symbols=100)
+        if panel.get("ok"):
+            daily = momentum_rank_strategy(panel, window=20, top_k=10)
+            if len(daily) >= 20:
+                sharpe_real = sharpe_ratio(daily)
+    except Exception:
+        sharpe_real = None
+    done = reg.complete(trial, sharpe=sharpe_real if sharpe_real is not None else 0.0, num_trials=1)
 
     result = {
         "run_id": run_id,
@@ -40,6 +54,8 @@ def run_baseline_workflow(*, as_of: str, run_id: str = "") -> dict[str, Any]:
         "signals": top_signals,
         "trial": done.to_dict(),
         "model_status": done.status,
+        "sharpe_source": "research_panel_momentum20" if sharpe_real is not None else "UNAVAILABLE_degraded",
+        "sharpe_degraded": sharpe_real is None,
         "promotion": "CANDIDATE",
         "auto_live_promotion": False,
         "completed_at": datetime.now(timezone.utc).isoformat(),

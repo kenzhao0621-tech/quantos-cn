@@ -55,6 +55,8 @@
     <button class="tab" data-page="paper" type="button">模拟练习</button>
     <button class="tab" data-page="brokers" type="button">券商助手</button>
     <button class="tab" data-page="help" type="button">使用指南</button>
+    <button class="tab" data-page="reports" type="button">研究报告</button>
+    <button class="tab" data-page="risk" type="button">风险中心</button>
     <button class="tab tab-advanced" data-page="overview" type="button">高级·总览</button>
     <button class="tab tab-advanced" data-page="market" type="button">高级·数据</button>
   </nav>
@@ -283,9 +285,27 @@
         </div>
         <div id="model-validation" class="sub-panel"></div>
       </div>
+      <div class="dossier-card">
+        <h3>组合回测（真实基准对比）</h3>
+        <p class="muted">用最近历史信号日逐日回测选股组合，扣除成本/滑点，对比沪深300真实收益；不满足验证门会如实显示 BLOCKED，不会包装成推荐。</p>
+        <div class="screener-controls">
+          <label>回看信号日<input id="backtest-lookback" type="number" min="10" max="120" value="40" /></label>
+          <label>Top N<input id="backtest-topn" type="number" min="3" max="20" value="5" /></label>
+          <button data-action="backtest" type="button" class="primary">运行回测（约 10–15 分钟）</button>
+        </div>
+        <div id="backtest-result" class="sub-panel"></div>
+      </div>
+      <div class="dossier-card">
+        <h3>个股多智能体研究（A/B/C/D/BLOCKED）</h3>
+        <p class="muted">9 个角色（技术/基本面/舆情/多空辩论/风险经理/组合经理）基于结构化真实数据给出研究评级、多空理由与失效条件。风险经理有一票否决权。</p>
+        <div class="screener-controls">
+          <label>股票代码<input id="agents-symbol" type="text" placeholder="600000.SH / 000001.SZ" value="000001.SZ" /></label>
+          <button data-action="agents-analyze" type="button" class="primary">运行多智能体研究</button>
+        </div>
+        <div id="agents-analyze-result" class="sub-panel"></div>
+      </div>
       <div class="actions wrap">
         <button id="btn-qlib-baseline-models" type="button">运行基线</button>
-        <button data-action="backtest" type="button">运行回测</button>
         <button data-action="candidate-gate" type="button">运行候选门</button>
       </div>
     </section>

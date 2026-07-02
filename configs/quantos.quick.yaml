@@ -1,0 +1,86 @@
+# QuantOS 2.0 — quick mode (普通电脑默认档)
+mode: quick
+market: a_share
+paper_trading_only: true
+real_broker_auto_order: false   # 硬约束：禁止真实券商自动下单
+universe: liquid_main_boards
+max_symbols: 150
+frequency: daily
+
+data:
+  providers:
+    - local_warehouse      # DuckDB canonical
+    - akshare              # live spot
+    - tushare              # EOD bars / adj factors / fundamentals
+    - baostock             # indices / calendar
+  allow_fixture: true
+  fixture_must_be_degraded: true
+  stale_live_snapshot_max_age_sec: 3600
+  adjusted_prices_min_coverage: 0.9   # 前复权视图启用阈值
+
+kronos:
+  enabled: true
+  default_model: kronos-mini
+  optional_models:
+    - kronos-small
+  sidecar_venv: .venv-kronos        # Python 3.10+（主 venv 3.9 不兼容 Kronos）
+  lookback_options: [128, 256, 360, 512]
+  horizon_options: [1, 3, 5, 10]
+  monte_carlo_paths: 30
+  fallback: bootstrap_mc            # 失败时统计降级，confidence 上限 0.35，必标 degraded
+  training: disabled                # 默认禁止训练，只做推理
+
+signals:
+  weights:                          # 可配置；不允许硬编码"永远最优"
+    kronos_expected_return_rank: 0.30
+    kronos_confidence: 0.15
+    technical_alpha_rank: 0.15
+    fundamental_quality_rank: 0.10
+    liquidity_rank: 0.10
+    market_regime_score: 0.10
+    agents_consensus_score: 0.10
+    risk_penalty: -0.20
+
+research:
+  search: random                    # quick 档用 random search；Optuna 为可选依赖
+  trials: 30
+  param_space:
+    window: [5, 10, 20, 40, 60]
+    top_k: [5, 10, 20]
+    vol_penalty: [0.0, 0.5, 1.0]
+
+validation:
+  walk_forward: true
+  purged_kfold: true
+  embargo_days: 5
+  transaction_cost_bps: 8
+  slippage_bps: 12
+  benchmark: "000300.SH"            # 沪深300 真实指数，禁止代理伪造
+  min_oos_sharpe: 0.8
+  max_drawdown_pct: -15.0
+  require_oos_outperformance: true
+  insufficient_history_verdict: BLOCKED_BY_VALIDATION
+
+risk:
+  max_single_position: 0.10
+  max_industry_exposure: 0.30
+  max_portfolio_drawdown: 0.15
+  exclude_st: true
+  exclude_new_stock_days: 120
+  board_limits: {main: 10, st: 5, star: 20, chinext: 20, bse: 30}
+  block_if_backtest_failed: true
+  risk_manager_veto: true
+
+agents:
+  enabled: true
+  language: zh
+  engine: deterministic_rules_v1    # LLM 可选；无 key 时规则引擎，engine 字段如实标注
+  require_json_io: true
+  roles: [MarketRegimeAgent, TechnicalAgent, FundamentalAgent, SentimentAgent,
+          BullResearcher, BearResearcher, RiskManager, PortfolioManager, FinalAdvisor]
+
+reports:
+  markdown: true
+  pdf: true
+  include_disclaimer: true
+  degraded_summary_required: true

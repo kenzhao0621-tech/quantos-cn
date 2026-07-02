@@ -1,6 +1,11 @@
 """Gateway FastAPI application."""
 
+import uuid
+from pathlib import Path
+from typing import Any, Dict, Optional
+
 from quant.paths import desktop_reports_root
+from quant.version import SCREENER_ENGINE
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -149,11 +154,21 @@ def market_status(principal: Optional[Principal] = Depends(get_principal)) -> Di
     freshness = get_market_status_summary()
     return envelope_ok({
         "mode": _state.mode.value,
-        "session": "CLOSED",
+        "session": _market_session(),
         "paper_trading_only": PAPER_TRADING_ONLY,
         "runtime": runtime,
         **freshness,
     }, request_id=str(uuid.uuid4()))
+
+
+def _market_session() -> str:
+    try:
+        from quant.freshness_contract import market_session_status
+
+        label, is_open = market_session_status()
+        return "OPEN" if is_open else label.upper()
+    except Exception:
+        return "UNKNOWN"
 
 
 @app.get("/api/v1/market/snapshot")
@@ -184,7 +199,40 @@ def market_indices(principal: Optional[Principal] = Depends(get_principal)) -> D
 @app.get("/api/v1/market/sectors")
 def market_sectors(principal: Optional[Principal] = Depends(get_principal)) -> Dict[str, Any]:
     _require(principal, "market:read")
-    return envelope_ok({"sectors": [], "source": "warehouse"})
+    try:
+        from quant.warehouse import query
+
+        rows = query(
+            "SELECT sector_name AS sector, COUNT(*) AS stock_count "
+            "FROM industry_map GROUP BY sector_name ORDER BY stock_count DESC LIMIT 60"
+        )
+        return envelope_ok({"sectors": rows, "source": "warehouse.industry_map"})
+    except Exception as exc:
+        return envelope_ok({"sectors": [], "source": "warehouse", "error": str(exc)[:120]})
+
+
+@app.get("/api/v1/agents/analyze")
+def agents_analyze(
+    symbol: str,
+    as_of_date: Optional[str] = None,
+    principal: Optional[Principal] = Depends(get_principal),
+) -> Dict[str, Any]:
+    """AgentsOS full multi-agent research analysis (9 roles, A/B/C/D/BLOCKED)."""
+    _require(principal, "market:read")
+    from gateway.agents.quantos import run_agents_analysis
+
+    try:
+        result = run_agents_analysis(symbol.strip().upper(), as_of_date=as_of_date)
+    except Exception as exc:
+        return envelope_err("AGENTS_ANALYSIS_FAILED", str(exc)[:200])
+    # Trim the heavy input context for the API response; artifact keeps the full record.
+    slim = {k: v for k, v in result.items() if k != "input_context"}
+    slim["input_summary"] = {
+        "market_available": result["input_context"]["market_data_summary"].get("available"),
+        "risk_flags": result["input_context"]["risk_flags"],
+        "news_count": len(result["input_context"]["news_summary"]),
+    }
+    return envelope_ok(slim)
 
 
 @app.post("/api/v1/agents/{agent_id}/invoke")
@@ -338,7 +386,7 @@ def gateway_capabilities(principal: Optional[Principal] = Depends(get_principal)
             "audit_events": True,
             "observability_traces": True,
             "agent_framework": "TradingAgents-CN",
-            "screener_engine": "screener_v6_trading_agents_zh",
+            "screener_engine": SCREENER_ENGINE,
             "live_quotes_intraday_refresh": intraday_refresh_status(),
             "screener_learning": latest_learning_report() is not None,
             "pdf_exports": ["daily_quant_report", "screener_symbol_analysis", "paper_close_report"],
@@ -580,7 +628,7 @@ def system_status(principal: Optional[Principal] = Depends(get_principal)) -> Di
     return envelope_ok({
         "mode": _state.mode.value,
         "autonomous_label": _state.max_autonomous_label(),
-        "market_session": "CLOSED",
+        "market_session": _market_session(),
         "data_status": "WAREHOUSE_PRESENT",
         "capital": snap.capital_total_cny,
         "remaining_loss_budget": snap.remaining_loss_budget_cny,
@@ -607,6 +655,10 @@ def sidecar_features(principal: Optional[Principal] = Depends(get_principal)) ->
 # QuantOS CN routes
 from gateway.api.quantos import router as quantos_router
 app.include_router(quantos_router)
+
+# v2.3 Advisory API (CacheOS + ScoringOS + DataTruthOS)
+from gateway.api.advisory import router as advisory_router
+app.include_router(advisory_router)
 
 # V4 operational routes
 from gateway.api import operations as ops_module

@@ -1,0 +1,51 @@
+# QuantOS 2.0 — standard mode（本地研发档，需较多算力/时间）
+mode: standard
+market: a_share
+paper_trading_only: true
+real_broker_auto_order: false
+universe: liquid_main_boards_extended
+max_symbols: 500
+frequency: daily
+
+data:
+  providers: [local_warehouse, akshare, tushare, baostock]
+  allow_fixture: true
+  fixture_must_be_degraded: true
+  history_target_years: 8
+
+kronos:
+  enabled: true
+  default_model: kronos-mini
+  optional_models: [kronos-small]
+  monte_carlo_paths: 50
+  training: disabled
+
+research:
+  search: optuna_or_random     # Optuna 装不上自动退 random 并标注
+  trials: 150
+  walk_forward: true
+
+validation:
+  walk_forward: true
+  purged_kfold: true
+  embargo_days: 5
+  transaction_cost_bps: 8
+  slippage_bps: 12
+  benchmark: "000300.SH"
+  min_oos_sharpe: 0.8
+  max_drawdown_pct: -15.0
+  require_oos_outperformance: true
+
+risk:
+  max_single_position: 0.10
+  max_industry_exposure: 0.30
+  exclude_st: true
+  risk_manager_veto: true
+
+agents:
+  enabled: true
+  language: zh
+  engine: deterministic_rules_v1
+  require_json_io: true
+
+reports: {markdown: true, pdf: true, include_disclaimer: true, degraded_summary_required: true}

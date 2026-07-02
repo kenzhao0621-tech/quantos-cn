@@ -1,0 +1,134 @@
+# DataTruthOS source registry — v2.3
+# reliability_level: S | A | B | C | degraded | unavailable
+
+northbound:
+  realtime_northbound_available: false
+  reason: "沪深港通披露机制调整后，实时净买入数据不可稳定作为实时信号"
+  available_replacements:
+    - 盘后持股变化
+    - 历史沪深股通持股
+    - 龙虎榜
+    - ETF 份额变化
+    - 板块成交额
+    - 大单资金流公开估算
+    - 成交量价结构
+
+sources:
+  sse_official:
+    name: 上海证券交易所
+    category: exchange
+    source_type: official
+    base_url: https://www.sse.com.cn
+    api_or_page: disclosure
+    reliability_level: S
+    update_frequency: daily
+    realtime_capability: false
+    fields_supported: [announcement, index]
+    known_limitations: []
+    legal_notes: 公开披露信息
+
+  szse_official:
+    name: 深圳证券交易所
+    category: exchange
+    source_type: official
+    base_url: https://www.szse.cn
+    api_or_page: disclosure
+    reliability_level: S
+    update_frequency: daily
+    realtime_capability: false
+    fields_supported: [announcement, index]
+
+  cninfo:
+    name: 巨潮资讯 CNINFO
+    category: disclosure
+    source_type: official
+    base_url: http://www.cninfo.com.cn
+    api_or_page: announcement_search
+    reliability_level: S
+    update_frequency: intraday
+    realtime_capability: false
+    fields_supported: [announcement, suspension, st_risk]
+
+  tushare_pro:
+    name: Tushare Pro
+    category: market_data
+    source_type: data_vendor
+    base_url: https://tushare.pro
+    api_or_page: pro.daily / pro.adj_factor / pro.daily_basic
+    reliability_level: A
+    update_frequency: eod
+    realtime_capability: false
+    fields_supported: [ohlcv, fundamental, adj_factor, trade_calendar]
+    known_limitations: [rate_limit, survivorship_list_status_L]
+    fallback_sources: [akshare_sina]
+
+  akshare_sina:
+    name: AKShare 新浪行情
+    category: market_data
+    source_type: data_vendor
+    base_url: https://finance.sina.com.cn
+    api_or_page: ak.stock_zh_a_spot
+    reliability_level: A
+    update_frequency: realtime_session
+    realtime_capability: true
+    fields_supported: [spot_quotes, indices]
+    known_limitations: [st_inferred_from_name, not_official_exchange_feed]
+
+  baostock:
+    name: BaoStock
+    category: market_data
+    source_type: data_vendor
+    base_url: http://baostock.com
+    api_or_page: query_history_k_data_plus
+    reliability_level: A
+    update_frequency: eod
+    realtime_capability: false
+    fields_supported: [index_daily, trade_calendar]
+    known_limitations: [unadjusted_by_default]
+
+  csi_index:
+    name: 中证指数有限公司
+    category: index
+    source_type: official
+    base_url: https://www.csindex.com.cn
+    api_or_page: index_daily
+    reliability_level: S
+    update_frequency: eod
+    realtime_capability: false
+    fields_supported: [csi300, csi500, csi1000]
+
+  eastmoney_estimated_flow:
+    name: 东方财富资金流估算
+    category: money_flow
+    source_type: data_vendor
+    base_url: https://data.eastmoney.com
+    api_or_page: money_flow_estimate
+    reliability_level: B
+    update_frequency: session
+    realtime_capability: false
+    fields_supported: [estimated_money_flow]
+    known_limitations: [not_official_northbound, estimated_only]
+    legal_notes: 必须标记 estimated_money_flow，不得冒充官方实时资金流
+
+  kronos_mini:
+    name: Kronos-mini 金融时序模型
+    category: model
+    source_type: derived
+    base_url: https://huggingface.co/NeoQuasar/Kronos-mini
+    api_or_page: sidecar_inference
+    reliability_level: A
+    update_frequency: on_demand
+    realtime_capability: false
+    fields_supported: [kronos_forecast]
+    known_limitations: [model_prediction_not_guaranteed, degraded_bootstrap_fallback]
+
+  warehouse_derived:
+    name: QuantOS DuckDB 仓库派生
+    category: derived
+    source_type: derived
+    base_url: local://data/warehouse/quant.duckdb
+    api_or_page: duckdb_views
+    reliability_level: A
+    update_frequency: on_sync
+    realtime_capability: false
+    fields_supported: [factors, scores, trade_plan]

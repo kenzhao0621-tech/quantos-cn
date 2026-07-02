@@ -21,6 +21,8 @@ docs/ai/
 .venv-china-quant/
 .venv-vnpy-native/
 .venv-qlib-native/
+.venv-kronos/
+vendor/
 docs/test-output/
 !docs/test-output/.gitkeep
 test-results/

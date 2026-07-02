@@ -84,9 +84,35 @@ def run_event_backtest(
 
     fills = [e for e in result.events if e.event_type == "FILL"]
     if fills:
-        rets = [0.01] * len(fills)  # deterministic placeholder
-        mean = sum(rets) / len(rets)
-        std = (sum((r - mean) ** 2 for r in rets) / max(1, len(rets) - 1)) ** 0.5
-        result.metrics["sharpe"] = (mean / std * (252 ** 0.5)) if std > 0 else 0.0
+        # Real returns from the provided bar series: fill price → next available
+        # close of the same symbol. No resolvable exit → no fabricated metrics.
+        closes_by_symbol: dict[str, list[tuple[str, float]]] = {}
+        for bar in bars:
+            sym = str(bar.get("symbol", ""))
+            close = bar.get("close")
+            if sym and close:
+                closes_by_symbol.setdefault(sym, []).append((str(bar.get("date", "")), float(close)))
+        for series in closes_by_symbol.values():
+            series.sort()
+
+        rets: list[float] = []
+        unresolved = 0
+        for fill in fills:
+            price = float(fill.payload.get("price") or 0)
+            series = closes_by_symbol.get(fill.symbol, [])
+            later = [c for d, c in series if d > fill.ts]
+            if price > 0 and later:
+                rets.append(later[0] / price - 1.0)
+            else:
+                unresolved += 1
+
         result.metrics["trades"] = float(len(fills))
+        result.metrics["unresolved_fills"] = float(unresolved)
+        if rets:
+            mean = sum(rets) / len(rets)
+            std = (sum((r - mean) ** 2 for r in rets) / max(1, len(rets) - 1)) ** 0.5
+            result.metrics["mean_return"] = round(mean, 5)
+            result.metrics["sharpe"] = round((mean / std * (252 ** 0.5)), 3) if std > 0 else 0.0
+        else:
+            result.blockers.append("NO_RESOLVABLE_EXITS — provide bars beyond fill dates for real returns")
     return result

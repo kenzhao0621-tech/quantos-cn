@@ -656,7 +656,16 @@ def native_qlib_acceptance(principal: Optional[Principal] = Depends(get_principa
 def research_agents_run(body: dict, principal: Optional[Principal] = Depends(get_principal_ops)) -> Dict[str, Any]:
     p = _require(principal, "research:run")
     from gateway.agents.cn_research.workflow import run_agent_research
-    as_of = body.get("as_of", "2026-06-16")
+    as_of = body.get("as_of")
+    if not as_of:
+        try:
+            from quant.warehouse import query
+
+            as_of = str(query("SELECT CAST(max(trade_date) AS VARCHAR) AS d FROM daily_bars")[0]["d"])
+        except Exception:
+            from datetime import date
+
+            as_of = str(date.today())
     result = run_agent_research(as_of=as_of, run_id=body.get("run_id", ""))
     _audit.emit("agent_research_run", p.user_id, {"run_id": result.run_id})
     artifact = str(ROOT / "data" / "gateway" / "agent_runs" / f"{result.run_id}.json")

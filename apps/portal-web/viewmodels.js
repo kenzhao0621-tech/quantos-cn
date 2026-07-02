@@ -134,6 +134,8 @@
       preset: d.preset || "—",
       mode: d.mode || "eod",
       liveStatus: d.live_status || {},
+      dataFreshness: d.data_freshness || {},
+      dataStatusNote: d.data_status_note || "",
       universeSize: d.universe_size || 0,
       rows: (d.candidates || []).map((c) => ({
         rank: c.rank,

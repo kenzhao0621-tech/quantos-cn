@@ -98,7 +98,7 @@ def _factor_audit() -> dict[str, Any]:
         "registry_json": (ART / "factor_registry.json").exists(),
         "alpha158_cache": (ROOT / "data/parquet/features/alpha158/alpha158_wide.parquet").exists(),
         "neutralization": "quant/features/neutralization.py",
-        "model_version": "screener_v5_ensemble_lgbm_2026-06-17",
+        "model_version": __import__("quant.version", fromlist=["SCREENER_MODEL_VERSION"]).SCREENER_MODEL_VERSION,
         "ensemble_weights": {"ml": 0.45, "baseline": 0.35, "risk": 0.20},
     }
 
