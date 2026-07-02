@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, fix/a-share-quant-reliability-paper-validation]
+    branches: [main]
   pull_request:
     branches: [main]
 

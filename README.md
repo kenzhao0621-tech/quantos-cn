@@ -1,7 +1,11 @@
 # QuantOS CN
 
+> 如果这个项目对你有帮助，欢迎 **[⭐ Star 本项目](https://github.com/kenzhao0621-tech/quantos-cn)**，让更多人发现可审计的本地量化工具。
+
 **中国 A 股本地量化工作台** — 可复现公式 · 数据可追溯 · Paper 模拟 · 开源 MIT
 
+[![CI](https://github.com/kenzhao0621-tech/quantos-cn/actions/workflows/ci.yml/badge.svg)](https://github.com/kenzhao0621-tech/quantos-cn/actions/workflows/ci.yml)
+[![GitHub stars](https://img.shields.io/github/stars/kenzhao0621-tech/quantos-cn?style=flat&logo=github&label=Stars)](https://github.com/kenzhao0621-tech/quantos-cn/stargazers)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![QuantOS v2.3](https://img.shields.io/badge/QuantOS-v2.3-purple.svg)](#我们解决什么问题)
