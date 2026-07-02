@@ -300,6 +300,14 @@ def screener_run(
         fast=use_fast,
     )
     payload = result.to_dict()
+    # Learning loop: record run outcomes for forward-return tracking
+    # (refactor audit MODEL_AUDIT §3: record_screener_run was never wired).
+    try:
+        from quant.learning.outcome_tracker import record_screener_run
+
+        record_screener_run(payload)
+    except Exception:
+        pass
     return envelope_ok(
         payload,
         provenance={
