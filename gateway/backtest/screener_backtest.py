@@ -49,6 +49,9 @@ def run_screener_portfolio_backtest(
     trades = 0
     limit_blocked = 0
 
+    limit_down_flagged = 0
+    suspended_skipped = 0
+
     for signal_date in eval_dates:
         proof_date = dates[dates.index(signal_date) + 1]
         screen = svc.screen(
@@ -65,7 +68,7 @@ def run_screener_portfolio_backtest(
         ph = ",".join(["?"] * len(symbols))
         rows = con.execute(
             f"""
-            SELECT s.ts_code, s.close, p.open, p.close, p.pct_chg
+            SELECT s.ts_code, s.close, p.open, p.close, p.pct_chg, p.vol
             FROM daily_bars s JOIN daily_bars p ON p.ts_code = s.ts_code
             WHERE s.trade_date = ? AND p.trade_date = ? AND s.ts_code IN ({ph}) AND s.close > 0
             """,
@@ -73,10 +76,20 @@ def run_screener_portfolio_backtest(
         ).fetchall()
         rets = []
         for r in rows:
-            signal_close, next_open, next_close, next_pct = float(r[1]), float(r[2] or r[1]), float(r[3]), float(r[4] or 0)
+            signal_close, next_open, next_close = float(r[1]), float(r[2] or r[1]), float(r[3])
+            next_pct = float(r[4] or 0)
+            next_vol = float(r[5] or 0)
+            if next_vol <= 0:
+                # Suspension: cannot trade at all next day.
+                suspended_skipped += 1
+                continue
             if ((next_open / signal_close) - 1.0) * 100 >= 9.7:
+                # Limit-up at entry: cannot buy.
                 limit_blocked += 1
                 continue
+            if next_pct <= -9.7:
+                # Limit-down at exit: sell may not fill — flagged, loss still taken.
+                limit_down_flagged += 1
             gross = ((next_close / signal_close) - 1.0) * 100
             net = gross - (cost_bps + slippage_bps) / 100.0
             rets.append(net)
@@ -122,7 +135,10 @@ def run_screener_portfolio_backtest(
             "trade_days": float(len(daily_net)),
             "symbol_trades": float(trades),
             "limit_blocked": float(limit_blocked),
+            "limit_down_flagged": float(limit_down_flagged),
+            "suspended_skipped": float(suspended_skipped),
         },
+        "window": {"start": eval_dates[0], "end": eval_dates[-1], "days": len(eval_dates)},
         "blockers": [],
     }
     from quant.validation.overfitting import benchmark_comparison, deflated_sharpe_ratio, probability_backtest_overfitting
@@ -131,9 +147,71 @@ def run_screener_portfolio_backtest(
     result["overfitting"] = {
         "dsr": deflated_sharpe_ratio(sharpe, n_trials=12, n_obs=max(len(daily_net), 2)),
         "pbo": probability_backtest_overfitting([daily_net, list(reversed(daily_net)), daily_net[::2] + daily_net[1::2]]),
+        "pbo_method": "same_series_permutations_APPROXIMATE — real parameter variants in ResearchOS",
     }
-    result["benchmarks"] = benchmark_comparison(
-        total_ret,
-        {"hs300_proxy": total_ret * 0.6, "equal_weight": total_ret * 0.5, "buy_hold": total_ret * 0.4},
-    )
+    benchmarks = _real_benchmarks(eval_dates[0], eval_dates[-1])
+    result["benchmarks"] = benchmark_comparison(total_ret, benchmarks["values"])
+    result["benchmarks"]["sources"] = benchmarks["sources"]
+    if benchmarks.get("degraded"):
+        result["benchmarks"]["degraded"] = True
+        result["benchmarks"]["degraded_reason"] = benchmarks.get("reason", "")
     return result
+
+
+def _real_benchmarks(start_date: str, end_date: str) -> dict[str, Any]:
+    """Real benchmark returns over the same window (refactor audit BACKTEST §1:
+    previously hardcoded as fractions of the strategy's own return)."""
+    values: dict[str, float] = {}
+    sources: dict[str, str] = {}
+    degraded_reasons: list[str] = []
+    import duckdb
+
+    con = duckdb.connect(str(WAREHOUSE), read_only=True)
+    try:
+        # CSI 300 buy&hold over the window.
+        row = con.execute(
+            """
+            SELECT first(close ORDER BY trade_date) AS first_close,
+                   last(close ORDER BY trade_date) AS last_close
+            FROM index_bars
+            WHERE ts_code = '000300.SH'
+              AND replace(CAST(trade_date AS VARCHAR), '-', '')
+                  BETWEEN replace(?, '-', '') AND replace(?, '-', '')
+            """,
+            [start_date, end_date],
+        ).fetchone()
+        if row and row[0] and row[1]:
+            values["hs300_buy_hold"] = round((float(row[1]) / float(row[0]) - 1.0) * 100, 3)
+            sources["hs300_buy_hold"] = "index_bars 000300.SH real closes"
+        else:
+            degraded_reasons.append("hs300_index_bars_missing_window")
+
+        # Equal-weight market: compound the cross-sectional mean daily pct_chg.
+        rows = con.execute(
+            """
+            SELECT trade_date, avg(pct_chg) AS mean_pct
+            FROM daily_bars
+            WHERE trade_date > ? AND trade_date <= ? AND pct_chg IS NOT NULL
+            GROUP BY trade_date ORDER BY trade_date
+            """,
+            [start_date, end_date],
+        ).fetchall()
+        if rows:
+            cum = 1.0
+            for _, mean_pct in rows:
+                cum *= 1.0 + float(mean_pct or 0) / 100.0
+            values["equal_weight_market"] = round((cum - 1.0) * 100, 3)
+            sources["equal_weight_market"] = "daily_bars cross-sectional mean pct_chg compounded"
+        else:
+            degraded_reasons.append("daily_bars_missing_window")
+    except Exception as exc:
+        degraded_reasons.append(f"benchmark_error:{str(exc)[:80]}")
+    finally:
+        con.close()
+
+    return {
+        "values": values,
+        "sources": sources,
+        "degraded": not values or bool(degraded_reasons),
+        "reason": ";".join(degraded_reasons),
+    }
