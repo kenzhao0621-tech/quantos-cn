@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 from typing import Any
 
 from gateway.config import ROOT
+
+logger = logging.getLogger(__name__)
 
 WAREHOUSE = ROOT / "data" / "warehouse" / "quant.duckdb"
 LIVE_SNAPSHOT = ROOT / "data" / "gateway" / "live_snapshot.json"
@@ -20,8 +23,8 @@ def _live_prices() -> dict[str, float]:
         prices = live_price_map()
         if prices:
             return prices
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("position_monitor: live price map unavailable, falling back to EOD: %s", exc)
     prices: dict[str, float] = {}
     if WAREHOUSE.exists():
         try:
@@ -35,8 +38,8 @@ def _live_prices() -> dict[str, float]:
             for sym, close in rows:
                 if sym not in prices and close:
                     prices[str(sym)] = float(close)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("position_monitor: EOD price fallback failed: %s", exc)
     return prices
 
 

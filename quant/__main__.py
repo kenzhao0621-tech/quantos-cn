@@ -488,12 +488,24 @@ def cmd_update_indices(_args: argparse.Namespace) -> int:
     return _emit(rep, f"指数更新：{rep.get('available_count', 0)} 个达标。")
 
 
-def cmd_update_daily_bars(_args: argparse.Namespace) -> int:
+def cmd_update_daily_bars(args: argparse.Namespace) -> int:
     from quant.backfill import update_daily_bars
     from quant.warehouse import sync_from_partitions
-    rep = update_daily_bars()
+    target_days = int(getattr(args, "target_days", 0) or 120)
+    max_new = int(getattr(args, "max_new", 0) or 80)
+    rep = update_daily_bars(target_days=target_days, max_new=max_new)
     sync_from_partitions()
     return _emit(rep, f"日线回补：{rep.get('partition_count', 0)} 分区。")
+
+
+def cmd_update_adj_factors(args: argparse.Namespace) -> int:
+    from quant.backfill import update_adj_factors
+    from quant.warehouse import sync_from_partitions
+    target_days = int(getattr(args, "target_days", 0) or 130)
+    max_new = int(getattr(args, "max_new", 0) or 200)
+    rep = update_adj_factors(target_days=target_days, max_new=max_new)
+    sync_from_partitions()
+    return _emit(rep, f"复权因子回补：{rep.get('new_partitions', 0)} 分区。")
 
 
 def cmd_update_sectors(_args: argparse.Namespace) -> int:
@@ -601,6 +613,7 @@ COMMANDS: dict[str, Callable[[argparse.Namespace], int]] = {
     "freshness-watchdog": cmd_freshness_watchdog,
     "update-indices": cmd_update_indices,
     "update-daily-bars": cmd_update_daily_bars,
+    "update-adj-factors": cmd_update_adj_factors,
     "update-sectors": cmd_update_sectors,
     "update-fundamentals": cmd_update_fundamentals,
     "update-disclosures": cmd_update_disclosures,
@@ -676,7 +689,12 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("freshness-watchdog", help="Run live freshness watchdog")
     sub.add_parser("provider-discover", help="Alias for capability-discovery")
     sub.add_parser("update-indices", help="Backfill major indices")
-    sub.add_parser("update-daily-bars", help="Incremental daily bar backfill")
+    p_bars = sub.add_parser("update-daily-bars", help="Incremental daily bar backfill")
+    p_bars.add_argument("--target-days", type=int, default=120, help="Trading days of history to cover")
+    p_bars.add_argument("--max-new", type=int, default=80, help="Max new partitions per run")
+    p_adj = sub.add_parser("update-adj-factors", help="Backfill Tushare adj factors (复权因子)")
+    p_adj.add_argument("--target-days", type=int, default=130)
+    p_adj.add_argument("--max-new", type=int, default=200)
     sub.add_parser("update-sectors", help="Sector classification backfill")
     sub.add_parser("update-fundamentals", help="Fundamental snapshot backfill")
     sub.add_parser("update-disclosures", help="Official disclosure ingestion backfill")

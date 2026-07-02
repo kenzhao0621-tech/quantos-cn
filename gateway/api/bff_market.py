@@ -172,22 +172,28 @@ def market_sync_all(principal: Optional[Principal] = Depends(_principal)) -> Dic
 
     run_id = str(uuid.uuid4())[:8]
     py = ROOT / ".venv-china-quant" / "bin" / "python"
-    results: list[dict[str, Any]] = []
-    for target, cmd in (
+    targets = (
         ("indices", [str(py), "-m", "quant", "update-indices"]),
         ("bars", [str(py), "-m", "quant", "update-daily-bars"]),
-    ):
+        ("adj_factors", [str(py), "-m", "quant", "update-adj-factors"]),
+        ("sectors", [str(py), "-m", "quant", "update-sectors"]),
+        ("fundamentals", [str(py), "-m", "quant", "update-fundamentals"]),
+        ("disclosures", [str(py), "-m", "quant", "update-disclosures"]),
+    )
+
+    def _run_target(target: str, cmd: list[str]) -> dict[str, Any]:
         try:
-            r = subprocess.run(cmd, cwd=str(ROOT), capture_output=True, text=True, timeout=300)
-            results.append({
-                "target": target,
-                "ok": r.returncode == 0,
-                "tail": (r.stdout + r.stderr)[-500:],
-            })
+            r = subprocess.run(cmd, cwd=str(ROOT), capture_output=True, text=True, timeout=180)
+            return {"target": target, "ok": r.returncode == 0, "tail": (r.stdout + r.stderr)[-500:]}
         except subprocess.TimeoutExpired:
-            results.append({"target": target, "ok": False, "error": "timeout after 300s"})
+            return {"target": target, "ok": False, "error": "timeout after 180s"}
         except Exception as exc:
-            results.append({"target": target, "ok": False, "error": str(exc)[:120]})
+            return {"target": target, "ok": False, "error": str(exc)[:120]}
+
+    from concurrent.futures import ThreadPoolExecutor
+
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        results = list(pool.map(lambda tc: _run_target(*tc), targets))
 
     warehouse_sync: dict[str, Any] = {}
     try:

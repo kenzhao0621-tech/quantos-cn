@@ -153,11 +153,21 @@ def market_status(principal: Optional[Principal] = Depends(get_principal)) -> Di
     freshness = get_market_status_summary()
     return envelope_ok({
         "mode": _state.mode.value,
-        "session": "CLOSED",
+        "session": _market_session(),
         "paper_trading_only": PAPER_TRADING_ONLY,
         "runtime": runtime,
         **freshness,
     }, request_id=str(uuid.uuid4()))
+
+
+def _market_session() -> str:
+    try:
+        from quant.freshness_contract import market_session_status
+
+        label, is_open = market_session_status()
+        return "OPEN" if is_open else label.upper()
+    except Exception:
+        return "UNKNOWN"
 
 
 @app.get("/api/v1/market/snapshot")
@@ -188,7 +198,16 @@ def market_indices(principal: Optional[Principal] = Depends(get_principal)) -> D
 @app.get("/api/v1/market/sectors")
 def market_sectors(principal: Optional[Principal] = Depends(get_principal)) -> Dict[str, Any]:
     _require(principal, "market:read")
-    return envelope_ok({"sectors": [], "source": "warehouse"})
+    try:
+        from quant.warehouse import query
+
+        rows = query(
+            "SELECT sector_name AS sector, COUNT(*) AS stock_count "
+            "FROM industry_map GROUP BY sector_name ORDER BY stock_count DESC LIMIT 60"
+        )
+        return envelope_ok({"sectors": rows, "source": "warehouse.industry_map"})
+    except Exception as exc:
+        return envelope_ok({"sectors": [], "source": "warehouse", "error": str(exc)[:120]})
 
 
 @app.post("/api/v1/agents/{agent_id}/invoke")
@@ -584,7 +603,7 @@ def system_status(principal: Optional[Principal] = Depends(get_principal)) -> Di
     return envelope_ok({
         "mode": _state.mode.value,
         "autonomous_label": _state.max_autonomous_label(),
-        "market_session": "CLOSED",
+        "market_session": _market_session(),
         "data_status": "WAREHOUSE_PRESENT",
         "capital": snap.capital_total_cny,
         "remaining_loss_budget": snap.remaining_loss_budget_cny,
