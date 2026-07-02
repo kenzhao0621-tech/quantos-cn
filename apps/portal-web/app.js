@@ -110,10 +110,8 @@
     }, btn),
     "reset-request": (btn) => act("申请解除停机", "/api/v1/risk/reset-request", { method: "POST" }, btn),
     "reset-confirm": (btn) => act("确认解除停机", "/api/v1/risk/reset-confirm", { method: "POST" }, btn),
-    backtest: (btn) => act("运行回测", "/api/v1/research/backtest", {
-      method: "POST",
-      body: JSON.stringify({ as_of_date: "2026-06-16" }),
-    }, btn),
+    backtest: (btn) => runBacktestWithCurves(btn),
+    "agents-analyze": (btn) => runAgentsAnalyze(btn),
     "candidate-gate": (btn) => act("候选门", "/api/v1/research/candidate", { method: "POST" }, btn),
     "market-refresh": () => refreshMarket(),
     "market-live-refresh": (btn) => refreshLiveMarket(btn),
@@ -150,7 +148,7 @@
     "agents-run": async (btn) => {
       const res = await act("多智能体研究", "/api/v1/research/agents/run", {
         method: "POST",
-        body: JSON.stringify({ as_of: "2026-06-16" }),
+        body: JSON.stringify({}),
       }, btn);
       if (res.ok) {
         lastAgentRun = res.data;
@@ -1079,6 +1077,59 @@
       UI.renderModelValidation($("model-validation"), res);
       UI.toast("模型验收完成", res.data?.verdict || "完成", res.data?.verdict === "READY_FOR_EXTENDED_PAPER" ? "ok" : "fail");
       return res;
+    } finally {
+      UI.setLoading(btn, false);
+    }
+  }
+
+  async function runBacktestWithCurves(btn) {
+    UI.setLoading(btn, true, "回测中（约 10–15 分钟）…");
+    const box = $("backtest-result");
+    if (box) box.replaceChildren(UI.renderEmpty("组合回测", "逐日运行历史信号并模拟 T+1 组合，请耐心等待…", ""));
+    try {
+      const body = {
+        engine: "screener_portfolio",
+        preset: $("strategy-preset")?.value || "balanced",
+        lookback_days: Number($("backtest-lookback")?.value || 40),
+        top_n: Number($("backtest-topn")?.value || 5),
+      };
+      const res = await api.request("/api/v1/research/backtest", {
+        method: "POST",
+        body: JSON.stringify(body),
+        timeoutMs: 1200000,
+      });
+      if (box) UI.renderBacktestReport(box, res.data || {});
+      const st = res.data?.status || "完成";
+      UI.toast("回测完成", st, st === "OK" ? "ok" : "fail");
+      return res;
+    } catch (e) {
+      if (box) box.replaceChildren(UI.renderEmpty("回测失败", String(e?.message || e), ""));
+      throw e;
+    } finally {
+      UI.setLoading(btn, false);
+    }
+  }
+
+  async function runAgentsAnalyze(btn) {
+    const symbol = ($("agents-symbol")?.value || "").trim();
+    if (!symbol) {
+      UI.toast("请输入股票代码", "如 600000.SH / 000001.SZ", "fail");
+      return;
+    }
+    UI.setLoading(btn, true, "9 个智能体分析中…");
+    const box = $("agents-analyze-result");
+    try {
+      const res = await api.request(
+        `/api/v1/agents/analyze?symbol=${encodeURIComponent(symbol)}`,
+        { timeoutMs: 300000 },
+      );
+      if (box) UI.renderAgentsAnalysis(box, res.data || {});
+      const grade = res.data?.final?.rating || "?";
+      UI.toast("研究完成", `评级 ${grade}`, grade === "BLOCKED" ? "fail" : "ok");
+      return res;
+    } catch (e) {
+      if (box) box.replaceChildren(UI.renderEmpty("分析失败", String(e?.message || e), ""));
+      throw e;
     } finally {
       UI.setLoading(btn, false);
     }

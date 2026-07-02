@@ -42,41 +42,10 @@ def main() -> int:
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return 2
 
-    # Full §9.2 metrics + §9.3 gate on the real daily series when available.
-    from quant.validation.gate import evaluate_validation_gate
-    from quant.validation.performance import full_metrics
-
+    # Gate is computed inside run_screener_portfolio_backtest (§9.3).
+    gate = result.get("validation_gate", {"verdict": "GATE_MISSING", "reasons": []})
     m = result.get("metrics", {})
-    # screener_backtest reports aggregates; reconstruct gate inputs from them.
-    metrics_block = {
-        "n_days": int(m.get("trade_days") or 0),
-        "return": {
-            "cumulative_return_pct": m.get("total_return_pct"),
-            "annualized_return_pct": None,
-        },
-        "risk": {
-            "sharpe": m.get("sharpe"),
-            "max_drawdown_pct": m.get("max_drawdown_pct"),
-        },
-    }
     benchmarks = result.get("benchmarks", {})
-    bench_ret = None
-    for container in (benchmarks, benchmarks.get("benchmarks") or {}, benchmarks.get("values") or {}):
-        raw = container.get("hs300_buy_hold") if isinstance(container, dict) else None
-        if isinstance(raw, (int, float)):
-            bench_ret = float(raw)
-            break
-        if isinstance(raw, dict) and isinstance(raw.get("benchmark_return_pct"), (int, float)):
-            bench_ret = float(raw["benchmark_return_pct"])
-            break
-
-    gate = evaluate_validation_gate(
-        metrics=metrics_block,
-        benchmark_return_pct=float(bench_ret) if bench_ret is not None else None,
-        costs_included=True,
-        a_share_constraints_applied=True,
-    )
-    result["validation_gate"] = gate
     result["mode"] = args.mode
     result["generated_at"] = datetime.now().isoformat(timespec="seconds")
 

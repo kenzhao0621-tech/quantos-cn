@@ -139,6 +139,7 @@ def run_screener_portfolio_backtest(
             "suspended_skipped": float(suspended_skipped),
         },
         "window": {"start": eval_dates[0], "end": eval_dates[-1], "days": len(eval_dates)},
+        "daily_net_pct": [round(x, 4) for x in daily_net],
         "blockers": [],
     }
     from quant.validation.overfitting import benchmark_comparison, deflated_sharpe_ratio, probability_backtest_overfitting
@@ -155,6 +156,23 @@ def run_screener_portfolio_backtest(
     if benchmarks.get("degraded"):
         result["benchmarks"]["degraded"] = True
         result["benchmarks"]["degraded_reason"] = benchmarks.get("reason", "")
+
+    # §9.3 validation gate — BLOCKED results are reported honestly, never hidden.
+    try:
+        from quant.validation.gate import evaluate_validation_gate
+        from quant.validation.performance import full_metrics
+
+        fm = full_metrics(daily_net, label=f"screener_{preset}")
+        bench_ret = benchmarks["values"].get("hs300_buy_hold")
+        result["full_metrics"] = fm
+        result["validation_gate"] = evaluate_validation_gate(
+            metrics=fm,
+            benchmark_return_pct=float(bench_ret) if bench_ret is not None else None,
+            costs_included=True,
+            a_share_constraints_applied=True,
+        )
+    except Exception as exc:
+        result["validation_gate"] = {"verdict": "GATE_ERROR", "reasons": [str(exc)[:120]]}
     return result
 
 

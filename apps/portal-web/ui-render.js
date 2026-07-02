@@ -202,6 +202,123 @@
     return `<svg class="sparkline" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.5" /></svg>`;
   }
 
+  function curveChartSvg(values, { label = "", color = "var(--up)", height = 120 } = {}) {
+    if (!values || values.length < 2) return "";
+    const w = 560, h = height, pad = 14;
+    const min = Math.min(...values, 0), max = Math.max(...values, 0);
+    const range = max - min || 1;
+    const step = (w - pad * 2) / (values.length - 1);
+    const y = (v) => (h - pad - ((v - min) / range) * (h - pad * 2)).toFixed(1);
+    const pts = values.map((v, i) => `${(pad + i * step).toFixed(1)},${y(v)}`).join(" ");
+    const zeroY = y(0);
+    return `<svg class="curve-chart" width="100%" height="${h}" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
+      <line x1="${pad}" y1="${zeroY}" x2="${w - pad}" y2="${zeroY}" stroke="var(--border,#444)" stroke-dasharray="3,3" stroke-width="1"/>
+      <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.8"/>
+      <text x="${pad}" y="12" font-size="10" fill="var(--muted,#888)">${label}</text>
+    </svg>`;
+  }
+
+  function renderBacktestReport(container, data) {
+    if (!container) return;
+    container.innerHTML = "";
+    const m = data.metrics || {};
+    const gate = data.validation_gate || {};
+    const win = data.window || {};
+    if (data.status && data.status !== "OK") {
+      container.appendChild(renderEmpty(`回测状态：${data.status}`, (data.blockers || []).join("；") || "无可执行信号", ""));
+      return;
+    }
+    const verdict = gate.verdict || "未评估";
+    const head = el("div", "backtest-head");
+    head.innerHTML = `<span class="badge ${verdict === "CANDIDATE_POOL_ELIGIBLE" ? "ok" : "warn"}">${verdict === "CANDIDATE_POOL_ELIGIBLE" ? "通过验证门" : "未通过验证门（BLOCKED）"}</span>
+      <span class="muted">真实窗口 ${win.start || "?"} ~ ${win.end || "?"}（${win.days || 0} 个信号日）</span>`;
+    container.appendChild(head);
+    renderKeyValues(container, {
+      "夏普比率": m.sharpe,
+      "累计净收益%": m.total_return_pct,
+      "最大回撤%": m.max_drawdown_pct,
+      "胜率%": m.win_rate_pct,
+      "交易笔数": m.symbol_trades,
+      "涨停无法买入": m.limit_blocked,
+      "停牌跳过": m.suspended_skipped,
+    });
+    const daily = data.daily_net_pct || [];
+    if (daily.length > 1) {
+      const cum = [];
+      let acc = 0;
+      daily.forEach((r) => { acc += r; cum.push(Number(acc.toFixed(3))); });
+      let peak = -Infinity;
+      const dd = cum.map((v) => { peak = Math.max(peak, v); return Number((v - peak).toFixed(3)); });
+      const charts = el("div", "backtest-charts");
+      charts.innerHTML =
+        curveChartSvg(cum, { label: "累计净收益 %（扣成本/滑点）", color: cum[cum.length - 1] >= 0 ? "var(--up)" : "var(--down)" }) +
+        curveChartSvg(dd, { label: "回撤 %", color: "var(--down)", height: 80 });
+      container.appendChild(charts);
+    }
+    const bench = data.benchmarks || {};
+    const bmap = bench.benchmarks || bench.values || {};
+    if (Object.keys(bmap).length) {
+      const rows = Object.entries(bmap).map(([k, v]) => [
+        k === "hs300_buy_hold" ? "沪深300 买入持有" : (k === "equal_weight_market" ? "全市场等权" : k),
+        typeof v === "number" ? `${v}%` : JSON.stringify(v),
+        (bench.beats || {})[k] === true ? "跑赢" : ((bench.beats || {})[k] === false ? "跑输" : "—"),
+      ]);
+      renderTable(container.appendChild(el("div", "")), ["真实基准", "同窗口收益", "策略对比"], rows, "");
+    }
+    if ((gate.reasons || []).length) {
+      const ul = el("ul", "list");
+      gate.reasons.forEach((r) => ul.appendChild(el("li", "warn", r)));
+      container.appendChild(ul);
+    }
+    container.appendChild(el("p", "muted", gate.disclaimer || "历史回测不代表未来收益；仅供研究，不构成投资建议。"));
+  }
+
+  function renderAgentsAnalysis(container, data) {
+    if (!container) return;
+    container.innerHTML = "";
+    const final = data.final || {};
+    const grade = final.rating || "?";
+    const gradeClass = { A: "ok", B: "ok", C: "", D: "warn", BLOCKED: "warn" }[grade] || "";
+    const head = el("div", "agents-head");
+    head.innerHTML = `<span class="badge ${gradeClass}" style="font-size:1.1em">研究评级 ${grade}</span>
+      <span class="muted">${final.rating_meaning || ""} · 综合 ${final.score ?? "?"} · 置信 ${final.confidence ?? "?"}</span>`;
+    container.appendChild(head);
+    const cols = el("div", "debate-columns");
+    const bull = el("div", "debate-col");
+    bull.appendChild(el("h4", "", "看多理由"));
+    (final.bull_case || []).slice(0, 6).forEach((p) => bull.appendChild(el("div", "muted", `• ${p}`)));
+    const bear = el("div", "debate-col");
+    bear.appendChild(el("h4", "", "看空理由 / 风险"));
+    (final.bear_case || []).slice(0, 6).forEach((p) => bear.appendChild(el("div", "muted", `• ${p}`)));
+    (final.risks || []).forEach((r) => bear.appendChild(el("div", "warn", `⚠ ${r}`)));
+    cols.append(bull, bear);
+    container.appendChild(cols);
+    if ((final.position_advice || []).length) {
+      const pos = el("div", "");
+      pos.appendChild(el("h4", "", "仓位与执行约束"));
+      final.position_advice.forEach((p) => pos.appendChild(el("div", "muted", `• ${p}`)));
+      container.appendChild(pos);
+    }
+    const inv = el("div", "");
+    inv.appendChild(el("h4", "", "什么情况下该结论失效"));
+    (final.invalidation_conditions || []).forEach((c) => inv.appendChild(el("div", "muted", `• ${c}`)));
+    container.appendChild(inv);
+    const agents = data.agents || {};
+    const rows = Object.values(agents).map((a) => [
+      a.agent,
+      a.rating,
+      a.score,
+      a.confidence,
+      a.degraded ? "降级" : "正常",
+      (a.key_points || [])[0] || "",
+    ]);
+    if (rows.length) renderTable(container.appendChild(el("div", "")), ["角色", "评级", "分数", "置信", "状态", "要点"], rows, "");
+    if ((final.degraded_agents || []).length) {
+      container.appendChild(el("p", "warn", `降级智能体：${final.degraded_agents.join("、")}（数据缺失时如实降级，不伪造结论）`));
+    }
+    container.appendChild(el("p", "muted", final.disclaimer || "仅供研究与辅助决策，不构成投资建议。"));
+  }
+
   function formatScreenerPrice(r, mode) {
     const live = r.live_price;
     const eod = r.last_close;
@@ -1240,6 +1357,8 @@
     openStockDetailModal,
     closeStockDetailModal,
     renderSetupCenter,
+    renderBacktestReport,
+    renderAgentsAnalysis,
     toast,
     setLoading,
     countPrimaryRawJson,
