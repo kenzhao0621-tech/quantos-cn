@@ -161,7 +161,7 @@ class ScreenResult:
             "live_provider": self.live_status.get("provider"),
             "preset": self.preset,
             "mode": self.mode,
-            "model_version": "screener_v5_ensemble_lgbm_2026-06-17",
+            "model_version": _model_version(),
             "neutralization": "size_industry",
             "forecast_horizon": "T+1_close_to_close",
             "ensemble_mode": self.ensemble_meta.get("mode", "baseline_fallback"),
@@ -182,8 +182,20 @@ class ScreenResult:
             "selection_guide": guide,
             "capital_cny": cap,
             "agent_overlay": self.agent_overlay,
-            "screener_engine": "screener_v6_trading_agents_zh",
+            "screener_engine": _screener_engine(),
         }
+
+
+def _model_version() -> str:
+    from quant.version import SCREENER_MODEL_VERSION
+
+    return SCREENER_MODEL_VERSION
+
+
+def _screener_engine() -> str:
+    from quant.version import SCREENER_ENGINE
+
+    return SCREENER_ENGINE
 
 
 class ScreenerService:

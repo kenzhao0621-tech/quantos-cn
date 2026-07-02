@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from quant.paths import desktop_reports_root
+from quant.version import SCREENER_ENGINE
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -361,7 +362,7 @@ def gateway_capabilities(principal: Optional[Principal] = Depends(get_principal)
             "audit_events": True,
             "observability_traces": True,
             "agent_framework": "TradingAgents-CN",
-            "screener_engine": "screener_v6_trading_agents_zh",
+            "screener_engine": SCREENER_ENGINE,
             "live_quotes_intraday_refresh": intraday_refresh_status(),
             "screener_learning": latest_learning_report() is not None,
             "pdf_exports": ["daily_quant_report", "screener_symbol_analysis", "paper_close_report"],

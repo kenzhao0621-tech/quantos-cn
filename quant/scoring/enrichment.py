@@ -12,7 +12,8 @@ from quant.screener.names import resolve_name
 from quant.screener.trade_zones import compute_trade_zones
 from quant.screener.beginner_guide import build_detailed_reasons
 
-MODEL_VERSION = "screener_v4_industry_neutral_2026-06-17"
+from quant.version import SCREENER_MODEL_VERSION as MODEL_VERSION
+
 FORECAST_HORIZON = "T+1_close_to_close"
 
 

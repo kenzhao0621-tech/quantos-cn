@@ -21,6 +21,7 @@ from gateway.auth.rbac import Principal, authenticate, require_permission
 from gateway.config import GatewayConfig
 from gateway.jobs.manager import get_job_manager
 from quant.application.live_market_service import fetch_live_snapshot, intraday_slots
+from quant.version import SCREENER_ENGINE
 from quant.application.market_data_service import get_market_data_service
 from quant.domain.market_models import DataMode
 
@@ -303,7 +304,7 @@ def screener_run(
         payload,
         provenance={
             "source": "canonical_duckdb",
-            "engine": payload.get("screener_engine", "screener_v6_trading_agents_zh"),
+            "engine": payload.get("screener_engine", SCREENER_ENGINE),
             "agent_framework": "TradingAgents-CN",
             "fast_path": use_fast,
         },
@@ -314,7 +315,7 @@ def screener_run(
 def screener_capabilities(principal: Optional[Principal] = Depends(_principal)) -> Dict[str, Any]:
     _require(principal, "market:read")
     return envelope_ok({
-        "engine": "screener_v6_trading_agents_zh",
+        "engine": SCREENER_ENGINE,
         "agent_framework": "TradingAgents-CN",
         "modes": ["eod", "live"],
         "fast_default": True,
