@@ -258,19 +258,19 @@ def screener_run(
     from gateway.preferences import load_preferences
     from quant.application.screener_service import get_screener_service
 
+    live_prefetch: dict[str, Any] | None = None
     if mode.lower() in ("live", "realtime", "intraday"):
         from quant.application.live_market_service import ensure_live_quotes, live_quotes_ready, snapshot_rows
 
         live_snap = ensure_live_quotes(refresh=False, max_age_sec=120)
         if not live_quotes_ready(live_snap):
             live_snap = ensure_live_quotes(refresh=True, max_age_sec=120)
-        if not live_quotes_ready(live_snap):
-            return envelope_err(
-                "LIVE_QUOTES_UNAVAILABLE",
-                live_snap.get("reason") or "实时行情未就绪 — 请稍后重试或检查行情源连接",
-                live_status={k: v for k, v in live_snap.items() if k != "rows"},
-                row_count=len(snapshot_rows(live_snap)),
-            )
+        live_prefetch = {
+            k: v for k, v in live_snap.items() if k != "rows"
+        }
+        live_prefetch["quotes_ready"] = live_quotes_ready(live_snap)
+        live_prefetch["row_count"] = len(snapshot_rows(live_snap))
+        # Do not hard-block: screener_service falls back to EOD factors with honest live_status.
 
     prefs = load_preferences()
     pref_sectors = _split_csv(preferred_sectors) or prefs.preferred_sectors
