@@ -211,6 +211,30 @@ def market_sectors(principal: Optional[Principal] = Depends(get_principal)) -> D
         return envelope_ok({"sectors": [], "source": "warehouse", "error": str(exc)[:120]})
 
 
+@app.get("/api/v1/agents/analyze")
+def agents_analyze(
+    symbol: str,
+    as_of_date: Optional[str] = None,
+    principal: Optional[Principal] = Depends(get_principal),
+) -> Dict[str, Any]:
+    """AgentsOS full multi-agent research analysis (9 roles, A/B/C/D/BLOCKED)."""
+    _require(principal, "market:read")
+    from gateway.agents.quantos import run_agents_analysis
+
+    try:
+        result = run_agents_analysis(symbol.strip().upper(), as_of_date=as_of_date)
+    except Exception as exc:
+        return envelope_err("AGENTS_ANALYSIS_FAILED", str(exc)[:200])
+    # Trim the heavy input context for the API response; artifact keeps the full record.
+    slim = {k: v for k, v in result.items() if k != "input_context"}
+    slim["input_summary"] = {
+        "market_available": result["input_context"]["market_data_summary"].get("available"),
+        "risk_flags": result["input_context"]["risk_flags"],
+        "news_count": len(result["input_context"]["news_summary"]),
+    }
+    return envelope_ok(slim)
+
+
 @app.post("/api/v1/agents/{agent_id}/invoke")
 def invoke_agent(
     agent_id: str,

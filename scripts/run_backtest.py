@@ -60,16 +60,15 @@ def main() -> int:
         },
     }
     benchmarks = result.get("benchmarks", {})
-    bench_ret = (benchmarks.get("hs300_buy_hold") if isinstance(benchmarks.get("hs300_buy_hold"), (int, float))
-                 else (benchmarks.get("values", {}) or {}).get("hs300_buy_hold"))
-    # benchmark_comparison stores candidates differently; fall back to raw values dict.
-    if bench_ret is None:
-        for key in ("comparisons", "values"):
-            v = benchmarks.get(key)
-            if isinstance(v, dict) and "hs300_buy_hold" in v:
-                raw = v["hs300_buy_hold"]
-                bench_ret = raw.get("benchmark_return_pct") if isinstance(raw, dict) else raw
-                break
+    bench_ret = None
+    for container in (benchmarks, benchmarks.get("benchmarks") or {}, benchmarks.get("values") or {}):
+        raw = container.get("hs300_buy_hold") if isinstance(container, dict) else None
+        if isinstance(raw, (int, float)):
+            bench_ret = float(raw)
+            break
+        if isinstance(raw, dict) and isinstance(raw.get("benchmark_return_pct"), (int, float)):
+            bench_ret = float(raw["benchmark_return_pct"])
+            break
 
     gate = evaluate_validation_gate(
         metrics=metrics_block,
