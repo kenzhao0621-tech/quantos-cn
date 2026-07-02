@@ -589,23 +589,14 @@
 
   async function runScreener(btn) {
     const mode = $("screener-mode")?.value || "eod";
-    const liveLabel = mode === "live" ? "刷新行情并选股…" : "计算中…";
+    const liveLabel = mode === "live" ? "实时选股（约 1–2 分钟）…" : "计算中…";
     UI.setLoading(btn, true, liveLabel);
     try {
       const preset = $("screener-preset")?.value || "balanced";
       if (mode === "live") {
         $("screener-table")?.replaceChildren(
-          UI.renderEmpty("一键实时选股", "正在刷新全市场真实行情，完成后自动运行选股…", ""),
+          UI.renderEmpty("实时智能选股", "后端正在刷新行情并计算因子，首次约需 1–2 分钟，请勿重复点击…", ""),
         );
-        const liveRes = await ensureLiveQuotesFresh({ force: true, silent: true, updateMarket: true });
-        const ld = liveRes.data || {};
-        if (!liveRes.quotesReady && !(ld.row_count >= 100 && !ld.blocked)) {
-          const hint = ld.reason || liveRes.error?.message || "实时行情未就绪";
-          UI.renderScreener($("screener-table"), { blocked: true, blockerReason: hint, rows: [] });
-          UI.toast("选股失败", hint, "fail");
-          return liveRes;
-        }
-        UI.setLoading(btn, true, `实时选股 · ${ld.row_count || 0} 只行情已就绪…`);
       }
       const topN = $("screener-topn")?.value || "25";
       const minAmt = $("screener-minamt")?.value || "50000000";
@@ -620,10 +611,9 @@
         `&capital_cny=${capital}&price_min_cny=${priceMin}` +
         (priceMax !== "" ? `&price_max_cny=${priceMax}` : "") +
         `&enforce_capital_price_ceiling=${priceCeiling}`;
-      const fastQ = mode === "eod" ? "&fast=true" : "&fast=false";
+      const fastQ = "&fast=true";
       const res = await api.request(
         `/api/v1/screener/run?preset=${preset}&top_n=${topN}&min_amount_cny=${minAmt}&mode=${mode}&preferred_sectors=${sectors}&excluded_sectors=${excluded}${priceQ}${fastQ}`,
-        { timeoutMs: mode === "live" ? 45000 : 20000 },
       );
       if (!res.ok) {
         const hint = window.QuantOSFriendlyError?.(res) || res.error?.message || "选股请求失败";

@@ -1,5 +1,9 @@
 """Gateway FastAPI application."""
 
+import uuid
+from pathlib import Path
+from typing import Any, Dict, Optional
+
 from quant.paths import desktop_reports_root
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request

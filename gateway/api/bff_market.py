@@ -277,7 +277,7 @@ def screener_run(
         if enforce_capital_price_ceiling is not None
         else prefs.enforce_capital_price_ceiling
     )
-    use_fast = fast if mode.lower() not in ("live", "realtime", "intraday") else False
+    use_fast = bool(fast)
     result = get_screener_service().screen(
         preset=preset or prefs.strategy_preset,
         top_n=top_n,

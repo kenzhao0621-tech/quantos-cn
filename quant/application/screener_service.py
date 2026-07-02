@@ -504,6 +504,7 @@ class ScreenerService:
         price_max_cny: float | None = None,
         enforce_capital_price_ceiling: bool = False,
         capital_cny: float | None = None,
+        fast: bool = False,
     ) -> tuple[str | None, list[dict[str, Any]], dict[str, Any], str | None]:
         """Score full investable universe; returns (as_of, scored_rows, live_status, blocker)."""
         import statistics

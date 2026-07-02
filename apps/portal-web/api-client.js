@@ -93,7 +93,8 @@
         path.includes("/market/sync-all") ? 240000
         : path.includes("/market/live-refresh") ? 300000
         : path.includes("/autopilot/order-ticket") ? 45000
-        : path.includes("/screener/run") ? 120000
+        : path.includes("/screener/run") ? 180000
+        : path.includes("/screener/analyze") || path.includes("/screener/dossier") ? 120000
         : 90000
       );
       const controller = new AbortController();
